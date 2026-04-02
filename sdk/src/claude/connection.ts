@@ -1,5 +1,5 @@
 /**
- * ClaudeSDKConnection — bidirectional, interactive client for Claude Code via Axon.
+ * ClaudeAxonConnection — bidirectional, interactive client for Claude Code via Axon.
  *
  * Provides:
  * - connect() / disconnect() lifecycle
@@ -52,7 +52,7 @@ interface PendingControlRequest {
 // Client options
 // ---------------------------------------------------------------------------
 
-export interface ClaudeSDKConnectionOptions {
+export interface ClaudeAxonConnectionOptions {
   /** If true, emit verbose logs to stderr. */
   verbose?: boolean;
   /** Override the system prompt for this session. */
@@ -64,13 +64,13 @@ export interface ClaudeSDKConnectionOptions {
 }
 
 // ---------------------------------------------------------------------------
-// ClaudeSDKConnection
+// ClaudeAxonConnection
 // ---------------------------------------------------------------------------
 
-export class ClaudeSDKConnection {
+export class ClaudeAxonConnection {
   private transport: Transport;
   private devbox?: Devbox;
-  private options: ClaudeSDKConnectionOptions;
+  private options: ClaudeAxonConnectionOptions;
 
   // Message routing
   private messageQueue: SDKMessage[] = [];
@@ -90,7 +90,7 @@ export class ClaudeSDKConnection {
    *                automatically when {@link disconnect} is called.
    * @param options Connection options (verbose logging, system prompt, model, etc.).
    */
-  constructor(axon: Axon, devbox?: Devbox, options?: ClaudeSDKConnectionOptions) {
+  constructor(axon: Axon, devbox?: Devbox, options?: ClaudeAxonConnectionOptions) {
     this.options = options ?? {};
     this.devbox = devbox;
     this.transport = new AxonTransport(axon, {
@@ -114,7 +114,7 @@ export class ClaudeSDKConnection {
   async connect(): Promise<void> {
     if (this.closed) {
       throw new Error(
-        "This ClaudeSDKConnection has already been disconnected and cannot be reused. Create a new instance.",
+        "This ClaudeAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
       );
     }
     await this.transport.connect();

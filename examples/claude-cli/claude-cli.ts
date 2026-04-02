@@ -1,7 +1,7 @@
 /**
- * Interactive CLI using the SDK2 ClaudeSDKConnection.
+ * Interactive CLI using ClaudeAxonConnection from @runloop/agent-axon-client/claude.
  *
- * Creates a Runloop Devbox + Axon session, connects the ClaudeSDKConnection,
+ * Creates a Runloop Devbox + Axon session, connects the ClaudeAxonConnection,
  * and runs a REPL that streams assistant messages in real time.
  *
  * Usage:
@@ -12,7 +12,7 @@
 
 import { RunloopSDK } from "@runloop/api-client";
 import { createInterface, type Interface } from "readline";
-import { ClaudeSDKConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import type {
   SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -65,7 +65,7 @@ console.log(`Devbox ready: ${devbox.id}`);
 // Connect the client
 // ---------------------------------------------------------------------------
 
-const client = new ClaudeSDKConnection(axon, devbox, {
+const client = new ClaudeAxonConnection(axon, devbox, {
   verbose: VERBOSE,
   ...(MODEL && { model: MODEL }),
   ...(SYSTEM_PROMPT && { systemPrompt: SYSTEM_PROMPT }),

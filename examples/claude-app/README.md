@@ -53,7 +53,7 @@ npm run dev        # serves the built client from dist/
 
 ## How It Works
 
-1. **Connect** — the browser calls `POST /api/connect`, which provisions an Axon channel and a Runloop devbox running Claude Code, then opens a `ClaudeSDKConnection`.
+1. **Connect** — the browser calls `POST /api/connect`, which provisions an Axon channel and a Runloop devbox running Claude Code, then opens a `ClaudeAxonConnection`.
 2. **Send a prompt** — `POST /api/prompt` calls `conn.send()` and returns immediately. The agent's response streams in the background.
 3. **Stream messages** — as Claude responds, SDK messages flow through the Axon SSE stream to the server's read loop, which broadcasts each message over WebSocket to the browser.
 4. **Turn completion** — when a `result` message arrives, the server also broadcasts a `turn_complete` event so the client knows the turn is done.

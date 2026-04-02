@@ -97,7 +97,7 @@ Available guards: `isUserMessageChunk`, `isAgentMessageChunk`,
 ## Claude module — quick start
 
 ```typescript
-import { ClaudeSDKConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -114,7 +114,7 @@ const devbox = await sdk.devbox.create({
 });
 
 // 2. Connect
-const conn = new ClaudeSDKConnection(axon, devbox, { model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
 await conn.connect();
 
 // 3. Send and receive
@@ -127,7 +127,7 @@ for await (const msg of conn.receiveResponse()) {
 await conn.disconnect();
 ```
 
-### Claude — key methods on `ClaudeSDKConnection`
+### Claude — key methods on `ClaudeAxonConnection`
 
 | Method | Purpose |
 |--------|---------|

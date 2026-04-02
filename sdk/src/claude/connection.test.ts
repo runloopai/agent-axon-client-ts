@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ClaudeSDKConnection } from "./connection.js";
+import { ClaudeAxonConnection } from "./connection.js";
 import type { Transport } from "./transport.js";
 import type { WireData } from "./types.js";
 
@@ -79,7 +79,7 @@ function createMockDevbox() {
 }
 
 // ---------------------------------------------------------------------------
-// Helper to create a connected ClaudeSDKConnection with mock transport
+// Helper to create a connected ClaudeAxonConnection with mock transport
 // ---------------------------------------------------------------------------
 
 async function createConnectedClient(
@@ -87,7 +87,7 @@ async function createConnectedClient(
   options?: { devbox?: ReturnType<typeof createMockDevbox>; model?: string },
 ) {
   const axon = createMockAxon();
-  const conn = new ClaudeSDKConnection(axon as never, options?.devbox as never, {
+  const conn = new ClaudeAxonConnection(axon as never, options?.devbox as never, {
     model: options?.model,
   });
 
@@ -131,7 +131,7 @@ async function createConnectedClient(
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("ClaudeSDKConnection", () => {
+describe("ClaudeAxonConnection", () => {
   let transport: MockTransport;
 
   beforeEach(() => {

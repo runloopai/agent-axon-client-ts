@@ -25,8 +25,8 @@ describe("root exports", () => {
     expect(typeof SDK.acp.isToolCall).toBe("function");
   });
 
-  it("claude namespace contains ClaudeSDKConnection", () => {
-    expect(SDK.claude.ClaudeSDKConnection).toBeDefined();
+  it("claude namespace contains ClaudeAxonConnection", () => {
+    expect(SDK.claude.ClaudeAxonConnection).toBeDefined();
   });
 
   it("claude namespace contains AxonTransport", () => {

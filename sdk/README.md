@@ -32,7 +32,7 @@ npm install @anthropic-ai/claude-agent-sdk
 ```typescript
 // Subpath imports (recommended — tree-shakeable)
 import { createAxonAgent, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
-import { ClaudeSDKConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 
 // Namespaced root import (both modules at once)
 import { acp, claude } from "@runloop/agent-axon-client";
@@ -72,7 +72,7 @@ await agent.shutdown();
 ### Claude Code Agent
 
 ```typescript
-import { ClaudeSDKConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -87,7 +87,7 @@ const devbox = await sdk.devbox.create({
   }],
 });
 
-const conn = new ClaudeSDKConnection(axon, devbox, { model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
 await conn.connect();
 
 await conn.send("What files are in this directory?");
@@ -255,23 +255,23 @@ import type {
 
 ## Claude Module
 
-### `ClaudeSDKConnection`
+### `ClaudeAxonConnection`
 
 Bidirectional, interactive client for Claude Code via Axon. Messages are yielded as `SDKMessage` from `@anthropic-ai/claude-agent-sdk` — the exact types the Claude Code CLI emits.
 
 **Constructor**:
 
 ```typescript
-new ClaudeSDKConnection(axon: Axon, devbox?: Devbox, options?: ClaudeSDKConnectionOptions)
+new ClaudeAxonConnection(axon: Axon, devbox?: Devbox, options?: ClaudeAxonConnectionOptions)
 ```
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `axon` | `Axon` | Yes | The Axon channel (from `@runloop/api-client`) |
 | `devbox` | `Devbox` | No | If provided, shut down automatically on `disconnect()` |
-| `options` | `ClaudeSDKConnectionOptions` | No | See below |
+| `options` | `ClaudeAxonConnectionOptions` | No | See below |
 
-**`ClaudeSDKConnectionOptions`**:
+**`ClaudeAxonConnectionOptions`**:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -305,7 +305,7 @@ new ClaudeSDKConnection(axon: Axon, devbox?: Devbox, options?: ClaudeSDKConnecti
 
 ### `AxonTransport`
 
-Lower-level transport that implements the `Transport` interface using Runloop Axon. Used internally by `ClaudeSDKConnection` but available for custom integrations.
+Lower-level transport that implements the `Transport` interface using Runloop Axon. Used internally by `ClaudeAxonConnection` but available for custom integrations.
 
 ```typescript
 import { AxonTransport, type Transport } from "@runloop/agent-axon-client/claude";
@@ -348,7 +348,7 @@ ACP Module                                    Claude Module
 │  JSON-RPC 2.0   │         Axon Bus          │  Claude SDK      │
 │  translation    │◄───────────────────────►  │  wire format     │
 │       ↕         │       (SSE + publish)     │       ↕          │
-│  AxonACP        │                           │  ClaudeSDK       │
+│  AxonACP        │                           │  ClaudeAxon      │
 │  Connection     │                           │  Connection      │
 └─────────────────┘                           └─────────────────┘
         ↕                                             ↕
@@ -393,7 +393,7 @@ type WireData = Record<string, any>;
 
 - **Eager SSE connection** (ACP): The `AxonACPConnection` constructor immediately opens an SSE subscription via `axon.subscribeSse()`. Connection errors surface on the first `await`ed method call, not at construction time.
 - **No automatic reconnection**: If an SSE stream drops, the connection is dead. Create a new instance to reconnect.
-- **Permission handling** (Claude): The `ClaudeSDKConnection` auto-approves all tool use by default. Override via incoming control request handling is not yet exposed as a configuration option.
+- **Permission handling** (Claude): The `ClaudeAxonConnection` auto-approves all tool use by default. Override via incoming control request handling is not yet exposed as a configuration option.
 
 ## License
 
