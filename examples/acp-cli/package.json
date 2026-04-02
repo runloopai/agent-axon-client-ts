@@ -7,7 +7,7 @@
     "start": "bun run acp-cli.ts"
   },
   "dependencies": {
-    "@runloop/agent-axon-client": "^0.1.0",
+    "@runloop/agent-axon-client": "latest",
     "@runloop/api-client": "^1.16.2"
   }
 }
