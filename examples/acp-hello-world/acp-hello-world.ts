@@ -34,11 +34,14 @@ const AGENT_BINARY = args.agent ?? "opencode";
 const sdk = new RunloopSDK();
 
 console.log(`Starting devbox with agent "${AGENT_BINARY}"...`);
+// The runloop/agents blueprint used has opencode pre-installed.
+// When using an AxonACPConnection, ensure the Agent is on the blueprint by
+// using the AgentAPI or a Blueprint.
 const agent = await createAxonAgent(sdk, {
   agentBinary: AGENT_BINARY,
   launchArgs: ["acp"],
 }, {
-  blueprint_id: "bpt_32sRBMzW5R817DLugj9v7",
+  blueprint_name: "runloop/agents",
 });
 console.log(`Devbox ready: ${agent.devboxId}`);
 
