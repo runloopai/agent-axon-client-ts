@@ -356,10 +356,7 @@ describe("ClaudeAxonConnection", () => {
       await vi.waitFor(() => {
         const resp = transport._written.find((w) => {
           const p = JSON.parse(w);
-          return (
-            p.type === "control_response" &&
-            p.response?.request_id === "req_001"
-          );
+          return p.type === "control_response" && p.response?.request_id === "req_001";
         });
         expect(resp).toBeDefined();
         const parsed = JSON.parse(resp as string);
@@ -380,10 +377,7 @@ describe("ClaudeAxonConnection", () => {
       await vi.waitFor(() => {
         const resp = transport._written.find((w) => {
           const p = JSON.parse(w);
-          return (
-            p.type === "control_response" &&
-            p.response?.request_id === "req_002"
-          );
+          return p.type === "control_response" && p.response?.request_id === "req_002";
         });
         expect(resp).toBeDefined();
         expect(JSON.parse(resp as string).response.response.continue).toBe(true);
@@ -402,10 +396,7 @@ describe("ClaudeAxonConnection", () => {
       await vi.waitFor(() => {
         const resp = transport._written.find((w) => {
           const p = JSON.parse(w);
-          return (
-            p.type === "control_response" &&
-            p.response?.request_id === "req_003"
-          );
+          return p.type === "control_response" && p.response?.request_id === "req_003";
         });
         expect(resp).toBeDefined();
         expect(JSON.parse(resp as string).response.response.error).toContain("not supported");

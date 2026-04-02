@@ -52,7 +52,7 @@ async function runReadLoop(conn: ClaudeAxonConnection): Promise<void> {
 
 app.post("/api/start", async (req, res) => {
   try {
-    const { blueprintId, launchCommands, systemPrompt, model } = req.body;
+    const { blueprintName, launchCommands, systemPrompt, model } = req.body;
 
     const apiKey = process.env.RUNLOOP_API_KEY;
     const baseUrl = process.env.RUNLOOP_BASE_URL;
@@ -69,8 +69,11 @@ app.post("/api/start", async (req, res) => {
     });
 
     const axon = await sdk.axon.create({ name: "claude-demo-sdk" });
+    // The runloop/agents blueprint used has Claude pre-installed.
+    // When using a ClaudeSDKConnection, ensure the Agent is on the blueprint by
+    // using the AgentAPI or a Blueprint.
     const devbox = await sdk.devbox.create({
-      blueprint_id: blueprintId ?? "bpt_32sRBMzW5R817DLugj9v7", // opencode-ai blueprint
+      blueprint_name: blueprintName ?? "runloop/agents",
       mounts: [
         {
           type: "broker_mount" as const,

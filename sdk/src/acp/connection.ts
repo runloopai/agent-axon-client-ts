@@ -89,10 +89,7 @@ export class ACPAxonConnection {
       onDisconnect: options.onDisconnect,
     });
 
-    this.protocol = new ClientSideConnection(
-      (_agent: Agent) => this.createClient(),
-      stream,
-    );
+    this.protocol = new ClientSideConnection((_agent: Agent) => this.createClient(), stream);
   }
 
   // ---------------------------------------------------------------------------
@@ -135,9 +132,7 @@ export class ACPAxonConnection {
   }
 
   /** Sets the operational mode for a session (e.g. "ask", "code"). */
-  setSessionMode(
-    params: SetSessionModeRequest,
-  ): Promise<SetSessionModeResponse> {
+  setSessionMode(params: SetSessionModeRequest): Promise<SetSessionModeResponse> {
     return this.protocol.setSessionMode(params);
   }
 
@@ -149,18 +144,12 @@ export class ACPAxonConnection {
   }
 
   /** Sends an arbitrary extension request not part of the ACP spec. */
-  extMethod(
-    method: string,
-    params: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
+  extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
     return this.protocol.extMethod(method, params);
   }
 
   /** Sends an arbitrary extension notification not part of the ACP spec. */
-  extNotification(
-    method: string,
-    params: Record<string, unknown>,
-  ): Promise<void> {
+  extNotification(method: string, params: Record<string, unknown>): Promise<void> {
     return this.protocol.extNotification(method, params);
   }
 
@@ -235,12 +224,8 @@ export class ACPAxonConnection {
         }
 
         const option =
-          params.options.find(
-            (o: { kind: string }) => o.kind === "allow_always",
-          ) ??
-          params.options.find(
-            (o: { kind: string }) => o.kind === "allow_once",
-          ) ??
+          params.options.find((o: { kind: string }) => o.kind === "allow_always") ??
+          params.options.find((o: { kind: string }) => o.kind === "allow_once") ??
           params.options[0];
 
         if (option) {

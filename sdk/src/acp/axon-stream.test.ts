@@ -605,7 +605,11 @@ describe("axonStream", () => {
 
       const reader2 = readable.getReader();
       const msg3 = await reader2.read();
-      expect(msg3.value).toMatchObject({ jsonrpc: "2.0", id: 5, result: { stopReason: "end_turn" } });
+      expect(msg3.value).toMatchObject({
+        jsonrpc: "2.0",
+        id: 5,
+        result: { stopReason: "end_turn" },
+      });
     });
   });
 });

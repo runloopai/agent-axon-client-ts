@@ -22,7 +22,7 @@ const { values: args } = parseArgs({
 });
 
 const MODEL = args.model ?? null;
-const BLUEPRINT_ID = "bpt_32sRBMzW5R817DLugj9v7";
+const DEFAULT_BLUEPRINT_NAME = "runloop/agents";
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -32,6 +32,9 @@ const runloop = new RunloopSDK();
 
 console.log("Starting devbox...");
 const axon = await runloop.axon.create({ name: "hello-world-session" });
+// The runloop/agents blueprint used has Claude pre-installed.
+// When using a ClaudeSDKConnection, ensure the Agent is on the blueprint by
+// using the AgentAPI or a Blueprint.
 const devbox = await runloop.devbox.create({
   mounts: [
     {
@@ -41,7 +44,7 @@ const devbox = await runloop.devbox.create({
       launch_args: [],
     },
   ],
-  blueprint_id: BLUEPRINT_ID,
+  blueprint_name: DEFAULT_BLUEPRINT_NAME,
   environment_variables: {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
   },
