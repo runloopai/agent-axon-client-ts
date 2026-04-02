@@ -486,7 +486,12 @@ export default function App() {
               </div>
             )}
             {agent.axonEvents.length === 0 && (
-              <div className="empty-state">No axon events yet</div>
+              <div className="empty-state axon-events-empty">
+                <div className="empty-state-title">No events yet</div>
+                <div className="empty-state-subtitle">
+                  Events from this axon will appear here.
+                </div>
+              </div>
             )}
             {agent.axonEvents.map((event, i) => (
               <AxonEventItem

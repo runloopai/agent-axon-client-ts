@@ -1225,6 +1225,27 @@ html, body, #root {
   font-size: 13px;
 }
 
+.empty-state.axon-events-empty {
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.empty-state-title {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.empty-state-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+  max-width: 240px;
+  line-height: 1.4;
+}
+
 /* ── Sessions Sidebar ────────────────────────────────────── */
 
 .sessions-sidebar {
