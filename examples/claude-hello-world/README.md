@@ -32,7 +32,7 @@ bun run claude-hello-world.ts
 ## What it does
 
 1. Creates an Axon channel and a Runloop devbox running Claude Code
-2. Connects via `ClaudeSDKConnection`
+2. Connects via `ClaudeAxonConnection`
 3. Sends a single prompt
 4. Streams the response to stdout
 5. Disconnects and shuts down the devbox

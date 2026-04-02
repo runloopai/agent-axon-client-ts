@@ -64,7 +64,7 @@ await agent.shutdown();
 ### Claude module
 
 ```typescript
-import { ClaudeSDKConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -79,7 +79,7 @@ const devbox = await sdk.devbox.create({
   }],
 });
 
-const conn = new ClaudeSDKConnection(axon, devbox, { model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
 await conn.connect();
 
 await conn.send("What files are in this directory?");

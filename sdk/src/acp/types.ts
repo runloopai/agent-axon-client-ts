@@ -41,8 +41,8 @@ export interface AgentLaunchConfig {
   launchCommands?: string[];
 }
 
-/** Options for creating an {@link AxonACPConnection}. */
-export interface AxonACPConnectionOptions {
+/** Options for creating an {@link ACPAxonConnection}. */
+export interface ACPAxonConnectionOptions {
   /** Axon channel to connect to (from `@runloop/api-client`). */
   axon: Axon;
   /**

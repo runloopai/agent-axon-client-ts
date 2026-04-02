@@ -25,10 +25,10 @@ import {
 } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import { axonStream } from "./axon-stream.js";
-import type { AxonACPConnectionOptions, RawEventListener, SessionUpdateListener } from "./types.js";
+import type { ACPAxonConnectionOptions, RawEventListener, SessionUpdateListener } from "./types.js";
 
 function defaultOnError(error: unknown): void {
-  console.error("[AxonACPConnection]", error);
+  console.error("[ACPAxonConnection]", error);
 }
 
 /**
@@ -44,7 +44,7 @@ function defaultOnError(error: unknown): void {
  * The underlying `ClientSideConnection` is accessible via `.protocol` for
  * advanced use cases (e.g. unstable/experimental ACP methods).
  */
-export class AxonACPConnection {
+export class ACPAxonConnection {
   /** The Axon channel ID this connection is bound to. */
   readonly axonId: string;
 
@@ -69,7 +69,7 @@ export class AxonACPConnection {
     | undefined;
   private shutdownFn: (() => Promise<void>) | undefined;
 
-  constructor(options: AxonACPConnectionOptions) {
+  constructor(options: ACPAxonConnectionOptions) {
     this.axonId = options.axon.id;
     this.devboxId = options.devboxId;
     this.abortController = new AbortController();

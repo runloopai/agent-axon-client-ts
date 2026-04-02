@@ -12,8 +12,8 @@ describe("root exports", () => {
     expect(typeof SDK.claude).toBe("object");
   });
 
-  it("acp namespace contains AxonACPConnection", () => {
-    expect(SDK.acp.AxonACPConnection).toBeDefined();
+  it("acp namespace contains ACPAxonConnection", () => {
+    expect(SDK.acp.ACPAxonConnection).toBeDefined();
   });
 
   it("acp namespace contains createAxonAgent", () => {
@@ -25,8 +25,8 @@ describe("root exports", () => {
     expect(typeof SDK.acp.isToolCall).toBe("function");
   });
 
-  it("claude namespace contains ClaudeSDKConnection", () => {
-    expect(SDK.claude.ClaudeSDKConnection).toBeDefined();
+  it("claude namespace contains ClaudeAxonConnection", () => {
+    expect(SDK.claude.ClaudeAxonConnection).toBeDefined();
   });
 
   it("claude namespace contains AxonTransport", () => {

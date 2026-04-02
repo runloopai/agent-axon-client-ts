@@ -1,7 +1,7 @@
 /**
  * Minimal Claude hello-world example.
  *
- * Creates a Runloop Devbox, connects via ClaudeSDKConnection,
+ * Creates a Runloop Devbox, connects via ClaudeAxonConnection,
  * sends a single prompt, prints the response, and exits.
  *
  * Usage:
@@ -10,7 +10,7 @@
  */
 
 import { RunloopSDK } from "@runloop/api-client";
-import { ClaudeSDKConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { parseArgs } from "util";
 
@@ -55,7 +55,7 @@ console.log(`Devbox ready: ${devbox.id}`);
 // Connect
 // ---------------------------------------------------------------------------
 
-const client = new ClaudeSDKConnection(axon, devbox, {
+const client = new ClaudeAxonConnection(axon, devbox, {
   ...(MODEL && { model: MODEL }),
 });
 

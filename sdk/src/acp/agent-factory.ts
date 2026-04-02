@@ -1,11 +1,11 @@
 import type { RunloopSDK, SDKDevboxCreateParams } from "@runloop/api-client";
-import { AxonACPConnection } from "./connection.js";
-import type { AgentLaunchConfig, AxonACPConnectionOptions } from "./types.js";
+import { ACPAxonConnection } from "./connection.js";
+import type { ACPAxonConnectionOptions, AgentLaunchConfig } from "./types.js";
 
 /**
  * Creates an Axon-backed ACP agent: provisions an Axon channel, launches a
  * Runloop devbox with the broker mount, and returns a connected
- * {@link AxonACPConnection}.
+ * {@link ACPAxonConnection}.
  *
  * The returned connection has `shutdown()` pre-wired to disconnect the stream
  * and shut down the devbox. The `devboxId` and `axonId` are available as
@@ -24,10 +24,10 @@ export async function createAxonAgent(
   config: AgentLaunchConfig,
   devboxConfig?: Omit<SDKDevboxCreateParams, "mounts">,
   connectionOptions?: Pick<
-    AxonACPConnectionOptions,
+    ACPAxonConnectionOptions,
     "requestPermission" | "onError" | "onDisconnect"
   >,
-): Promise<AxonACPConnection> {
+): Promise<ACPAxonConnection> {
   const axon = await sdk.axon.create({ name: "acp-transport" });
 
   const devbox = await sdk.devbox.create({
@@ -49,7 +49,7 @@ export async function createAxonAgent(
       : devboxConfig?.launch_parameters,
   });
 
-  return new AxonACPConnection({
+  return new ACPAxonConnection({
     axon,
     devboxId: devbox.id,
     shutdown: async () => {

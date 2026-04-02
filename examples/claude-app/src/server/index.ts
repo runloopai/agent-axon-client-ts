@@ -1,7 +1,7 @@
 import express from "express";
 import { createServer } from "node:http";
 import { RunloopSDK } from "@runloop/api-client";
-import { ClaudeSDKConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { WsBroadcaster, type WsEvent } from "./ws.ts";
 
@@ -11,13 +11,13 @@ app.use(express.json());
 const server = createServer(app);
 const ws = new WsBroadcaster(server);
 
-let connection: ClaudeSDKConnection | null = null;
+let connection: ClaudeAxonConnection | null = null;
 let abortController: AbortController | null = null;
 let axonEvents: unknown[] = [];
 let initMessage: SDKMessage | null = null;
 
 // Background read loop: streams all SDKMessages to WS clients
-async function runReadLoop(conn: ClaudeSDKConnection): Promise<void> {
+async function runReadLoop(conn: ClaudeAxonConnection): Promise<void> {
   console.log("[read-loop] started");
   try {
     for await (const msg of conn.receiveMessages()) {
@@ -93,7 +93,7 @@ app.post("/api/start", async (req, res) => {
     abortController = new AbortController();
     axonEvents = [];
 
-    const conn = new ClaudeSDKConnection(axon, devbox, {
+    const conn = new ClaudeAxonConnection(axon, devbox, {
       verbose: true,
       ...(systemPrompt ? { systemPrompt } : {}),
       ...(model ? { model } : {}),
