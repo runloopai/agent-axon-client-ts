@@ -1,6 +1,6 @@
 import type { RunloopSDK, SDKDevboxCreateParams } from "@runloop/api-client";
 import { ACPAxonConnection } from "./connection.js";
-import type { AgentLaunchConfig, ACPAxonConnectionOptions } from "./types.js";
+import type { ACPAxonConnectionOptions, AgentLaunchConfig } from "./types.js";
 
 /**
  * Creates an Axon-backed ACP agent: provisions an Axon channel, launches a

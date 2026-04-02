@@ -25,11 +25,7 @@ import {
 } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import { axonStream } from "./axon-stream.js";
-import type {
-  ACPAxonConnectionOptions,
-  RawEventListener,
-  SessionUpdateListener,
-} from "./types.js";
+import type { ACPAxonConnectionOptions, RawEventListener, SessionUpdateListener } from "./types.js";
 
 function defaultOnError(error: unknown): void {
   console.error("[ACPAxonConnection]", error);
