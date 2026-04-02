@@ -54,8 +54,11 @@ export class ConnectionManager {
     });
 
     const axon = await sdk.axon.create({ name: "node-demo-acp" });
+    // The runloop/agents blueprint used has opencode pre-installed.
+    // When using an AxonACPConnection, ensure the Agent is on the blueprint by
+    // using the AgentAPI or a Blueprint.
     const devbox = await sdk.devbox.create({
-      blueprint_id: "bpt_32sRBMzW5R817DLugj9v7", // opencode-ai blueprint
+      blueprint_name: "runloop/agents",
       mounts: [
         {
           type: "broker_mount" as const,

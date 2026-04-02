@@ -97,7 +97,7 @@ export interface UseClaudeAgentReturn {
   runloopUrl: string | null;
   permissionMode: string | null;
   currentModel: string | null;
-  start: (config: { blueprintId?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => Promise<void>;
+  start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
   cancel: () => Promise<void>;
   setModel: (model: string) => Promise<void>;
@@ -639,7 +639,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
   // ---------------------------------------------------------------------------
 
   const start = useCallback(
-    async (config: { blueprintId?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => {
+    async (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => {
       try {
         setError(null);
         setConnectionPhase("connecting");
@@ -651,7 +651,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
           axonId: string;
           runloopUrl?: string;
         }>("/api/start", {
-          blueprintId: config.blueprintId,
+          blueprintName: config.blueprintName,
           launchCommands: config.launchCommands,
           systemPrompt: config.systemPrompt,
           model: config.model,

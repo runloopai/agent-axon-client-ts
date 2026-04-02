@@ -67,7 +67,7 @@ export default function App() {
   const chatAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const [blueprintId, setBlueprintId] = useState("bpt_32sRBMzW5R817DLugj9v7");
+  const [blueprintName, setBlueprintName] = useState("runloop/agents");
   const [launchCommands, setLaunchCommands] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [startModel, setStartModel] = useState("claude-haiku-4-5");
@@ -97,7 +97,7 @@ export default function App() {
 
   const handleStart = async () => {
     await agent.start({
-      blueprintId: blueprintId || undefined,
+      blueprintName: blueprintName || undefined,
       launchCommands: launchCommands ? launchCommands.split("\n").filter(Boolean) : undefined,
       systemPrompt: systemPrompt || undefined,
       model: startModel || undefined,
@@ -131,7 +131,7 @@ export default function App() {
       <div className="app">
         <div className="setup-panel">
           <SetupCard
-            blueprintId={blueprintId} setBlueprintId={setBlueprintId}
+            blueprintName={blueprintName} setBlueprintName={setBlueprintName}
             launchCommands={launchCommands} setLaunchCommands={setLaunchCommands}
             systemPrompt={systemPrompt} setSystemPrompt={setSystemPrompt}
             startModel={startModel} setStartModel={setStartModel}
@@ -674,7 +674,7 @@ function ControlsBar({
 // ── Setup Card ──────────────────────────────────────────────
 
 function SetupCard({
-  blueprintId, setBlueprintId,
+  blueprintName, setBlueprintName,
   launchCommands, setLaunchCommands,
   systemPrompt, setSystemPrompt,
   startModel, setStartModel,
@@ -682,7 +682,7 @@ function SetupCard({
   connectionPhase,
   error,
 }: {
-  blueprintId: string; setBlueprintId: (v: string) => void;
+  blueprintName: string; setBlueprintName: (v: string) => void;
   launchCommands: string; setLaunchCommands: (v: string) => void;
   systemPrompt: string; setSystemPrompt: (v: string) => void;
   startModel: string; setStartModel: (v: string) => void;
@@ -697,8 +697,8 @@ function SetupCard({
       <h2>Claude SDK Demo</h2>
       <p className="setup-subtitle">Full Claude Code SDK client with streaming and tool visualization</p>
       <div className="form-group">
-        <label>Blueprint ID (optional)</label>
-        <input value={blueprintId} onChange={(e) => setBlueprintId(e.target.value)} placeholder="bpt_..." disabled={connecting} />
+        <label>Blueprint name (optional)</label>
+        <input value={blueprintName} onChange={(e) => setBlueprintName(e.target.value)} placeholder="runloop/agents" disabled={connecting} />
       </div>
       <div className="form-group">
         <label>Launch Commands (one per line, optional)</label>
