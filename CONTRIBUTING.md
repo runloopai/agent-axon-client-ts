@@ -47,13 +47,13 @@ bun run check
 bun run --filter '@runloop/agent-axon-client' check:fix
 ```
 
-### Working on demos
+### Working on examples
 
-Each demo has its own dev server:
+Each example app has its own dev server:
 
 ```bash
-bun run --filter '@runloop/example-acp-app' dev     # ACP demo
-bun run --filter '@runloop/example-claude-app' dev  # Claude demo
+bun run --filter '@runloop/example-acp-app' dev     # ACP example
+bun run --filter '@runloop/example-claude-app' dev  # Claude example
 ```
 
 ## Commit Conventions
