@@ -32,15 +32,29 @@ The SDK has two independent modules — pick the one that matches your agent's p
 ### ACP module
 
 ```typescript
-import { createAxonAgent, PROTOCOL_VERSION, isAgentMessageChunk } from "@runloop/agent-axon-client/acp";
+import { ACPAxonConnection, PROTOCOL_VERSION, isAgentMessageChunk } from "@runloop/agent-axon-client/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
 
-// Provision an Axon channel + devbox and connect
-const agent = await createAxonAgent(sdk, {
-  agentBinary: "opencode",
-  launchArgs: ["acp"],
+const axon = await sdk.axon.create({ name: "acp-transport" });
+const devbox = await sdk.devbox.create({
+  mounts: [
+    {
+      type: "broker_mount",
+      axon_id: axon.id,
+      protocol: "acp",
+      agent_binary: "opencode",
+      launch_args: ["acp"],
+    },
+  ],
+});
+const agent = new ACPAxonConnection({
+  axon,
+  devboxId: devbox.id,
+  shutdown: async () => {
+    await devbox.shutdown();
+  },
 });
 
 await agent.initialize({

@@ -31,7 +31,7 @@ npm install @anthropic-ai/claude-agent-sdk
 
 ```typescript
 // Subpath imports (recommended — tree-shakeable)
-import { createAxonAgent, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
+import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 
 // Namespaced root import (both modules at once)
@@ -43,14 +43,29 @@ import { acp, claude } from "@runloop/agent-axon-client";
 ### ACP Agent
 
 ```typescript
-import { createAxonAgent, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
+import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
 
-const agent = await createAxonAgent(sdk, {
-  agentBinary: "opencode",
-  launchArgs: ["acp"],
+const axon = await sdk.axon.create({ name: "acp-transport" });
+const devbox = await sdk.devbox.create({
+  mounts: [
+    {
+      type: "broker_mount",
+      axon_id: axon.id,
+      protocol: "acp",
+      agent_binary: "opencode",
+      launch_args: ["acp"],
+    },
+  ],
+});
+const agent = new ACPAxonConnection({
+  axon,
+  devboxId: devbox.id,
+  shutdown: async () => {
+    await devbox.shutdown();
+  },
 });
 
 await agent.initialize({
@@ -103,25 +118,6 @@ await conn.disconnect();
 
 ## ACP Module
 
-### `createAxonAgent(sdk, config, connectionOptions?): Promise<ACPAxonConnection>`
-
-Convenience factory that provisions the full stack:
-
-1. Creates an Axon channel
-2. Creates a devbox with a `broker_mount` for the specified agent
-3. Returns a connected `ACPAxonConnection`
-
-**Parameters**:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `sdk` | `RunloopSDK` | A Runloop SDK instance |
-| `config.agentBinary` | `string` | Agent to run (e.g. `"opencode"`, `"claude"`) |
-| `config.launchArgs` | `string[]` | Args passed to the agent binary |
-| `config.launchCommands` | `string[]` | Optional setup commands; enables 5-min keep-alive |
-| `connectionOptions.requestPermission` | `(params) => Promise<Response>` | Custom permission handler |
-| `connectionOptions.onError` | `(error: unknown) => void` | Swallowed error callback |
-
 ### `ACPAxonConnection`
 
 Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the ACP `ClientSideConnection`.
@@ -131,6 +127,8 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `axon` | `Axon` | Yes | Axon channel from `@runloop/api-client` |
+| `devboxId` | `string` | No | Devbox ID for logging / observability |
+| `shutdown` | `() => Promise<void>` | No | Called from `shutdown()` (e.g. devbox teardown) |
 | `requestPermission` | `(params) => Promise<Response>` | No | Custom permission handler (defaults to auto-approve) |
 | `onError` | `(error: unknown) => void` | No | Error callback |
 | `onDisconnect` | `() => void` | No | Called when the SSE stream disconnects |
@@ -157,7 +155,7 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 |---|---|
 | `protocol: ClientSideConnection` | Escape hatch for experimental/unstable ACP methods |
 | `axonId: string` | The Axon channel ID |
-| `devboxId: string \| undefined` | The Runloop devbox ID (set by `createAxonAgent`) |
+| `devboxId: string \| undefined` | The Runloop devbox ID (if passed in options) |
 | `signal: AbortSignal` | Fires when the connection closes |
 | `closed: Promise<void>` | Resolves when the connection closes |
 | `onSessionUpdate(listener)` | Register a session update listener. Returns unsubscribe function. |
@@ -165,9 +163,9 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 | `disconnect()` | Abort the stream and clear all listeners |
 | `shutdown()` | Disconnect and run the teardown callback (e.g. devbox shutdown) |
 
-### `ACPAxonConnection` (mid-level usage)
+### Provisioning Axon + devbox
 
-If you already have infrastructure provisioned, construct `ACPAxonConnection` directly with an `Axon` object from `@runloop/api-client`:
+Create an Axon channel, attach a devbox `broker_mount` with `protocol: "acp"`, then pass the `Axon` (and optional `devboxId` / `shutdown`) into `ACPAxonConnection`:
 
 ```typescript
 import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
@@ -175,9 +173,24 @@ import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
 const axon = await sdk.axon.create({ name: "my-channel" });
+const devbox = await sdk.devbox.create({
+  mounts: [
+    {
+      type: "broker_mount",
+      axon_id: axon.id,
+      protocol: "acp",
+      agent_binary: "opencode",
+      launch_args: ["acp"],
+    },
+  ],
+});
 
 const conn = new ACPAxonConnection({
   axon,
+  devboxId: devbox.id,
+  shutdown: async () => {
+    await devbox.shutdown();
+  },
   requestPermission: async (params) => {
     const option = params.options[0];
     return { outcome: { outcome: "selected", optionId: option.optionId } };

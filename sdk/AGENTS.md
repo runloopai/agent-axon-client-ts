@@ -28,15 +28,30 @@ npm install @anthropic-ai/claude-agent-sdk
 ## ACP module — quick start
 
 ```typescript
-import { createAxonAgent, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
+import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
 
-// 1. Create agent (provisions Axon channel + devbox)
-const agent = await createAxonAgent(sdk, {
-  agentBinary: "opencode",
-  launchArgs: ["acp"],
+// 1. Provision Axon + devbox with ACP broker mount
+const axon = await sdk.axon.create({ name: "acp-transport" });
+const devbox = await sdk.devbox.create({
+  mounts: [
+    {
+      type: "broker_mount",
+      axon_id: axon.id,
+      protocol: "acp",
+      agent_binary: "opencode",
+      launch_args: ["acp"],
+    },
+  ],
+});
+const agent = new ACPAxonConnection({
+  axon,
+  devboxId: devbox.id,
+  shutdown: async () => {
+    await devbox.shutdown();
+  },
 });
 
 // 2. Initialize

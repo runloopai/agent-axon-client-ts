@@ -48,7 +48,7 @@ export class ACPAxonConnection {
   /** The Axon channel ID this connection is bound to. */
   readonly axonId: string;
 
-  /** The Runloop devbox ID, if created via `createAxonAgent`. */
+  /** The Runloop devbox ID, if supplied in connection options. */
   readonly devboxId: string | undefined;
 
   /**
@@ -199,7 +199,7 @@ export class ACPAxonConnection {
 
   /**
    * Disconnects the ACP connection and runs the shutdown callback (e.g. devbox
-   * teardown) if one was provided via options or `createAxonAgent`.
+   * teardown) if one was provided in connection options.
    */
   async shutdown(): Promise<void> {
     this.disconnect();

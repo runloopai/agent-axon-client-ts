@@ -11,7 +11,7 @@
 
 import { RunloopSDK } from "@runloop/api-client";
 import {
-  createAxonAgent,
+  ACPAxonConnection,
   PROTOCOL_VERSION,
   isAgentMessageChunk,
   isToolCall,
@@ -35,13 +35,27 @@ const sdk = new RunloopSDK();
 
 console.log(`Starting devbox with agent "${AGENT_BINARY}"...`);
 // The runloop/agents blueprint used has opencode pre-installed.
-// When using an AxonACPConnection, ensure the Agent is on the blueprint by
-// using the AgentAPI or a Blueprint.
-const agent = await createAxonAgent(sdk, {
-  agentBinary: AGENT_BINARY,
-  launchArgs: ["acp"],
-}, {
+// When using ACPAxonConnection, ensure the agent binary is on the blueprint
+// (Agent API or custom blueprint).
+const axon = await sdk.axon.create({ name: "acp-transport" });
+const devbox = await sdk.devbox.create({
   blueprint_name: "runloop/agents",
+  mounts: [
+    {
+      type: "broker_mount",
+      axon_id: axon.id,
+      protocol: "acp",
+      agent_binary: AGENT_BINARY,
+      launch_args: ["acp"],
+    },
+  ],
+});
+const agent = new ACPAxonConnection({
+  axon,
+  devboxId: devbox.id,
+  shutdown: async () => {
+    await devbox.shutdown();
+  },
 });
 console.log(`Devbox ready: ${agent.devboxId}`);
 

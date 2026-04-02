@@ -63,11 +63,10 @@ export interface ACPAxonConnectionOptions {
    * Not called when the stream is intentionally aborted via `signal`.
    */
   onDisconnect?: () => void;
-  /** Runloop devbox ID, set automatically by `createAxonAgent`. */
+  /** Runloop devbox ID, for observability or logging. */
   devboxId?: string;
   /**
-   * Async teardown callback invoked by `shutdown()`.
-   * Set automatically by `createAxonAgent` to shut down the devbox.
+   * Async teardown callback invoked by `shutdown()` (e.g. devbox shutdown).
    */
   shutdown?: () => Promise<void>;
 }
