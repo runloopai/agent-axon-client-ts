@@ -33,7 +33,7 @@ function createMockTransport(): MockTransport {
     async *readMessages() {
       while (true) {
         if (transport._messages.length > 0) {
-          yield transport._messages.shift()!;
+          yield transport._messages.shift() as WireData;
           continue;
         }
         if (transport._done) return;
@@ -97,7 +97,7 @@ async function createConnectedClient(
   // Queue up the initialize control response so connect() succeeds.
   // The connect() method sends an initialize control_request and waits for
   // control_response. We intercept the write and respond.
-  const originalWrite = transport.write;
+  const _originalWrite = transport.write;
   (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
     transport._written.push(data);
     const parsed = JSON.parse(data);
@@ -158,7 +158,7 @@ describe("ClaudeAxonConnection", () => {
         return p.type === "control_request" && p.request?.subtype === "set_model";
       });
       expect(modelCall).toBeDefined();
-      expect(JSON.parse(modelCall!).request.model).toBe("claude-sonnet-4-5");
+      expect(JSON.parse(modelCall as string).request.model).toBe("claude-sonnet-4-5");
     });
 
     it("throws if called on an already-disconnected instance", async () => {
@@ -180,7 +180,7 @@ describe("ClaudeAxonConnection", () => {
         return p.type === "user";
       });
       expect(sent).toBeDefined();
-      const parsed = JSON.parse(sent!);
+      const parsed = JSON.parse(sent as string);
       expect(parsed.type).toBe("user");
       expect(parsed.message).toEqual({ role: "user", content: "Hello Claude" });
       expect(parsed.parent_tool_use_id).toBeNull();
@@ -340,7 +340,7 @@ describe("ClaudeAxonConnection", () => {
     });
 
     it("handles incoming can_use_tool control requests with allow behavior", async () => {
-      const conn = await createConnectedClient(transport);
+      await createConnectedClient(transport);
 
       transport._push({
         type: "control_request",
@@ -362,14 +362,14 @@ describe("ClaudeAxonConnection", () => {
           );
         });
         expect(resp).toBeDefined();
-        const parsed = JSON.parse(resp!);
+        const parsed = JSON.parse(resp as string);
         expect(parsed.response.subtype).toBe("success");
         expect(parsed.response.response.behavior).toBe("allow");
       });
     });
 
     it("handles incoming hook_callback control requests with continue", async () => {
-      const conn = await createConnectedClient(transport);
+      await createConnectedClient(transport);
 
       transport._push({
         type: "control_request",
@@ -386,12 +386,12 @@ describe("ClaudeAxonConnection", () => {
           );
         });
         expect(resp).toBeDefined();
-        expect(JSON.parse(resp!).response.response.continue).toBe(true);
+        expect(JSON.parse(resp as string).response.response.continue).toBe(true);
       });
     });
 
     it("handles incoming mcp_message control requests with error", async () => {
-      const conn = await createConnectedClient(transport);
+      await createConnectedClient(transport);
 
       transport._push({
         type: "control_request",
@@ -408,7 +408,7 @@ describe("ClaudeAxonConnection", () => {
           );
         });
         expect(resp).toBeDefined();
-        expect(JSON.parse(resp!).response.response.error).toContain("not supported");
+        expect(JSON.parse(resp as string).response.response.error).toContain("not supported");
       });
     });
   });
@@ -488,7 +488,7 @@ describe("ClaudeAxonConnection", () => {
         return p.request?.subtype === "set_permission_mode";
       });
       expect(modeCall).toBeDefined();
-      expect(JSON.parse(modeCall!).request.mode).toBe("acceptEdits");
+      expect(JSON.parse(modeCall as string).request.mode).toBe("acceptEdits");
     });
   });
 });

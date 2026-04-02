@@ -53,13 +53,6 @@ function makeUsageUpdate() {
   return { sessionUpdate: "usage_update", size: 100000, used: 5000 };
 }
 
-function makeAgentMessageChunkUpdate() {
-  return {
-    sessionUpdate: "agent_message_chunk",
-    content: { type: "text", text: "hello" },
-  };
-}
-
 function createControllableStream() {
   const buffer: MockAxonEvent[] = [];
   let waiter: ((v: IteratorResult<MockAxonEvent>) => void) | null = null;
@@ -71,7 +64,7 @@ function createControllableStream() {
         return {
           next(): Promise<IteratorResult<MockAxonEvent>> {
             if (buffer.length > 0) {
-              return Promise.resolve({ value: buffer.shift()!, done: false });
+              return Promise.resolve({ value: buffer.shift() as MockAxonEvent, done: false });
             }
             if (done)
               return Promise.resolve({ value: undefined as never, done: true });
@@ -87,7 +80,7 @@ function createControllableStream() {
       if (waiter) {
         const resolve = waiter;
         waiter = null;
-        resolve({ value: buffer.shift()!, done: false });
+        resolve({ value: buffer.shift() as MockAxonEvent, done: false });
       }
     },
     end() {
@@ -198,7 +191,7 @@ describe("ACPAxonConnection", () => {
       const response = published.find(
         (p) => p.event_type === "session/request_permission",
       );
-      const payload = JSON.parse(response!.payload);
+      const payload = JSON.parse(response?.payload as string);
       expect(payload.outcome.outcome).toBe("selected");
       expect(payload.outcome.optionId).toBe("opt2");
 
@@ -226,7 +219,7 @@ describe("ACPAxonConnection", () => {
       const response = published.find(
         (p) => p.event_type === "session/request_permission",
       );
-      const payload = JSON.parse(response!.payload);
+      const payload = JSON.parse(response?.payload as string);
       expect(payload.outcome.outcome).toBe("selected");
       expect(payload.outcome.optionId).toBe("opt2");
 
@@ -254,7 +247,7 @@ describe("ACPAxonConnection", () => {
       const response = published.find(
         (p) => p.event_type === "session/request_permission",
       );
-      const payload = JSON.parse(response!.payload);
+      const payload = JSON.parse(response?.payload as string);
       expect(payload.outcome.outcome).toBe("selected");
       expect(payload.outcome.optionId).toBe("opt1");
 
@@ -278,7 +271,7 @@ describe("ACPAxonConnection", () => {
       const response = published.find(
         (p) => p.event_type === "session/request_permission",
       );
-      const payload = JSON.parse(response!.payload);
+      const payload = JSON.parse(response?.payload as string);
       expect(payload.outcome.outcome).toBe("cancelled");
 
       conn.disconnect();

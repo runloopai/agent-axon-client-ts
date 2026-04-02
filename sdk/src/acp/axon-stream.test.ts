@@ -1,5 +1,5 @@
 import { CLIENT_METHODS } from "@agentclientprotocol/sdk";
-import { type Mock, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axonStream } from "./axon-stream.js";
 
 // ---------------------------------------------------------------------------
@@ -41,7 +41,7 @@ function createControllableStream() {
     if (waiter && buffer.length > 0) {
       const resolve = waiter;
       waiter = null;
-      resolve({ value: buffer.shift()!, done: false });
+      resolve({ value: buffer.shift() as MockAxonEvent, done: false });
     }
   }
 
@@ -51,7 +51,7 @@ function createControllableStream() {
         return {
           next(): Promise<IteratorResult<MockAxonEvent>> {
             if (buffer.length > 0) {
-              return Promise.resolve({ value: buffer.shift()!, done: false });
+              return Promise.resolve({ value: buffer.shift() as MockAxonEvent, done: false });
             }
             if (done) {
               return Promise.resolve({ value: undefined as never, done: true });
@@ -551,7 +551,7 @@ describe("axonStream", () => {
 
     it("handles interleaved requests, notifications, and agent-to-client requests", async () => {
       const ctrl = createControllableStream();
-      const { axon, published } = createMockAxon(ctrl.stream);
+      const { axon } = createMockAxon(ctrl.stream);
 
       const { readable, writable } = axonStream({ axon: axon as never });
 

@@ -31,7 +31,7 @@ function createControllableStream() {
         return {
           next(): Promise<IteratorResult<MockAxonEvent>> {
             if (buffer.length > 0) {
-              return Promise.resolve({ value: buffer.shift()!, done: false });
+              return Promise.resolve({ value: buffer.shift() as MockAxonEvent, done: false });
             }
             if (done) {
               return Promise.resolve({ value: undefined as never, done: true });
@@ -48,7 +48,7 @@ function createControllableStream() {
       if (waiter) {
         const resolve = waiter;
         waiter = null;
-        resolve({ value: buffer.shift()!, done: false });
+        resolve({ value: buffer.shift() as MockAxonEvent, done: false });
       }
     },
     end() {
