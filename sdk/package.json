@@ -1,6 +1,6 @@
 {
   "name": "@runloop/agent-axon-client",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Axon-backed ACP and Claude agent clients for Runloop broker agents",
   "license": "MIT",
   "author": "Runloop, Inc.",
