@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish the latest release to npm (skip release-please)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -11,10 +17,10 @@ permissions:
 
 jobs:
   release:
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
+      release_created: ${{ steps.release.outputs['sdk--release_created'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -24,7 +30,10 @@ jobs:
 
   publish:
     needs: release
-    if: ${{ needs.release.outputs.release_created == 'true' }}
+    if: |
+      always() &&
+      (needs.release.outputs.release_created == 'true' ||
+       (github.event_name == 'workflow_dispatch' && inputs.publish))
     runs-on: ubuntu-latest
     permissions:
       contents: read
