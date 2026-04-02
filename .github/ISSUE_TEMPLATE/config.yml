@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://runloop.ai/docs
+    about: Check the docs for usage guides and API reference.
+  - name: Discussions
+    url: https://github.com/runloopai/agent-axon-client-ts/discussions
+    about: Ask questions and share ideas in GitHub Discussions.

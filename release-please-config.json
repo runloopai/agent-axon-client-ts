@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    "sdk": {
+      "release-type": "node",
+      "component": "agent-axon-client",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}

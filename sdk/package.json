@@ -1,0 +1,79 @@
+{
+  "name": "@runloop/agent-axon-client",
+  "version": "0.1.0",
+  "description": "Axon-backed ACP and Claude agent clients for Runloop broker agents",
+  "license": "MIT",
+  "author": "Runloop, Inc.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/runloopai/agent-axon-client-ts.git",
+    "directory": "sdk"
+  },
+  "homepage": "https://runloop.ai",
+  "bugs": {
+    "url": "https://github.com/runloopai/agent-axon-client-ts/issues"
+  },
+  "keywords": ["runloop", "axon", "acp", "claude", "agent", "sdk"],
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./acp": {
+      "types": "./dist/acp/index.d.ts",
+      "import": "./dist/acp/index.js",
+      "default": "./dist/acp/index.js"
+    },
+    "./claude": {
+      "types": "./dist/claude/index.d.ts",
+      "import": "./dist/claude/index.js",
+      "default": "./dist/claude/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "rm -rf dist && tsc",
+    "lint": "biome lint ./src",
+    "format": "biome format --write ./src",
+    "check": "biome check ./src",
+    "check:fix": "biome check --fix ./src",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "0.18.0"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/claude-agent-sdk": ">=0.2.90",
+    "@runloop/api-client": ">=1.16.2"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/claude-agent-sdk": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.90",
+    "@biomejs/biome": "^2.4.10",
+    "@runloop/api-client": "^1.16.2",
+    "@vitest/coverage-v8": "^4.1.2",
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.2"
+  }
+}

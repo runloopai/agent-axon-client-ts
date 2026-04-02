@@ -1,0 +1,14 @@
+{
+  "name": "@runloop/example-claude-cli",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run claude-cli.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "latest",
+    "@runloop/agent-axon-client": "^0.1.0",
+    "@runloop/api-client": "^1.16.2"
+  }
+}

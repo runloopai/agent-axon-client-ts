@@ -1,0 +1,5 @@
+# Default owners for everything in the repository
+* @runloopai/sdk-team
+
+# SDK source requires SDK team review
+/sdk/ @runloopai/sdk-team

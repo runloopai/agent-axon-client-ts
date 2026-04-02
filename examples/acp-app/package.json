@@ -1,0 +1,34 @@
+{
+  "name": "@runloop/example-acp-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/server/index.ts",
+    "dev:client": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@runloop/agent-axon-client": "^0.1.0",
+    "@runloop/api-client": "^1.16.2",
+    "diff": "^8.0.4",
+    "express": "^5.2.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.2",
+    "@types/express": "^5.0.6",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.5.0",
+    "typescript": "~5.8.0",
+    "vite": "^6.3.0"
+  }
+}

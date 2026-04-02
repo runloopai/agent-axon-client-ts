@@ -1,0 +1,24 @@
+{
+  "name": "agent-axon-client",
+  "workspaces": [
+    "sdk",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "bun run --filter '@runloop/agent-axon-client' build",
+    "test": "bun run --filter '@runloop/agent-axon-client' test",
+    "lint": "bun run --filter '@runloop/agent-axon-client' lint",
+    "check": "bun run --filter '@runloop/agent-axon-client' check",
+    "clean": "rm -rf sdk/dist",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "sdk/src/**/*.ts": [
+      "bunx biome check --fix --no-errors-on-unmatched"
+    ]
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0"
+  }
+}

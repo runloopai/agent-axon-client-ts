@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - run: bun install --frozen-lockfile
+
+      - name: Lint and format check
+        run: bun run --filter '@runloop/agent-axon-client' check
+
+      - name: Build
+        run: bun run build
+
+      - name: Test with coverage
+        run: bun run --filter '@runloop/agent-axon-client' test:coverage
