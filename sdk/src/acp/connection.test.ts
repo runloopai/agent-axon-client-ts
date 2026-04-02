@@ -29,9 +29,7 @@ function makePermissionOptions(kinds: string[]) {
   }));
 }
 
-function makePermissionRequest(
-  options: ReturnType<typeof makePermissionOptions>,
-) {
+function makePermissionRequest(options: ReturnType<typeof makePermissionOptions>) {
   return {
     sessionId: "test-session",
     toolCall: { toolCallId: "tc-1" },
@@ -39,10 +37,7 @@ function makePermissionRequest(
   };
 }
 
-function makeSessionNotification(
-  update: Record<string, unknown>,
-  sessionId?: string,
-) {
+function makeSessionNotification(update: Record<string, unknown>, sessionId?: string) {
   return {
     sessionId: sessionId ?? "test-session",
     update,
@@ -73,8 +68,7 @@ function createControllableStream() {
             if (buffer.length > 0) {
               return Promise.resolve({ value: buffer.shift()!, done: false });
             }
-            if (done)
-              return Promise.resolve({ value: undefined as never, done: true });
+            if (done) return Promise.resolve({ value: undefined as never, done: true });
             return new Promise((resolve) => {
               waiter = resolve;
             });
@@ -127,8 +121,7 @@ function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
     const start = Date.now();
     const check = () => {
       if (predicate()) return resolve();
-      if (Date.now() - start > timeoutMs)
-        return reject(new Error("waitFor timeout"));
+      if (Date.now() - start > timeoutMs) return reject(new Error("waitFor timeout"));
       setTimeout(check, 10);
     };
     check();
@@ -179,25 +172,12 @@ describe("AxonACPConnection", () => {
 
       const conn = new AxonACPConnection({ axon: axon as never });
 
-      const options = makePermissionOptions([
-        "allow_once",
-        "allow_always",
-        "reject_once",
-      ]);
-      ctrl.push(
-        makeAgentEvent(
-          "session/request_permission",
-          makePermissionRequest(options),
-        ),
-      );
+      const options = makePermissionOptions(["allow_once", "allow_always", "reject_once"]);
+      ctrl.push(makeAgentEvent("session/request_permission", makePermissionRequest(options)));
 
-      await waitFor(() =>
-        published.some((p) => p.event_type === "session/request_permission"),
-      );
+      await waitFor(() => published.some((p) => p.event_type === "session/request_permission"));
 
-      const response = published.find(
-        (p) => p.event_type === "session/request_permission",
-      );
+      const response = published.find((p) => p.event_type === "session/request_permission");
       const payload = JSON.parse(response!.payload);
       expect(payload.outcome.outcome).toBe("selected");
       expect(payload.outcome.optionId).toBe("opt2");
@@ -212,20 +192,11 @@ describe("AxonACPConnection", () => {
       const conn = new AxonACPConnection({ axon: axon as never });
 
       const options = makePermissionOptions(["reject_once", "allow_once"]);
-      ctrl.push(
-        makeAgentEvent(
-          "session/request_permission",
-          makePermissionRequest(options),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/request_permission", makePermissionRequest(options)));
 
-      await waitFor(() =>
-        published.some((p) => p.event_type === "session/request_permission"),
-      );
+      await waitFor(() => published.some((p) => p.event_type === "session/request_permission"));
 
-      const response = published.find(
-        (p) => p.event_type === "session/request_permission",
-      );
+      const response = published.find((p) => p.event_type === "session/request_permission");
       const payload = JSON.parse(response!.payload);
       expect(payload.outcome.outcome).toBe("selected");
       expect(payload.outcome.optionId).toBe("opt2");
@@ -240,20 +211,11 @@ describe("AxonACPConnection", () => {
       const conn = new AxonACPConnection({ axon: axon as never });
 
       const options = makePermissionOptions(["reject_once", "reject_always"]);
-      ctrl.push(
-        makeAgentEvent(
-          "session/request_permission",
-          makePermissionRequest(options),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/request_permission", makePermissionRequest(options)));
 
-      await waitFor(() =>
-        published.some((p) => p.event_type === "session/request_permission"),
-      );
+      await waitFor(() => published.some((p) => p.event_type === "session/request_permission"));
 
-      const response = published.find(
-        (p) => p.event_type === "session/request_permission",
-      );
+      const response = published.find((p) => p.event_type === "session/request_permission");
       const payload = JSON.parse(response!.payload);
       expect(payload.outcome.outcome).toBe("selected");
       expect(payload.outcome.optionId).toBe("opt1");
@@ -267,17 +229,11 @@ describe("AxonACPConnection", () => {
 
       const conn = new AxonACPConnection({ axon: axon as never });
 
-      ctrl.push(
-        makeAgentEvent("session/request_permission", makePermissionRequest([])),
-      );
+      ctrl.push(makeAgentEvent("session/request_permission", makePermissionRequest([])));
 
-      await waitFor(() =>
-        published.some((p) => p.event_type === "session/request_permission"),
-      );
+      await waitFor(() => published.some((p) => p.event_type === "session/request_permission"));
 
-      const response = published.find(
-        (p) => p.event_type === "session/request_permission",
-      );
+      const response = published.find((p) => p.event_type === "session/request_permission");
       const payload = JSON.parse(response!.payload);
       expect(payload.outcome.outcome).toBe("cancelled");
 
@@ -298,12 +254,7 @@ describe("AxonACPConnection", () => {
       });
 
       const options = makePermissionOptions(["allow_always"]);
-      ctrl.push(
-        makeAgentEvent(
-          "session/request_permission",
-          makePermissionRequest(options),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/request_permission", makePermissionRequest(options)));
 
       await waitFor(() => customHandler.mock.calls.length > 0);
 
@@ -326,12 +277,7 @@ describe("AxonACPConnection", () => {
       conn.onSessionUpdate(listener1);
       conn.onSessionUpdate(listener2);
 
-      ctrl.push(
-        makeAgentEvent(
-          "session/update",
-          makeSessionNotification(makeUsageUpdate(), "s1"),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate(), "s1")));
 
       await waitFor(() => listener1.mock.calls.length > 0);
 
@@ -355,24 +301,14 @@ describe("AxonACPConnection", () => {
       const listener = vi.fn();
       const unsubscribe = conn.onSessionUpdate(listener);
 
-      ctrl.push(
-        makeAgentEvent(
-          "session/update",
-          makeSessionNotification(makeUsageUpdate(), "s1"),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate(), "s1")));
 
       await waitFor(() => listener.mock.calls.length > 0);
       expect(listener).toHaveBeenCalledOnce();
 
       unsubscribe();
 
-      ctrl.push(
-        makeAgentEvent(
-          "session/update",
-          makeSessionNotification(makeUsageUpdate(), "s1"),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate(), "s1")));
 
       await new Promise((r) => setTimeout(r, 100));
       expect(listener).toHaveBeenCalledOnce();
@@ -391,12 +327,7 @@ describe("AxonACPConnection", () => {
       const listener = vi.fn();
       conn.onRawEvent(listener);
 
-      ctrl.push(
-        makeAgentEvent(
-          "session/update",
-          makeSessionNotification(makeUsageUpdate()),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
       ctrl.push({
         event_type: "ping",
         payload: "{}",
@@ -418,22 +349,12 @@ describe("AxonACPConnection", () => {
       const listener = vi.fn();
       const unsub = conn.onRawEvent(listener);
 
-      ctrl.push(
-        makeAgentEvent(
-          "session/update",
-          makeSessionNotification(makeUsageUpdate()),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
       await waitFor(() => listener.mock.calls.length > 0);
 
       unsub();
 
-      ctrl.push(
-        makeAgentEvent(
-          "session/update",
-          makeSessionNotification(makeUsageUpdate()),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
       await new Promise((r) => setTimeout(r, 100));
       expect(listener).toHaveBeenCalledOnce();
 
@@ -457,12 +378,7 @@ describe("AxonACPConnection", () => {
       conn.onSessionUpdate(throwingListener);
       conn.onSessionUpdate(normalListener);
 
-      ctrl.push(
-        makeAgentEvent(
-          "session/update",
-          makeSessionNotification(makeUsageUpdate(), "s1"),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate(), "s1")));
 
       await waitFor(() => normalListener.mock.calls.length > 0);
 
@@ -485,12 +401,7 @@ describe("AxonACPConnection", () => {
         throw new Error("raw listener boom");
       });
 
-      ctrl.push(
-        makeAgentEvent(
-          "session/update",
-          makeSessionNotification(makeUsageUpdate()),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
 
       await waitFor(() => onError.mock.calls.length > 0);
       expect(onError).toHaveBeenCalled();
@@ -513,12 +424,7 @@ describe("AxonACPConnection", () => {
 
       conn.disconnect();
 
-      ctrl.push(
-        makeAgentEvent(
-          "session/update",
-          makeSessionNotification(makeUsageUpdate()),
-        ),
-      );
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
       ctrl.end();
 
       return new Promise<void>((resolve) => {

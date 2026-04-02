@@ -127,7 +127,9 @@ describe("AxonTransport", () => {
 
   describe("write()", () => {
     it("resolves event_type from message JSON type field", async () => {
-      await transport.write(JSON.stringify({ type: "user", message: { role: "user", content: "hi" } }));
+      await transport.write(
+        JSON.stringify({ type: "user", message: { role: "user", content: "hi" } }),
+      );
 
       expect(axon.publish).toHaveBeenCalledOnce();
       expect(axon.publish.mock.calls[0][0]).toMatchObject({
@@ -166,9 +168,7 @@ describe("AxonTransport", () => {
   describe("readMessages()", () => {
     it("throws if called before connect()", async () => {
       const gen = transport.readMessages();
-      await expect(gen[Symbol.asyncIterator]().next()).rejects.toThrow(
-        "Transport not connected",
-      );
+      await expect(gen[Symbol.asyncIterator]().next()).rejects.toThrow("Transport not connected");
     });
 
     it("yields parsed JSON from AGENT_EVENT events", async () => {
