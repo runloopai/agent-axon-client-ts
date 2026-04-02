@@ -4,7 +4,7 @@
 
 export { createAxonAgent } from "./agent-factory.js";
 export { axonStream } from "./axon-stream.js";
-export { AxonACPConnection } from "./connection.js";
+export { ACPAxonConnection } from "./connection.js";
 
 // ---------------------------------------------------------------------------
 // Library types
@@ -12,7 +12,7 @@ export { AxonACPConnection } from "./connection.js";
 
 export type {
   AgentLaunchConfig,
-  AxonACPConnectionOptions,
+  ACPAxonConnectionOptions,
   AxonEventView,
   AxonStreamOptions,
   RawEventListener,

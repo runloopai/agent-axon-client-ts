@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AxonACPConnection } from "./connection.js";
+import { ACPAxonConnection } from "./connection.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -139,13 +139,13 @@ function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("AxonACPConnection", () => {
+describe("ACPAxonConnection", () => {
   describe("constructor properties", () => {
     it("exposes axonId from the provided Axon", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
       expect(conn.axonId).toBe("axon-123");
       conn.disconnect();
     });
@@ -154,7 +154,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({
+      const conn = new ACPAxonConnection({
         axon: axon as never,
         devboxId: "dbx-456",
       });
@@ -166,7 +166,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
       expect(conn.devboxId).toBeUndefined();
       conn.disconnect();
     });
@@ -177,7 +177,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon, published } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
 
       const options = makePermissionOptions([
         "allow_once",
@@ -209,7 +209,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon, published } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
 
       const options = makePermissionOptions(["reject_once", "allow_once"]);
       ctrl.push(
@@ -237,7 +237,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon, published } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
 
       const options = makePermissionOptions(["reject_once", "reject_always"]);
       ctrl.push(
@@ -265,7 +265,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon, published } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
 
       ctrl.push(
         makeAgentEvent("session/request_permission", makePermissionRequest([])),
@@ -292,7 +292,7 @@ describe("AxonACPConnection", () => {
         outcome: { outcome: "selected", optionId: "opt1" },
       });
 
-      const conn = new AxonACPConnection({
+      const conn = new ACPAxonConnection({
         axon: axon as never,
         requestPermission: customHandler,
       });
@@ -319,7 +319,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
 
       const listener1 = vi.fn();
       const listener2 = vi.fn();
@@ -350,7 +350,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
 
       const listener = vi.fn();
       const unsubscribe = conn.onSessionUpdate(listener);
@@ -386,7 +386,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
 
       const listener = vi.fn();
       conn.onRawEvent(listener);
@@ -413,7 +413,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
 
       const listener = vi.fn();
       const unsub = conn.onRawEvent(listener);
@@ -447,7 +447,7 @@ describe("AxonACPConnection", () => {
       const { axon } = createMockAxon(ctrl);
 
       const onError = vi.fn();
-      const conn = new AxonACPConnection({ axon: axon as never, onError });
+      const conn = new ACPAxonConnection({ axon: axon as never, onError });
 
       const throwingListener = vi.fn().mockImplementation(() => {
         throw new Error("listener boom");
@@ -479,7 +479,7 @@ describe("AxonACPConnection", () => {
       const { axon } = createMockAxon(ctrl);
 
       const onError = vi.fn();
-      const conn = new AxonACPConnection({ axon: axon as never, onError });
+      const conn = new ACPAxonConnection({ axon: axon as never, onError });
 
       conn.onRawEvent(() => {
         throw new Error("raw listener boom");
@@ -504,7 +504,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
 
       const sessionListener = vi.fn();
       const rawListener = vi.fn();
@@ -536,7 +536,7 @@ describe("AxonACPConnection", () => {
 
       const shutdownFn = vi.fn().mockResolvedValue(undefined);
 
-      const conn = new AxonACPConnection({
+      const conn = new ACPAxonConnection({
         axon: axon as never,
         shutdown: shutdownFn,
       });
@@ -550,7 +550,7 @@ describe("AxonACPConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new AxonACPConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection({ axon: axon as never });
       await conn.shutdown();
     });
   });

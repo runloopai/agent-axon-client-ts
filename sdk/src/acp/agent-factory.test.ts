@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAxonAgent } from "./agent-factory.js";
-import { AxonACPConnection } from "./connection.js";
+import { ACPAxonConnection } from "./connection.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -159,12 +159,12 @@ describe("createAxonAgent", () => {
     conn.disconnect();
   });
 
-  it("returns an AxonACPConnection with correct axonId and devboxId", async () => {
+  it("returns an ACPAxonConnection with correct axonId and devboxId", async () => {
     const { sdk } = createMockSDK();
 
     const conn = await createAxonAgent(sdk as never, { agentBinary: "opencode" });
 
-    expect(conn).toBeInstanceOf(AxonACPConnection);
+    expect(conn).toBeInstanceOf(ACPAxonConnection);
     expect(conn.axonId).toBe("axon-test-id");
     expect(conn.devboxId).toBe("devbox-test-id");
     conn.disconnect();
@@ -194,7 +194,7 @@ describe("createAxonAgent", () => {
       },
     );
 
-    expect(conn).toBeInstanceOf(AxonACPConnection);
+    expect(conn).toBeInstanceOf(ACPAxonConnection);
     conn.disconnect();
   });
 });

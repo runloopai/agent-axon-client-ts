@@ -12,8 +12,8 @@ describe("root exports", () => {
     expect(typeof SDK.claude).toBe("object");
   });
 
-  it("acp namespace contains AxonACPConnection", () => {
-    expect(SDK.acp.AxonACPConnection).toBeDefined();
+  it("acp namespace contains ACPAxonConnection", () => {
+    expect(SDK.acp.ACPAxonConnection).toBeDefined();
   });
 
   it("acp namespace contains createAxonAgent", () => {

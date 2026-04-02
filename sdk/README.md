@@ -103,13 +103,13 @@ await conn.disconnect();
 
 ## ACP Module
 
-### `createAxonAgent(sdk, config, connectionOptions?): Promise<AxonACPConnection>`
+### `createAxonAgent(sdk, config, connectionOptions?): Promise<ACPAxonConnection>`
 
 Convenience factory that provisions the full stack:
 
 1. Creates an Axon channel
 2. Creates a devbox with a `broker_mount` for the specified agent
-3. Returns a connected `AxonACPConnection`
+3. Returns a connected `ACPAxonConnection`
 
 **Parameters**:
 
@@ -122,11 +122,11 @@ Convenience factory that provisions the full stack:
 | `connectionOptions.requestPermission` | `(params) => Promise<Response>` | Custom permission handler |
 | `connectionOptions.onError` | `(error: unknown) => void` | Swallowed error callback |
 
-### `AxonACPConnection`
+### `ACPAxonConnection`
 
 Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the ACP `ClientSideConnection`.
 
-**Constructor** (`AxonACPConnectionOptions`):
+**Constructor** (`ACPAxonConnectionOptions`):
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -165,18 +165,18 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 | `disconnect()` | Abort the stream and clear all listeners |
 | `shutdown()` | Disconnect and run the teardown callback (e.g. devbox shutdown) |
 
-### `AxonACPConnection` (mid-level usage)
+### `ACPAxonConnection` (mid-level usage)
 
-If you already have infrastructure provisioned, construct `AxonACPConnection` directly with an `Axon` object from `@runloop/api-client`:
+If you already have infrastructure provisioned, construct `ACPAxonConnection` directly with an `Axon` object from `@runloop/api-client`:
 
 ```typescript
-import { AxonACPConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
+import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
 const axon = await sdk.axon.create({ name: "my-channel" });
 
-const conn = new AxonACPConnection({
+const conn = new ACPAxonConnection({
   axon,
   requestPermission: async (params) => {
     const option = params.options[0];
@@ -348,7 +348,7 @@ ACP Module                                    Claude Module
 │  JSON-RPC 2.0   │         Axon Bus          │  Claude SDK      │
 │  translation    │◄───────────────────────►  │  wire format     │
 │       ↕         │       (SSE + publish)     │       ↕          │
-│  AxonACP        │                           │  ClaudeAxon      │
+│  ACPAxon        │                           │  ClaudeAxon      │
 │  Connection     │                           │  Connection      │
 └─────────────────┘                           └─────────────────┘
         ↕                                             ↕
@@ -391,7 +391,7 @@ type WireData = Record<string, any>;
 
 ## Known Limitations
 
-- **Eager SSE connection** (ACP): The `AxonACPConnection` constructor immediately opens an SSE subscription via `axon.subscribeSse()`. Connection errors surface on the first `await`ed method call, not at construction time.
+- **Eager SSE connection** (ACP): The `ACPAxonConnection` constructor immediately opens an SSE subscription via `axon.subscribeSse()`. Connection errors surface on the first `await`ed method call, not at construction time.
 - **No automatic reconnection**: If an SSE stream drops, the connection is dead. Create a new instance to reconnect.
 - **Permission handling** (Claude): The `ClaudeAxonConnection` auto-approves all tool use by default. Override via incoming control request handling is not yet exposed as a configuration option.
 

@@ -82,7 +82,7 @@ Available guards: `isUserMessageChunk`, `isAgentMessageChunk`,
 `isAvailableCommandsUpdate`, `isCurrentModeUpdate`, `isConfigOptionUpdate`,
 `isSessionInfoUpdate`, `isUsageUpdate`.
 
-### ACP — key methods on `AxonACPConnection`
+### ACP — key methods on `ACPAxonConnection`
 
 | Method | Purpose |
 |--------|---------|
