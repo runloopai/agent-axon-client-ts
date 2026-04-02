@@ -104,7 +104,6 @@ describe("createAxonAgent", () => {
     const conn = await createAxonAgent(
       sdk as never,
       { agentBinary: "opencode" },
-      undefined,
       {
         blueprint_id: "bpt_custom",
         environment_variables: { MY_VAR: "hello" },
@@ -126,8 +125,9 @@ describe("createAxonAgent", () => {
     const conn = await createAxonAgent(
       sdk as never,
       { agentBinary: "opencode" },
-      undefined,
-      { launch_parameters: { keep_alive_time_seconds: 600 } },
+      {
+        launch_parameters: { keep_alive_time_seconds: 600 },
+      },
     );
 
     expect(sdk.devbox.create).toHaveBeenCalledWith(
@@ -144,7 +144,6 @@ describe("createAxonAgent", () => {
     const conn = await createAxonAgent(
       sdk as never,
       { agentBinary: "opencode", launchCommands: ["npm install"] },
-      undefined,
       { launch_parameters: { keep_alive_time_seconds: 600 } },
     );
 
@@ -185,14 +184,10 @@ describe("createAxonAgent", () => {
     const customPermHandler = vi.fn();
     const customOnError = vi.fn();
 
-    const conn = await createAxonAgent(
-      sdk as never,
-      { agentBinary: "opencode" },
-      {
-        requestPermission: customPermHandler,
-        onError: customOnError,
-      },
-    );
+    const conn = await createAxonAgent(sdk as never, { agentBinary: "opencode" }, undefined, {
+      requestPermission: customPermHandler,
+      onError: customOnError,
+    });
 
     expect(conn).toBeInstanceOf(AxonACPConnection);
     conn.disconnect();
