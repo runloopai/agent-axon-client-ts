@@ -2,7 +2,6 @@
 // Core API
 // ---------------------------------------------------------------------------
 
-export { createAxonAgent } from "./agent-factory.js";
 export { axonStream } from "./axon-stream.js";
 export { ACPAxonConnection } from "./connection.js";
 

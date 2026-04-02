@@ -16,10 +16,6 @@ describe("root exports", () => {
     expect(SDK.acp.ACPAxonConnection).toBeDefined();
   });
 
-  it("acp namespace contains createAxonAgent", () => {
-    expect(SDK.acp.createAxonAgent).toBeDefined();
-  });
-
   it("acp namespace contains type guard functions", () => {
     expect(typeof SDK.acp.isUserMessageChunk).toBe("function");
     expect(typeof SDK.acp.isToolCall).toBe("function");
