@@ -6,14 +6,21 @@
   "author": "Runloop, Inc.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/runloopai/agent-axon-client-ts.git",
+    "url": "git+https://github.com/runloopai/agent-axon-client-ts.git",
     "directory": "sdk"
   },
   "homepage": "https://runloop.ai",
   "bugs": {
     "url": "https://github.com/runloopai/agent-axon-client-ts/issues"
   },
-  "keywords": ["runloop", "axon", "acp", "claude", "agent", "sdk"],
+  "keywords": [
+    "runloop",
+    "axon",
+    "acp",
+    "claude",
+    "agent",
+    "sdk"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
