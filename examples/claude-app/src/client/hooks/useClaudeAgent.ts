@@ -1,5 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import type { AxonEventView } from "@runloop/agent-axon-client/claude";
 import type { WsEvent } from "../../server/ws.ts";
+
+export type { AxonEventView } from "@runloop/agent-axon-client/claude";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -127,6 +130,8 @@ export interface UseClaudeAgentReturn {
   runloopUrl: string | null;
   permissionMode: string | null;
   currentModel: string | null;
+  /** Raw Axon events for the event viewer. */
+  axonEvents: AxonEventView[];
   /** A pending control request awaiting user input (e.g. AskUserQuestion), or null. */
   pendingControlRequest: PendingControlRequest | null;
   start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => Promise<void>;
@@ -178,6 +183,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
   const [permissionMode, setPermissionMode] = useState<string | null>(null);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [pendingControlRequest, setPendingControlRequest] = useState<PendingControlRequest | null>(null);
+  const [axonEvents, setAxonEvents] = useState<AxonEventView[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const blocksRef = useRef<TurnBlock[]>([]);
@@ -678,6 +684,11 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
 
       console.log("[ws] received:", parsed.type, parsed.type === "sdk_message" ? (parsed.message as any)?.type : "");
 
+      if (parsed.type === "axon_event") {
+        setAxonEvents((prev) => [...prev, parsed.event]);
+        return;
+      }
+
       if (parsed.type === "sdk_message") {
         handleSDKMessage(parsed.message as Record<string, unknown>);
       } else if (parsed.type === "control_request") {
@@ -817,6 +828,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     setPermissionMode(null);
     setCurrentModel(null);
     setPendingControlRequest(null);
+    setAxonEvents([]);
   }, []);
 
   return {
@@ -833,6 +845,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     runloopUrl,
     permissionMode,
     currentModel,
+    axonEvents,
     pendingControlRequest,
     start,
     sendMessage,

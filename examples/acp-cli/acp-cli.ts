@@ -63,10 +63,8 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection({
-  axon,
-  devboxId: devbox.id,
-  shutdown: async () => {
+const agent = new ACPAxonConnection(axon, devbox, {
+  onDisconnect: async () => {
     await devbox.shutdown();
   },
 });
@@ -74,7 +72,7 @@ console.log(`Devbox ready: ${agent.devboxId}`);
 
 process.on("SIGINT", async () => {
   console.log(`\nInterrupted — destroying devbox ${agent.devboxId}...`);
-  await agent.shutdown();
+  await agent.disconnect();
   process.exit(0);
 });
 
@@ -184,6 +182,6 @@ while (true) {
 
 rl.close();
 console.log("\nDisconnecting...");
-await agent.shutdown();
+await agent.disconnect();
 console.log("Done.");
 process.exit(0);

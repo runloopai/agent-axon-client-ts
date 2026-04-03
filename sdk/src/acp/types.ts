@@ -17,18 +17,18 @@ export interface AxonStreamOptions {
   axon: Axon;
   /** AbortSignal to cancel the SSE connection and stop publishing. */
   signal?: AbortSignal;
-  /** Called for every raw Axon event before JSON-RPC translation. */
-  onRawEvent?: (event: AxonEventView) => void;
+  /** Called for every Axon event before JSON-RPC translation. */
+  onAxonEvent?: (event: AxonEventView) => void;
   /**
    * Called when a non-critical error occurs (e.g. unparseable SSE event).
    * Defaults to `console.error`.
    */
   onError?: (error: unknown) => void;
   /**
-   * Called when the SSE stream disconnects (either cleanly or due to error).
+   * Called when the SSE stream is interrupted (either cleanly or due to error).
    * Not called when the stream is intentionally aborted via `signal`.
    */
-  onDisconnect?: () => void;
+  onStreamInterrupted?: () => void;
 }
 
 /**
@@ -36,8 +36,6 @@ export interface AxonStreamOptions {
  * @category Configuration
  */
 export interface ACPAxonConnectionOptions {
-  /** Axon channel to connect to (from `@runloop/api-client`). */
-  axon: Axon;
   /**
    * Custom handler for agent permission requests. Receives the permission
    * options and must return the selected outcome.
@@ -52,16 +50,14 @@ export interface ACPAxonConnectionOptions {
    */
   onError?: (error: unknown) => void;
   /**
-   * Called when the SSE stream disconnects (either cleanly or due to error).
+   * Called when the SSE stream is interrupted (either cleanly or due to error).
    * Not called when the stream is intentionally aborted via `signal`.
    */
-  onDisconnect?: () => void;
-  /** Runloop devbox ID, for observability or logging. */
-  devboxId?: string;
+  onStreamInterrupted?: () => void;
   /**
-   * Async teardown callback invoked by `shutdown()` (e.g. devbox shutdown).
+   * Async teardown callback invoked by `disconnect()` (e.g. devbox shutdown).
    */
-  shutdown?: () => Promise<void>;
+  onDisconnect?: () => void | Promise<void>;
 }
 
 /**
@@ -71,7 +67,7 @@ export interface ACPAxonConnectionOptions {
 export type SessionUpdateListener = (sessionId: string | null, update: SessionUpdate) => void;
 
 /**
- * Callback invoked for every raw Axon event before JSON-RPC translation.
+ * Callback invoked for every Axon event before JSON-RPC translation.
  * @category Configuration
  */
-export type RawEventListener = (event: AxonEventView) => void;
+export type AxonEventListener = (event: AxonEventView) => void;

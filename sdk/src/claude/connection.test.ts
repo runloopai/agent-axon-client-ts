@@ -14,6 +14,7 @@ interface MockTransport extends Transport {
   _written: string[];
   _push(msg: WireData): void;
   _end(): void;
+  abortStream: ReturnType<typeof vi.fn>;
 }
 
 function createMockTransport(): MockTransport {
@@ -28,6 +29,7 @@ function createMockTransport(): MockTransport {
       transport._written.push(data);
     }),
     close: vi.fn().mockResolvedValue(undefined),
+    abortStream: vi.fn(),
     isReady: vi.fn().mockReturnValue(true),
 
     async *readMessages() {
@@ -74,21 +76,23 @@ function createMockAxon() {
   return { id: "test-axon" };
 }
 
-function createMockDevbox() {
-  return { shutdown: vi.fn().mockResolvedValue(undefined) };
-}
-
 // ---------------------------------------------------------------------------
 // Helper to create a connected ClaudeAxonConnection with mock transport
 // ---------------------------------------------------------------------------
 
 async function createConnectedClient(
   transport: MockTransport,
-  options?: { devbox?: ReturnType<typeof createMockDevbox>; model?: string },
+  options?: {
+    onDisconnect?: () => void | Promise<void>;
+    model?: string;
+    onError?: (error: unknown) => void;
+  },
 ) {
   const axon = createMockAxon();
-  const conn = new ClaudeAxonConnection(axon as never, options?.devbox as never, {
+  const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+    onDisconnect: options?.onDisconnect,
     model: options?.model,
+    onError: options?.onError,
   });
 
   // Replace internal transport with mock
@@ -411,11 +415,11 @@ describe("ClaudeAxonConnection", () => {
       expect(transport.close).toHaveBeenCalledOnce();
     });
 
-    it("shuts down the devbox if provided", async () => {
-      const devbox = createMockDevbox();
-      const conn = await createConnectedClient(transport, { devbox });
+    it("calls onDisconnect callback if provided", async () => {
+      const onDisconnect = vi.fn().mockResolvedValue(undefined);
+      const conn = await createConnectedClient(transport, { onDisconnect });
       await conn.disconnect();
-      expect(devbox.shutdown).toHaveBeenCalledOnce();
+      expect(onDisconnect).toHaveBeenCalledOnce();
     });
 
     it("fails pending control requests on disconnect", async () => {
@@ -450,6 +454,132 @@ describe("ClaudeAxonConnection", () => {
       await conn.disconnect();
       const result = await messagePromise;
       expect(result.done).toBe(true);
+    });
+  });
+
+  describe("abortStream()", () => {
+    it("delegates to the transport's abortStream()", async () => {
+      const conn = await createConnectedClient(transport);
+      conn.abortStream();
+      expect(transport.abortStream).toHaveBeenCalledOnce();
+    });
+
+    it("does not clear axon event listeners", async () => {
+      const conn = await createConnectedClient(transport);
+      const listener = vi.fn();
+      conn.onAxonEvent(listener);
+
+      conn.abortStream();
+
+      const emitAxonEvent = (
+        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
+      ).emitAxonEvent.bind(conn);
+      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      expect(listener).toHaveBeenCalledOnce();
+    });
+
+    it("does not run the onDisconnect callback", async () => {
+      const onDisconnect = vi.fn();
+      const conn = await createConnectedClient(transport, { onDisconnect });
+      conn.abortStream();
+      expect(onDisconnect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("onAxonEvent()", () => {
+    it("notifies registered listeners when Axon events arrive", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const listener = vi.fn();
+      conn.onAxonEvent(listener);
+
+      // Since we replaced the transport in createConnectedClient,
+      // call emitAxonEvent directly to trigger the listeners.
+      const emitAxonEvent = (
+        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
+      ).emitAxonEvent.bind(conn);
+      const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
+      emitAxonEvent(fakeEvent);
+
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener).toHaveBeenCalledWith(fakeEvent);
+    });
+
+    it("returns an unsubscribe function that removes the listener", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const listener = vi.fn();
+      const unsub = conn.onAxonEvent(listener);
+
+      const emitAxonEvent = (
+        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
+      ).emitAxonEvent.bind(conn);
+      const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
+
+      emitAxonEvent(fakeEvent);
+      expect(listener).toHaveBeenCalledOnce();
+
+      unsub();
+
+      emitAxonEvent(fakeEvent);
+      expect(listener).toHaveBeenCalledOnce();
+    });
+
+    it("catches listener exceptions and routes them to onError", async () => {
+      const onError = vi.fn();
+      const conn = await createConnectedClient(transport, { onError });
+
+      const listenerError = new Error("listener boom");
+      const throwingListener = vi.fn(() => {
+        throw listenerError;
+      });
+      const normalListener = vi.fn();
+
+      conn.onAxonEvent(throwingListener);
+      conn.onAxonEvent(normalListener);
+
+      const emitAxonEvent = (
+        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
+      ).emitAxonEvent.bind(conn);
+      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+
+      expect(throwingListener).toHaveBeenCalledOnce();
+      expect(normalListener).toHaveBeenCalledOnce();
+      expect(onError).toHaveBeenCalledWith(listenerError);
+    });
+
+    it("defaults to console.error when onError is not provided", async () => {
+      const conn = await createConnectedClient(transport);
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const listenerError = new Error("listener boom");
+      conn.onAxonEvent(() => {
+        throw listenerError;
+      });
+
+      const emitAxonEvent = (
+        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
+      ).emitAxonEvent.bind(conn);
+      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+
+      expect(spy).toHaveBeenCalledWith("[ClaudeAxonConnection]", listenerError);
+      spy.mockRestore();
+    });
+
+    it("disconnect() clears all Axon event listeners", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const listener = vi.fn();
+      conn.onAxonEvent(listener);
+
+      await conn.disconnect();
+
+      const emitAxonEvent = (
+        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
+      ).emitAxonEvent.bind(conn);
+      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+
+      expect(listener).not.toHaveBeenCalled();
     });
   });
 

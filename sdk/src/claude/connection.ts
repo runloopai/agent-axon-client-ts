@@ -22,9 +22,16 @@ import type {
   SDKMessage,
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { AxonTransport, type Transport } from "./transport.js";
 import type { WireData } from "./types.js";
+
+/**
+ * Callback invoked for every Axon event (before origin filtering).
+ * @category Configuration
+ */
+export type AxonEventListener = (event: AxonEventView) => void;
 
 /** The inner request payload — discriminated by `subtype`. */
 type ControlRequestInner = SDKControlRequest["request"];
@@ -89,25 +96,97 @@ interface PendingControlRequest {
 
 /** @category Configuration */
 export interface ClaudeAxonConnectionOptions {
-  /** If true, emit verbose logs to stderr. */
+  /**
+   * When `true`, emit timestamped diagnostic logs to `stderr` for every
+   * transport read/write, control-protocol exchange, and lifecycle event.
+   * Useful during development; too noisy for production.
+   *
+   * @defaultValue `false`
+   */
   verbose?: boolean;
-  /** Override the system prompt for this session. */
+
+  /**
+   * Replaces the default system prompt sent to Claude Code during the
+   * `initialize` control handshake. When set, the agent uses *only* this
+   * text as its system prompt — the built-in prompt is discarded entirely.
+   *
+   * Mutually independent of {@link appendSystemPrompt}; if both are
+   * provided, `systemPrompt` replaces the default and
+   * `appendSystemPrompt` is appended to that replacement.
+   */
   systemPrompt?: string;
-  /** Append to the default system prompt for this session. */
+
+  /**
+   * Text appended to the system prompt (whether default or overridden by
+   * {@link systemPrompt}) during the `initialize` handshake. Use this to
+   * inject additional instructions without losing the agent's built-in
+   * prompt.
+   */
   appendSystemPrompt?: string;
-  /** Model ID (e.g. 'claude-haiku-4-5', 'claude-sonnet-4-5'). Set after initialization. */
+
+  /**
+   * Anthropic model identifier to select after initialization
+   * (e.g. `"claude-haiku-4-5"`, `"claude-sonnet-4-5"`).
+   *
+   * When provided, {@link ClaudeAxonConnection.connect | connect()} sends
+   * a `set_model` control request immediately after the `initialize`
+   * handshake completes.
+   */
   model?: string;
+
+  /**
+   * Error handler invoked when a listener registered via
+   * {@link ClaudeAxonConnection.onAxonEvent | onAxonEvent()} throws
+   * during event dispatch. The thrown value is passed as `error`.
+   *
+   * The connection catches the exception so that one faulty listener
+   * cannot prevent subsequent listeners from being called or crash the
+   * internal event loop. This callback is your only notification that a
+   * listener failed.
+   *
+   * @defaultValue `console.error`
+   *
+   * @param error - The value thrown by the listener (typically an `Error`
+   *   instance, but may be any thrown value).
+   */
+  onError?: (error: unknown) => void;
+
+  /**
+   * Teardown callback invoked at the end of
+   * {@link ClaudeAxonConnection.disconnect | disconnect()}, after the
+   * transport is closed and all listeners are cleared. Commonly used
+   * to shut down the backing devbox.
+   *
+   * May be synchronous or asynchronous — `disconnect()` awaits its
+   * return value either way.
+   *
+   * @example
+   * ```ts
+   * const conn = new ClaudeAxonConnection(axon, devbox, {
+   *   onDisconnect: () => devbox.shutdown(),
+   * });
+   * ```
+   */
+  onDisconnect?: () => void | Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
 // ClaudeAxonConnection
 // ---------------------------------------------------------------------------
 
+function defaultOnError(error: unknown): void {
+  console.error("[ClaudeAxonConnection]", error);
+}
+
 /** @category Connection */
 export class ClaudeAxonConnection {
+  /** The Runloop devbox ID. */
+  readonly devboxId: string;
+
   private transport: Transport;
-  private devbox?: Devbox;
   private options: ClaudeAxonConnectionOptions;
+  private handleError: (error: unknown) => void;
+  private disconnectFn: (() => void | Promise<void>) | undefined;
 
   // Message routing
   private messageQueue: SDKMessage[] = [];
@@ -124,18 +203,16 @@ export class ClaudeAxonConnection {
   // biome-ignore lint/suspicious/noExplicitAny: handlers are typed at registration via onControlRequest()
   private controlRequestHandlers = new Map<string, ControlRequestHandler<any>>();
 
-  /**
-   * @param axon    The Axon channel to communicate over. Axon should be mounted to a
-   *                devbox with the "claude_json" protocol.
-   * @param devbox  Optional Devbox instance. If provided, it will be shut down
-   *                automatically when {@link disconnect} is called.
-   * @param options Connection options (verbose logging, system prompt, model, etc.).
-   */
-  constructor(axon: Axon, devbox?: Devbox, options?: ClaudeAxonConnectionOptions) {
+  private axonEventListeners = new Set<AxonEventListener>();
+
+  constructor(axon: Axon, devbox: Devbox, options?: ClaudeAxonConnectionOptions) {
+    this.devboxId = devbox.id;
     this.options = options ?? {};
-    this.devbox = devbox;
+    this.handleError = options?.onError ?? defaultOnError;
+    this.disconnectFn = options?.onDisconnect;
     this.transport = new AxonTransport(axon, {
       verbose: this.options.verbose,
+      onAxonEvent: (ev) => this.emitAxonEvent(ev),
     });
   }
 
@@ -170,6 +247,18 @@ export class ClaudeAxonConnection {
     }
   }
 
+  /**
+   * Aborts the underlying SSE stream without clearing registered listeners
+   * or running the `onDisconnect` callback.
+   *
+   * Useful for simulating a transport-level disconnection in tests, or as a
+   * building block for reconnect logic. Unlike {@link disconnect}, listeners
+   * remain registered so they can fire again if a new stream is established.
+   */
+  abortStream(): void {
+    this.transport.abortStream();
+  }
+
   /** Disconnect from Claude Code. */
   async disconnect(): Promise<void> {
     if (this.closed) return;
@@ -186,16 +275,42 @@ export class ClaudeAxonConnection {
       pending.reject(new Error("Client disconnected"));
     }
     this.pendingControlRequests.clear();
+    this.axonEventListeners.clear();
 
     await this.transport.close();
 
-    // Shut down devbox if one was provided
-    if (this.devbox) {
+    if (this.disconnectFn) {
       try {
-        await this.devbox.shutdown();
-        this.log("disconnect", "devbox shut down");
+        await this.disconnectFn();
+        this.log("disconnect", "onDisconnect callback completed");
       } catch (err) {
-        this.log("disconnect", `devbox shutdown error: ${err}`);
+        this.log("disconnect", `onDisconnect callback error: ${err}`);
+      }
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Axon event listeners
+  // -----------------------------------------------------------------------
+
+  /**
+   * Registers a listener for every Axon event (before origin filtering).
+   * Useful for debugging, observability, and building Axon event viewers.
+   * @returns An unsubscribe function that removes the listener.
+   */
+  onAxonEvent(listener: AxonEventListener): () => void {
+    this.axonEventListeners.add(listener);
+    return () => {
+      this.axonEventListeners.delete(listener);
+    };
+  }
+
+  private emitAxonEvent(event: AxonEventView): void {
+    for (const listener of this.axonEventListeners) {
+      try {
+        listener(event);
+      } catch (err) {
+        this.handleError(err);
       }
     }
   }

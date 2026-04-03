@@ -131,29 +131,17 @@ describe("ACPAxonConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
       expect(conn.axonId).toBe("axon-123");
       conn.disconnect();
     });
 
-    it("exposes devboxId when provided", () => {
+    it("exposes devboxId from the positional parameter", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({
-        axon: axon as never,
-        devboxId: "dbx-456",
-      });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-456" } as never);
       expect(conn.devboxId).toBe("dbx-456");
-      conn.disconnect();
-    });
-
-    it("devboxId is undefined when not provided", () => {
-      const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl);
-
-      const conn = new ACPAxonConnection({ axon: axon as never });
-      expect(conn.devboxId).toBeUndefined();
       conn.disconnect();
     });
   });
@@ -163,7 +151,7 @@ describe("ACPAxonConnection", () => {
       const ctrl = createControllableStream();
       const { axon, published } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
 
       const options = makePermissionOptions(["allow_once", "allow_always", "reject_once"]);
       ctrl.push(makeAgentEvent("session/request_permission", makePermissionRequest(options)));
@@ -182,7 +170,7 @@ describe("ACPAxonConnection", () => {
       const ctrl = createControllableStream();
       const { axon, published } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
 
       const options = makePermissionOptions(["reject_once", "allow_once"]);
       ctrl.push(makeAgentEvent("session/request_permission", makePermissionRequest(options)));
@@ -201,7 +189,7 @@ describe("ACPAxonConnection", () => {
       const ctrl = createControllableStream();
       const { axon, published } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
 
       const options = makePermissionOptions(["reject_once", "reject_always"]);
       ctrl.push(makeAgentEvent("session/request_permission", makePermissionRequest(options)));
@@ -220,7 +208,7 @@ describe("ACPAxonConnection", () => {
       const ctrl = createControllableStream();
       const { axon, published } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
 
       ctrl.push(makeAgentEvent("session/request_permission", makePermissionRequest([])));
 
@@ -241,8 +229,7 @@ describe("ACPAxonConnection", () => {
         outcome: { outcome: "selected", optionId: "opt1" },
       });
 
-      const conn = new ACPAxonConnection({
-        axon: axon as never,
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never, {
         requestPermission: customHandler,
       });
 
@@ -263,7 +250,7 @@ describe("ACPAxonConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
 
       const listener1 = vi.fn();
       const listener2 = vi.fn();
@@ -289,7 +276,7 @@ describe("ACPAxonConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
 
       const listener = vi.fn();
       const unsubscribe = conn.onSessionUpdate(listener);
@@ -310,15 +297,15 @@ describe("ACPAxonConnection", () => {
     });
   });
 
-  describe("onRawEvent listeners", () => {
-    it("notifies all registered listeners for every raw event", async () => {
+  describe("onAxonEvent listeners", () => {
+    it("notifies all registered listeners for every Axon event", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
 
       const listener = vi.fn();
-      conn.onRawEvent(listener);
+      conn.onAxonEvent(listener);
 
       ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
       ctrl.push({
@@ -337,10 +324,10 @@ describe("ACPAxonConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
 
       const listener = vi.fn();
-      const unsub = conn.onRawEvent(listener);
+      const unsub = conn.onAxonEvent(listener);
 
       ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
       await waitFor(() => listener.mock.calls.length > 0);
@@ -361,7 +348,7 @@ describe("ACPAxonConnection", () => {
       const { axon } = createMockAxon(ctrl);
 
       const onError = vi.fn();
-      const conn = new ACPAxonConnection({ axon: axon as never, onError });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never, { onError });
 
       const throwingListener = vi.fn().mockImplementation(() => {
         throw new Error("listener boom");
@@ -383,14 +370,14 @@ describe("ACPAxonConnection", () => {
       conn.disconnect();
     });
 
-    it("catches raw event listener exceptions without crashing", async () => {
+    it("catches Axon event listener exceptions without crashing", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
       const onError = vi.fn();
-      const conn = new ACPAxonConnection({ axon: axon as never, onError });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never, { onError });
 
-      conn.onRawEvent(() => {
+      conn.onAxonEvent(() => {
         throw new Error("raw listener boom");
       });
 
@@ -408,12 +395,12 @@ describe("ACPAxonConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({ axon: axon as never });
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
 
       const sessionListener = vi.fn();
       const rawListener = vi.fn();
       conn.onSessionUpdate(sessionListener);
-      conn.onRawEvent(rawListener);
+      conn.onAxonEvent(rawListener);
 
       conn.disconnect();
 
@@ -429,28 +416,27 @@ describe("ACPAxonConnection", () => {
       });
     });
 
-    it("shutdown() calls disconnect and the shutdown callback", async () => {
+    it("disconnect() runs the onDisconnect callback", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const shutdownFn = vi.fn().mockResolvedValue(undefined);
+      const onDisconnect = vi.fn().mockResolvedValue(undefined);
 
-      const conn = new ACPAxonConnection({
-        axon: axon as never,
-        shutdown: shutdownFn,
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        onDisconnect,
       });
 
-      await conn.shutdown();
+      await conn.disconnect();
 
-      expect(shutdownFn).toHaveBeenCalledOnce();
+      expect(onDisconnect).toHaveBeenCalledOnce();
     });
 
-    it("shutdown() works when no shutdown callback is provided", async () => {
+    it("disconnect() works when no onDisconnect callback is provided", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
-      const conn = new ACPAxonConnection({ axon: axon as never });
-      await conn.shutdown();
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+      await conn.disconnect();
     });
   });
 });

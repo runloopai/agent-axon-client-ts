@@ -46,10 +46,8 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection({
-  axon,
-  devboxId: devbox.id,
-  shutdown: async () => {
+const agent = new ACPAxonConnection(axon, devbox, {
+  onDisconnect: async () => {
     await devbox.shutdown();
   },
 });
@@ -73,7 +71,7 @@ await agent.prompt({
 });
 
 // 5. Clean up
-await agent.shutdown();
+await agent.disconnect();
 ```
 
 ### ACP — narrowing session updates
@@ -106,8 +104,9 @@ Available guards: `isUserMessageChunk`, `isAgentMessageChunk`,
 | `prompt(params)` | Send a prompt |
 | `cancel(params)` | Cancel an in-progress turn |
 | `onSessionUpdate(listener)` | Subscribe to session updates (returns unsubscribe fn) |
-| `disconnect()` | Close the connection |
-| `shutdown()` | Disconnect + tear down devbox |
+| `onAxonEvent(listener)` | Subscribe to all Axon events (returns unsubscribe fn) |
+| `abortStream()` | Abort the SSE stream without clearing listeners |
+| `disconnect()` | Close the connection and run `onDisconnect` callback |
 
 ## Claude module — quick start
 
@@ -151,7 +150,9 @@ await conn.disconnect();
 | `receiveResponse()` | Async iterator yielding messages until `result` |
 | `receiveMessages()` | Async iterator yielding all messages indefinitely |
 | `interrupt()` | Cancel the current turn |
-| `disconnect()` | Close transport + shut down devbox if provided |
+| `onAxonEvent(listener)` | Subscribe to all Axon events (returns unsubscribe fn) |
+| `abortStream()` | Abort the SSE stream without clearing listeners |
+| `disconnect()` | Close transport + run `onDisconnect` callback |
 
 ## Constraints and gotchas
 
@@ -162,4 +163,4 @@ await conn.disconnect();
 - **Node >= 22** required.
 - **`@runloop/api-client`** is a peer dep — you must install it yourself.
 - **`@anthropic-ai/claude-agent-sdk`** is an optional peer dep — only needed for the Claude module.
-- **`prompt()` resolves before all session updates arrive.** The broker sends the prompt response and `turn.completed` system event *before* flushing thought/message chunks as `session/update` notifications. Use `onRawEvent` to watch for `turn.started` / `turn.completed` system events to accurately bracket turn content. See the SDK README for details.
+- **`prompt()` resolves before all session updates arrive.** The broker sends the prompt response and `turn.completed` system event *before* flushing thought/message chunks as `session/update` notifications. Use `onAxonEvent` to watch for `turn.started` / `turn.completed` system events to accurately bracket turn content. See the SDK README for details.

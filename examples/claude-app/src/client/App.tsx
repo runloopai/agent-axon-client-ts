@@ -23,7 +23,9 @@ import {
   type InitInfo,
   type PendingControlRequest,
   type ControlRequestQuestion,
+  type AxonEventView,
 } from "./hooks/useClaudeAgent.js";
+import { AxonEventItem } from "./components/AxonEventItem.js";
 
 function phaseLabel(phase: ConnectionPhase): string {
   if (phase === "connecting") return "Connecting to Claude Code\u2026";
@@ -89,7 +91,9 @@ export default function App() {
   const [startModel, setStartModel] = useState("claude-haiku-4-5");
   const [inputText, setInputText] = useState("");
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
-  const [rightTab, setRightTab] = useState<"tools" | "info">("tools");
+  const [rightTab, setRightTab] = useState<"tools" | "info" | "axon">("tools");
+  const [expandedAxonEvents, setExpandedAxonEvents] = useState<Set<number>>(new Set());
+  const axonEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = chatAreaRef.current;
@@ -332,6 +336,15 @@ export default function App() {
           >
             Info
           </button>
+          <button
+            className={`sidebar-tab ${rightTab === "axon" ? "active" : ""}`}
+            onClick={() => setRightTab("axon")}
+          >
+            Axon
+            {agent.axonEvents.length > 0 && (
+              <span className="tab-count">{agent.axonEvents.length}</span>
+            )}
+          </button>
         </div>
 
         {rightTab === "tools" ? (
@@ -343,13 +356,49 @@ export default function App() {
               <ToolCallSidebarItem key={tc.id} toolCall={tc} />
             ))}
           </div>
-        ) : (
+        ) : rightTab === "info" ? (
           <div className="events-list">
             {agent.initInfo ? (
               <InfoPanel initInfo={agent.initInfo} usage={agent.usage} />
             ) : (
               <div className="empty-state">Waiting for initialization...</div>
             )}
+          </div>
+        ) : (
+          <div className="events-list">
+            {agent.axonEvents.length > 0 && (
+              <div className="events-list-toolbar">
+                <button
+                  className="btn btn-ghost btn-copy-all"
+                  onClick={() => {
+                    navigator.clipboard.writeText(JSON.stringify(agent.axonEvents, null, 2));
+                  }}
+                >
+                  Copy All
+                </button>
+              </div>
+            )}
+            {agent.axonEvents.length === 0 && (
+              <div className="empty-state">No axon events yet</div>
+            )}
+            {agent.axonEvents.map((event, i) => (
+              <AxonEventItem
+                key={i}
+                event={event}
+                expanded={expandedAxonEvents.has(i)}
+                onToggle={() =>
+                  setExpandedAxonEvents((prev) => {
+                    const next = new Set(prev);
+                    next.has(i) ? next.delete(i) : next.add(i);
+                    return next;
+                  })
+                }
+                onCopy={() => {
+                  navigator.clipboard.writeText(JSON.stringify(event, null, 2));
+                }}
+              />
+            ))}
+            <div ref={axonEndRef} />
           </div>
         )}
       </div>

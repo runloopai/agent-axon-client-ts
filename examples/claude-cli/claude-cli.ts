@@ -89,6 +89,9 @@ console.log(`Devbox ready: ${devbox.id}`);
 // ---------------------------------------------------------------------------
 
 const client = new ClaudeAxonConnection(axon, devbox, {
+  onDisconnect: async () => {
+    await devbox.shutdown();
+  },
   verbose: VERBOSE,
   ...(MODEL && { model: MODEL }),
   ...(SYSTEM_PROMPT && { systemPrompt: SYSTEM_PROMPT }),

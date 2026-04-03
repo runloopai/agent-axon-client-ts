@@ -64,7 +64,7 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection({ axon, devboxId: devbox.id });
+const agent = new ACPAxonConnection(axon, devbox);
 
 await agent.initialize({
   protocolVersion: PROTOCOL_VERSION,
@@ -124,16 +124,21 @@ await conn.disconnect();
 
 Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the ACP `ClientSideConnection`.
 
-**Constructor** (`ACPAxonConnectionOptions`):
+**Constructor**: `new ACPAxonConnection(axon, devbox, options?)`
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `axon` | `Axon` | Yes | Axon channel from `@runloop/api-client` |
-| `devboxId` | `string` | No | Devbox ID for logging / observability |
-| `shutdown` | `() => Promise<void>` | No | Called from `shutdown()` (e.g. devbox teardown) |
-| `requestPermission` | `(params) => Promise<Response>` | No | Custom permission handler (defaults to auto-approve) |
-| `onError` | `(error: unknown) => void` | No | Error callback |
-| `onDisconnect` | `() => void` | No | Called when the SSE stream disconnects |
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `axon` | `Axon` | Axon channel from `@runloop/api-client` |
+| `devbox` | `Devbox` | Runloop devbox from `@runloop/api-client` |
+
+**Options** (`ACPAxonConnectionOptions`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `requestPermission` | `(params) => Promise<Response>` | Custom permission handler (defaults to auto-approve) |
+| `onError` | `(error: unknown) => void` | Error callback |
+| `onStreamInterrupted` | `() => void` | Called when the SSE stream is interrupted |
+| `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `shutdown()` (e.g. devbox shutdown) |
 
 **ACP Methods** (proxied from `ClientSideConnection`):
 
@@ -157,17 +162,17 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 |---|---|
 | `protocol: ClientSideConnection` | Escape hatch for experimental/unstable ACP methods |
 | `axonId: string` | The Axon channel ID |
-| `devboxId: string \| undefined` | The Runloop devbox ID (if passed in options) |
+| `devboxId: string` | The Runloop devbox ID |
 | `signal: AbortSignal` | Fires when the connection closes |
 | `closed: Promise<void>` | Resolves when the connection closes |
 | `onSessionUpdate(listener)` | Register a session update listener. Returns unsubscribe function. |
-| `onRawEvent(listener)` | Register a raw Axon event listener. Returns unsubscribe function. |
-| `disconnect()` | Abort the stream and clear all listeners |
-| `shutdown()` | Disconnect and run the teardown callback (e.g. devbox shutdown) |
+| `onAxonEvent(listener)` | Register an Axon event listener. Returns unsubscribe function. |
+| `abortStream()` | Abort the SSE stream without clearing listeners (useful for testing / reconnect) |
+| `disconnect()` | Abort the stream, clear all listeners, and run the `onDisconnect` callback |
 
 ### Provisioning Axon + devbox
 
-Create an Axon channel, attach a devbox `broker_mount` with `protocol: "acp"`, then pass the `Axon` (and optional `devboxId` / `shutdown`) into `ACPAxonConnection`:
+Create an Axon channel, attach a devbox `broker_mount` with `protocol: "acp"`, then pass `axon` and `devboxId` into `ACPAxonConnection`:
 
 ```typescript
 import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
@@ -187,10 +192,8 @@ const devbox = await sdk.devbox.create({
   ],
 });
 
-const conn = new ACPAxonConnection({
-  axon,
-  devboxId: devbox.id,
-  shutdown: async () => {
+const conn = new ACPAxonConnection(axon, devbox.id, {
+  onDisconnect: async () => {
     await devbox.shutdown();
   },
   requestPermission: async (params) => {
@@ -220,9 +223,9 @@ Low-level function that creates an ACP-compatible duplex stream backed by an `Ax
 |-------|------|----------|-------------|
 | `axon` | `Axon` | Yes | Axon channel from `@runloop/api-client` |
 | `signal` | `AbortSignal` | No | Cancellation signal |
-| `onRawEvent` | `(event: AxonEventView) => void` | No | Callback for every raw Axon event |
+| `onAxonEvent` | `(event: AxonEventView) => void` | No | Callback for every Axon event |
 | `onError` | `(error: unknown) => void` | No | Callback for swallowed parse errors |
-| `onDisconnect` | `() => void` | No | Called when the SSE stream disconnects |
+| `onStreamInterrupted` | `() => void` | No | Called when the SSE stream is interrupted |
 
 **Returns**: `{ readable: ReadableStream<AnyMessage>; writable: WritableStream<AnyMessage> }`
 
@@ -274,19 +277,14 @@ import type {
 
 Bidirectional, interactive client for Claude Code via Axon. Messages are yielded as `SDKMessage` from `@anthropic-ai/claude-agent-sdk` — the exact types the Claude Code CLI emits.
 
-**Constructor**:
+**Constructor**: `new ClaudeAxonConnection(axon, devbox, options?)`
 
-```typescript
-new ClaudeAxonConnection(axon: Axon, devbox?: Devbox, options?: ClaudeAxonConnectionOptions)
-```
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `axon` | `Axon` | Axon channel from `@runloop/api-client` |
+| `devbox` | `Devbox` | Runloop devbox from `@runloop/api-client` |
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `axon` | `Axon` | Yes | The Axon channel (from `@runloop/api-client`) |
-| `devbox` | `Devbox` | No | If provided, shut down automatically on `disconnect()` |
-| `options` | `ClaudeAxonConnectionOptions` | No | See below |
-
-**`ClaudeAxonConnectionOptions`**:
+**Options** (`ClaudeAxonConnectionOptions`):
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -294,13 +292,14 @@ new ClaudeAxonConnection(axon: Axon, devbox?: Devbox, options?: ClaudeAxonConnec
 | `systemPrompt` | `string` | Override the system prompt |
 | `appendSystemPrompt` | `string` | Append to the default system prompt |
 | `model` | `string` | Model ID (e.g. `"claude-sonnet-4-5"`) — set after initialization |
+| `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
 
 **Lifecycle**:
 
 | Method | Description |
 |--------|-------------|
 | `connect()` | Connect to Claude Code, initialize the control protocol, and set model if configured |
-| `disconnect()` | Close the transport, fail pending requests, and shut down the devbox if provided |
+| `disconnect()` | Close the transport, fail pending requests, and run `onDisconnect` if provided |
 
 **Messaging**:
 
@@ -317,6 +316,12 @@ new ClaudeAxonConnection(axon: Axon, devbox?: Devbox, options?: ClaudeAxonConnec
 | `interrupt()` | Interrupt the current conversation turn |
 | `setPermissionMode(mode)` | Change the permission mode |
 | `setModel(model)` | Change the AI model |
+
+**Listeners**:
+
+| Method | Description |
+|--------|-------------|
+| `onAxonEvent(listener)` | Register an Axon event listener. Returns unsubscribe function. |
 
 ### `AxonTransport`
 
@@ -420,10 +425,10 @@ The Axon broker delivers events in this order for a given turn:
 
 This means **`await agent.prompt(...)` returns before the agent's response text has been delivered via `onSessionUpdate`**. If you need to know when all content for a turn has arrived, use one of these strategies:
 
-- **Use `onRawEvent` to watch for `turn.started` / `turn.completed` system events** (recommended). These bracket all content for a turn:
+- **Use `onAxonEvent` to watch for `turn.started` / `turn.completed` system events** (recommended). These bracket all content for a turn:
 
   ```typescript
-  agent.onRawEvent((event) => {
+  agent.onAxonEvent((event) => {
     if (event.origin !== "SYSTEM_EVENT") return;
     if (event.event_type === "turn.started") {
       // Agent turn began — disable input, show cancel button

@@ -2,8 +2,8 @@
  * Claude module for connecting to Claude Code instances running inside
  * Runloop devboxes via the Axon event bus.
  *
- * **Getting started:** Create a {@link ClaudeAxonConnection} with your
- * Axon channel and an optional Devbox, call
+ * **Getting started:** Create a {@link ClaudeAxonConnection} with an
+ * Axon channel and devbox ID, call
  * {@link ClaudeAxonConnection.connect | connect()}, then use
  * {@link ClaudeAxonConnection.send | send()} and
  * {@link ClaudeAxonConnection.receiveResponse | receiveResponse()} to
@@ -22,7 +22,9 @@
  * @module
  */
 
+export type { AxonEventView } from "@runloop/api-client/resources/axons";
 export {
+  type AxonEventListener,
   ClaudeAxonConnection,
   type ClaudeAxonConnectionOptions,
   type ControlRequestHandler,

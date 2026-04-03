@@ -51,10 +51,8 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection({
-  axon,
-  devboxId: devbox.id,
-  shutdown: async () => {
+const agent = new ACPAxonConnection(axon, devbox, {
+  onDisconnect: async () => {
     await devbox.shutdown();
   },
 });
@@ -102,7 +100,7 @@ console.log("\n");
 // Cleanup
 // ---------------------------------------------------------------------------
 
-console.log("Shutting down...");
-await agent.shutdown();
+console.log("Disconnecting...");
+await agent.disconnect();
 console.log("Done.");
 process.exit(0);

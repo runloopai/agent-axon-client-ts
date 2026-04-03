@@ -129,10 +129,8 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection({
-  axon,
-  devboxId: devbox.id,
-  shutdown: async () => {
+const agent = new ACPAxonConnection(axon, devbox, {
+  onDisconnect: async () => {
     await devbox.shutdown();
   },
 });
@@ -152,7 +150,7 @@ await agent.prompt({
   prompt: [{ type: "text", text: "Hello!" }],
 });
 
-await agent.shutdown();
+await agent.disconnect();
 ```
 
 ### Claude module

@@ -1,7 +1,7 @@
 import express from "express";
 import { createServer } from "node:http";
 import { RunloopSDK } from "@runloop/api-client";
-import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection, type AxonEventView } from "@runloop/agent-axon-client/claude";
 import type { SDKControlResponse, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { WsBroadcaster, type WsEvent } from "./ws.ts";
 
@@ -13,7 +13,7 @@ const ws = new WsBroadcaster(server);
 
 let connection: ClaudeAxonConnection | null = null;
 let abortController: AbortController | null = null;
-let axonEvents: unknown[] = [];
+let axonEvents: AxonEventView[] = [];
 let initMessage: SDKMessage | null = null;
 
 // Pending control requests awaiting a response from the frontend.
@@ -105,12 +105,20 @@ app.post("/api/start", async (req, res) => {
     axonEvents = [];
 
     const conn = new ClaudeAxonConnection(axon, devbox, {
+      onDisconnect: async () => {
+        await devbox.shutdown();
+      },
       verbose: true,
       ...(systemPrompt ? { systemPrompt } : {}),
       ...(model ? { model } : {}),
     });
 
     connection = conn;
+
+    conn.onAxonEvent((ev) => {
+      axonEvents.push(ev);
+      ws.broadcast({ type: "axon_event", event: ev });
+    });
 
     // Intercept can_use_tool control requests: forward them to the frontend
     // via WebSocket and wait for the user's response via /api/control-response.
