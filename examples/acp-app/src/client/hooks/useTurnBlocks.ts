@@ -182,7 +182,7 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
       clearStaleTurnTimer();
       setIsAgentTurn(false);
       setIsStreaming(false);
-      scheduleDeferredFlush(data.stopReason);
+      scheduleDeferredFlush(data.stopReason as StopReason);
       return;
     }
 

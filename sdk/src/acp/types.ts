@@ -28,19 +28,6 @@ export interface AxonStreamOptions {
   onDisconnect?: () => void;
 }
 
-/** Configuration for launching an agent binary inside a Runloop devbox. */
-export interface AgentLaunchConfig {
-  /** Name of the agent binary to run (e.g. `"opencode"`, `"claude"`). */
-  agentBinary: string;
-  /** Arguments passed to the agent binary. */
-  launchArgs?: string[];
-  /**
-   * Shell commands to run before the agent starts.
-   * When provided, enables a 5-minute keep-alive on the devbox.
-   */
-  launchCommands?: string[];
-}
-
 /** Options for creating an {@link ACPAxonConnection}. */
 export interface ACPAxonConnectionOptions {
   /** Axon channel to connect to (from `@runloop/api-client`). */
