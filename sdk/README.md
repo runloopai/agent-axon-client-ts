@@ -64,35 +64,19 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection({
-  axon,
-  devboxId: devbox.id,
-  shutdown: async () => {
-    await devbox.shutdown();
-  },
-});
+const agent = new ACPAxonConnection({ axon, devboxId: devbox.id });
 
 await agent.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "my-app", version: "1.0.0" },
 });
 
-// Session updates (message chunks, tool calls, etc.) stream in asynchronously.
-// prompt() resolves when the broker acknowledges the prompt — *before* the
-// agent's full response has been delivered via onSessionUpdate.
+// Session updates (message chunks, tool calls, etc.) arrive asynchronously
+// after prompt() resolves. This is an ACP protocol limitation
 agent.onSessionUpdate((sessionId, update) => {
   if (isAgentMessageChunk(update)) {
     process.stdout.write(update.message);
   }
-});
-
-// Use onRawEvent to detect when the turn is fully complete.
-const turnDone = new Promise<void>((resolve) => {
-  agent.onRawEvent((event) => {
-    if (event.origin === "SYSTEM_EVENT" && event.event_type === "turn.completed") {
-      resolve();
-    }
-  });
 });
 
 const session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
@@ -100,10 +84,6 @@ await agent.prompt({
   sessionId: session.sessionId,
   prompt: [{ type: "text", text: "Hello!" }],
 });
-
-// Wait for all session updates to arrive before shutting down.
-await turnDone;
-await agent.shutdown();
 ```
 
 ### Claude Code Agent
