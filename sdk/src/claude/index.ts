@@ -3,7 +3,7 @@
  * Runloop devboxes via the Axon event bus.
  *
  * **Getting started:** Create a {@link ClaudeAxonConnection} with an
- * options object containing your Axon channel (and optional Devbox), call
+ * Axon channel and devbox ID, call
  * {@link ClaudeAxonConnection.connect | connect()}, then use
  * {@link ClaudeAxonConnection.send | send()} and
  * {@link ClaudeAxonConnection.receiveResponse | receiveResponse()} to

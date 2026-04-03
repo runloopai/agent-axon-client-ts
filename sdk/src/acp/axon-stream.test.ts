@@ -294,20 +294,20 @@ describe("axonStream", () => {
       expect(second.done).toBe(true);
     });
 
-    it("calls onDisconnect when SSE stream ends naturally", async () => {
+    it("calls onStreamInterrupted when SSE stream ends naturally", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl.stream);
 
-      const onDisconnect = vi.fn();
+      const onStreamInterrupted = vi.fn();
       ctrl.end();
 
-      const { readable } = axonStream({ axon: axon as never, onDisconnect });
+      const { readable } = axonStream({ axon: axon as never, onStreamInterrupted });
       await drain(readable);
 
-      expect(onDisconnect).toHaveBeenCalledOnce();
+      expect(onStreamInterrupted).toHaveBeenCalledOnce();
     });
 
-    it("calls onDisconnect on SSE stream error (non-aborted)", async () => {
+    it("calls onStreamInterrupted on SSE stream error (non-aborted)", async () => {
       const errorStream = {
         [Symbol.asyncIterator]() {
           return {
@@ -319,32 +319,32 @@ describe("axonStream", () => {
       };
       const { axon } = createMockAxon(errorStream);
 
-      const onDisconnect = vi.fn();
-      const { readable } = axonStream({ axon: axon as never, onDisconnect });
+      const onStreamInterrupted = vi.fn();
+      const { readable } = axonStream({ axon: axon as never, onStreamInterrupted });
 
       const reader = readable.getReader();
       await expect(reader.read()).rejects.toThrow("SSE connection lost");
-      expect(onDisconnect).toHaveBeenCalledOnce();
+      expect(onStreamInterrupted).toHaveBeenCalledOnce();
     });
 
-    it("does NOT call onDisconnect when signal is aborted", async () => {
+    it("does NOT call onStreamInterrupted when signal is aborted", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl.stream);
 
       const abortController = new AbortController();
-      const onDisconnect = vi.fn();
+      const onStreamInterrupted = vi.fn();
 
       const { readable } = axonStream({
         axon: axon as never,
         signal: abortController.signal,
-        onDisconnect,
+        onStreamInterrupted,
       });
 
       abortController.abort();
       ctrl.end();
 
       await drain(readable);
-      expect(onDisconnect).not.toHaveBeenCalled();
+      expect(onStreamInterrupted).not.toHaveBeenCalled();
     });
   });
 

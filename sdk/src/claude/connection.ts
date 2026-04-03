@@ -23,7 +23,7 @@ import type {
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
-import type { Axon, Devbox } from "@runloop/api-client/sdk";
+import type { Axon } from "@runloop/api-client/sdk";
 import { AxonTransport, type Transport } from "./transport.js";
 import type { WireData } from "./types.js";
 
@@ -96,16 +96,6 @@ interface PendingControlRequest {
 
 /** @category Configuration */
 export interface ClaudeAxonConnectionOptions {
-  /**
-   * The Axon channel to communicate over. Axon should be mounted to a
-   * devbox with the "claude_json" protocol.
-   */
-  axon: Axon;
-  /**
-   * Optional Devbox instance. If provided, it will be shut down
-   * automatically when {@link ClaudeAxonConnection.disconnect} is called.
-   */
-  devbox?: Devbox;
   /** If true, emit verbose logs to stderr. */
   verbose?: boolean;
   /** Override the system prompt for this session. */
@@ -114,6 +104,10 @@ export interface ClaudeAxonConnectionOptions {
   appendSystemPrompt?: string;
   /** Model ID (e.g. 'claude-haiku-4-5', 'claude-sonnet-4-5'). Set after initialization. */
   model?: string;
+  /**
+   * Async teardown callback invoked by `disconnect()` (e.g. devbox shutdown).
+   */
+  onDisconnect?: () => void | Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -122,9 +116,12 @@ export interface ClaudeAxonConnectionOptions {
 
 /** @category Connection */
 export class ClaudeAxonConnection {
+  /** The Runloop devbox ID. */
+  readonly devboxId: string;
+
   private transport: Transport;
-  private devbox?: Devbox;
   private options: ClaudeAxonConnectionOptions;
+  private disconnectFn: (() => void | Promise<void>) | undefined;
 
   // Message routing
   private messageQueue: SDKMessage[] = [];
@@ -143,10 +140,11 @@ export class ClaudeAxonConnection {
 
   private axonEventListeners = new Set<AxonEventListener>();
 
-  constructor(options: ClaudeAxonConnectionOptions) {
-    this.options = options;
-    this.devbox = options.devbox;
-    this.transport = new AxonTransport(options.axon, {
+  constructor(axon: Axon, devboxId: string, options?: ClaudeAxonConnectionOptions) {
+    this.devboxId = devboxId;
+    this.options = options ?? {};
+    this.disconnectFn = options?.onDisconnect;
+    this.transport = new AxonTransport(axon, {
       verbose: this.options.verbose,
       onAxonEvent: (ev) => this.emitAxonEvent(ev),
     });
@@ -203,13 +201,12 @@ export class ClaudeAxonConnection {
 
     await this.transport.close();
 
-    // Shut down devbox if one was provided
-    if (this.devbox) {
+    if (this.disconnectFn) {
       try {
-        await this.devbox.shutdown();
-        this.log("disconnect", "devbox shut down");
+        await this.disconnectFn();
+        this.log("disconnect", "onDisconnect callback completed");
       } catch (err) {
-        this.log("disconnect", `devbox shutdown error: ${err}`);
+        this.log("disconnect", `onDisconnect callback error: ${err}`);
       }
     }
   }

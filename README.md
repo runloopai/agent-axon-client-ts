@@ -129,10 +129,8 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection({
-  axon,
-  devboxId: devbox.id,
-  shutdown: async () => {
+const agent = new ACPAxonConnection(axon, devbox.id, {
+  onDisconnect: async () => {
     await devbox.shutdown();
   },
 });
@@ -152,7 +150,7 @@ await agent.prompt({
   prompt: [{ type: "text", text: "Hello!" }],
 });
 
-await agent.shutdown();
+await agent.disconnect();
 ```
 
 ### Claude module
@@ -173,7 +171,7 @@ const devbox = await sdk.devbox.create({
   }],
 });
 
-const conn = new ClaudeAxonConnection({ axon, devbox, model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection(axon, devbox.id, { model: "claude-sonnet-4-5" });
 await conn.connect();
 
 await conn.send("What files are in this directory?");

@@ -74,22 +74,17 @@ function createMockAxon() {
   return { id: "test-axon" };
 }
 
-function createMockDevbox() {
-  return { shutdown: vi.fn().mockResolvedValue(undefined) };
-}
-
 // ---------------------------------------------------------------------------
 // Helper to create a connected ClaudeAxonConnection with mock transport
 // ---------------------------------------------------------------------------
 
 async function createConnectedClient(
   transport: MockTransport,
-  options?: { devbox?: ReturnType<typeof createMockDevbox>; model?: string },
+  options?: { onDisconnect?: () => void | Promise<void>; model?: string },
 ) {
   const axon = createMockAxon();
-  const conn = new ClaudeAxonConnection({
-    axon: axon as never,
-    devbox: options?.devbox as never,
+  const conn = new ClaudeAxonConnection(axon as never, "dbx-test", {
+    onDisconnect: options?.onDisconnect,
     model: options?.model,
   });
 
@@ -413,11 +408,11 @@ describe("ClaudeAxonConnection", () => {
       expect(transport.close).toHaveBeenCalledOnce();
     });
 
-    it("shuts down the devbox if provided", async () => {
-      const devbox = createMockDevbox();
-      const conn = await createConnectedClient(transport, { devbox });
+    it("calls onDisconnect callback if provided", async () => {
+      const onDisconnect = vi.fn().mockResolvedValue(undefined);
+      const conn = await createConnectedClient(transport, { onDisconnect });
       await conn.disconnect();
-      expect(devbox.shutdown).toHaveBeenCalledOnce();
+      expect(onDisconnect).toHaveBeenCalledOnce();
     });
 
     it("fails pending control requests on disconnect", async () => {

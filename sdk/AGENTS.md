@@ -46,10 +46,8 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection({
-  axon,
-  devboxId: devbox.id,
-  shutdown: async () => {
+const agent = new ACPAxonConnection(axon, devbox.id, {
+  onDisconnect: async () => {
     await devbox.shutdown();
   },
 });
@@ -73,7 +71,7 @@ await agent.prompt({
 });
 
 // 5. Clean up
-await agent.shutdown();
+await agent.disconnect();
 ```
 
 ### ACP — narrowing session updates
@@ -108,8 +106,7 @@ Available guards: `isUserMessageChunk`, `isAgentMessageChunk`,
 | `onSessionUpdate(listener)` | Subscribe to session updates (returns unsubscribe fn) |
 | `onAxonEvent(listener)` | Subscribe to all Axon events (returns unsubscribe fn) |
 | `abortStream()` | Abort the SSE stream without clearing listeners |
-| `disconnect()` | Close the connection |
-| `shutdown()` | Disconnect + tear down devbox |
+| `disconnect()` | Close the connection and run `onDisconnect` callback |
 
 ## Claude module — quick start
 
@@ -131,7 +128,7 @@ const devbox = await sdk.devbox.create({
 });
 
 // 2. Connect
-const conn = new ClaudeAxonConnection({ axon, devbox, model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection(axon, devbox.id, { model: "claude-sonnet-4-5" });
 await conn.connect();
 
 // 3. Send and receive
@@ -154,7 +151,7 @@ await conn.disconnect();
 | `receiveMessages()` | Async iterator yielding all messages indefinitely |
 | `interrupt()` | Cancel the current turn |
 | `onAxonEvent(listener)` | Subscribe to all Axon events (returns unsubscribe fn) |
-| `disconnect()` | Close transport + shut down devbox if provided |
+| `disconnect()` | Close transport + run `onDisconnect` callback |
 
 ## Constraints and gotchas
 

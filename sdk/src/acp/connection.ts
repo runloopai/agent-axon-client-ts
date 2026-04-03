@@ -24,6 +24,7 @@ import {
   type SetSessionModeResponse,
 } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
+import type { Axon } from "@runloop/api-client/sdk";
 import { axonStream } from "./axon-stream.js";
 import type {
   ACPAxonConnectionOptions,
@@ -54,8 +55,8 @@ export class ACPAxonConnection {
   /** The Axon channel ID this connection is bound to. */
   readonly axonId: string;
 
-  /** The Runloop devbox ID, if supplied in connection options. */
-  readonly devboxId: string | undefined;
+  /** The Runloop devbox ID. */
+  readonly devboxId: string;
 
   /**
    * The underlying ACP SDK `ClientSideConnection`.
@@ -73,22 +74,22 @@ export class ACPAxonConnection {
   private handlePermission:
     | ((params: RequestPermissionRequest) => Promise<RequestPermissionResponse>)
     | undefined;
-  private shutdownFn: (() => Promise<void>) | undefined;
+  private disconnectFn: (() => void | Promise<void>) | undefined;
 
-  constructor(options: ACPAxonConnectionOptions) {
-    this.axonId = options.axon.id;
-    this.devboxId = options.devboxId;
+  constructor(axon: Axon, devboxId: string, options?: ACPAxonConnectionOptions) {
+    this.axonId = axon.id;
+    this.devboxId = devboxId;
     this.abortController = new AbortController();
-    this.handleError = options.onError ?? defaultOnError;
-    this.handlePermission = options.requestPermission;
-    this.shutdownFn = options.shutdown;
+    this.handleError = options?.onError ?? defaultOnError;
+    this.handlePermission = options?.requestPermission;
+    this.disconnectFn = options?.onDisconnect;
 
     const stream = axonStream({
-      axon: options.axon,
+      axon,
       signal: this.abortController.signal,
       onAxonEvent: (ev) => this.emitAxonEvent(ev),
       onError: this.handleError,
-      onDisconnect: options.onDisconnect,
+      onStreamInterrupted: options?.onStreamInterrupted,
     });
 
     this.protocol = new ClientSideConnection((_agent: Agent) => this.createClient(), stream);
@@ -207,20 +208,15 @@ export class ACPAxonConnection {
     this.abortController.abort();
   }
 
-  /** Aborts the Axon stream and clears all registered listeners. */
-  disconnect(): void {
+  /**
+   * Aborts the Axon stream, clears all registered listeners, and runs the
+   * `onDisconnect` callback (e.g. devbox teardown) if one was provided.
+   */
+  async disconnect(): Promise<void> {
     this.abortStream();
     this.sessionUpdateListeners.clear();
     this.axonEventListeners.clear();
-  }
-
-  /**
-   * Disconnects the ACP connection and runs the shutdown callback (e.g. devbox
-   * teardown) if one was provided in connection options.
-   */
-  async shutdown(): Promise<void> {
-    this.disconnect();
-    await this.shutdownFn?.();
+    await this.disconnectFn?.();
   }
 
   // ---------------------------------------------------------------------------
