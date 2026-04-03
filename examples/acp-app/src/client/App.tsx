@@ -18,10 +18,7 @@ import { AssistantTurn } from "./components/AssistantTurn.js";
 import { ElicitationForm } from "./components/ElicitationForm.js";
 import { CommandPicker } from "./components/CommandPicker.js";
 import { UsageBar } from "./components/UsageBar.js";
-import {
-  FileOpItem,
-  TerminalCard,
-} from "./components/ActivityPanel.js";
+import { FileOpItem, TerminalCard } from "./components/ActivityPanel.js";
 import { AxonEventItem } from "./components/AxonEventItem.js";
 import { TurnBlocksInspector } from "./components/TurnBlocksInspector.js";
 
@@ -229,7 +226,7 @@ export default function App() {
                 devbox:{" "}
                 {agent.runloopUrl ? (
                   <a
-                    href={`${agent.runloopUrl}/devboxes/${agent.devboxId}`}
+                    href={`${agent.runloopUrl.replace("api", "platform")}/devboxes/${agent.devboxId}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -380,8 +377,10 @@ export default function App() {
             Activity
             {agent.messages.length + agent.currentTurnBlocks.length > 0 && (
               <span className="tab-count">
-                {agent.messages.reduce((s, m) => s + (m.blocks?.length ?? 0), 0) +
-                  agent.currentTurnBlocks.length}
+                {agent.messages.reduce(
+                  (s, m) => s + (m.blocks?.length ?? 0),
+                  0,
+                ) + agent.currentTurnBlocks.length}
               </span>
             )}
           </button>

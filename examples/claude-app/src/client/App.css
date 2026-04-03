@@ -592,14 +592,63 @@ html, body, #root {
   padding: 2px 0;
 }
 
+.thinking-block-clickable {
+  cursor: pointer;
+  border-radius: var(--radius);
+  padding: 4px 6px;
+  margin: 0 -6px;
+  transition: background 0.15s;
+}
+
+.thinking-block-clickable:hover {
+  background: rgba(188, 140, 255, 0.05);
+}
+
 .thinking-header-inline {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 11px;
   color: var(--purple);
-  margin-bottom: 2px;
+  margin-bottom: 0;
   user-select: none;
+  opacity: 0.8;
+}
+
+.thinking-block-clickable:hover .thinking-header-inline {
+  opacity: 1;
+}
+
+.thinking-chevron {
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid var(--purple);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.thinking-chevron-open {
+  transform: rotate(90deg);
+}
+
+.thinking-chevron-active {
+  border-left-color: transparent;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  width: 8px;
+  height: 8px;
+  border: none;
+  border-radius: 50%;
+  background: var(--purple);
+  opacity: 0.6;
+  animation: thinking-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes thinking-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
 }
 
 .thinking-label { font-weight: 500; }
@@ -617,6 +666,22 @@ html, body, #root {
   color: var(--text-muted);
   word-break: break-word;
   opacity: 0.7;
+  margin-top: 2px;
+}
+
+.thinking-content-collapsed::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: linear-gradient(transparent, var(--bg-secondary));
+  pointer-events: none;
+}
+
+.thinking-content-expanded {
+  max-height: none !important;
 }
 
 .thinking-content p { margin: 0 0 8px; }
@@ -644,38 +709,6 @@ html, body, #root {
   padding: 0;
   font-size: 12px;
   line-height: 1.5;
-}
-
-.thinking-content-overflow::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 24px;
-  background: linear-gradient(transparent, var(--bg-primary));
-  pointer-events: none;
-}
-
-.thinking-content-expanded {
-  max-height: none !important;
-}
-
-.thinking-toggle {
-  background: none;
-  border: none;
-  color: var(--purple);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 2px 0;
-  font-family: var(--font-sans);
-  opacity: 0.8;
-  transition: opacity 0.15s;
-}
-
-.thinking-toggle:hover {
-  opacity: 1;
 }
 
 /* ── Tool Call Block ─────────────────────────────────────── */
