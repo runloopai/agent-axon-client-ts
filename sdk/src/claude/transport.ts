@@ -35,6 +35,7 @@ export interface Transport {
   write(data: string): Promise<void>;
   readMessages(): AsyncIterable<WireData>;
   close(): Promise<void>;
+  abortStream(): void;
   isReady(): boolean;
 }
 
@@ -138,19 +139,26 @@ export class AxonTransport implements Transport {
     this.log("read", `SSE ended after ${eventCount} events`);
   }
 
+  /**
+   * Abort the SSE stream without marking the transport as closed.
+   * The read loop will exit, but the transport can still be used
+   * for publishing (write). Useful for reconnect scenarios.
+   */
+  abortStream(): void {
+    if (this.sseStream) {
+      this.log("abortStream", "aborting SSE stream");
+      this.sseStream.controller.abort();
+      this.sseStream = null;
+    }
+  }
+
   /** Close the transport. */
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
     this.connected = false;
     this.log("close", "closing transport");
-
-    // Abort the SSE stream so the read loop exits immediately
-    // instead of blocking until the server closes the connection.
-    if (this.sseStream) {
-      this.sseStream.controller.abort();
-      this.sseStream = null;
-    }
+    this.abortStream();
   }
 
   isReady(): boolean {

@@ -27,7 +27,7 @@ jobs:
             ci
             chore
             revert
-          requireScope: true
+          requireScope: false
           scopes: |
             sdk
             acp

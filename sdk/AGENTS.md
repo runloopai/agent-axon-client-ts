@@ -151,6 +151,7 @@ await conn.disconnect();
 | `receiveMessages()` | Async iterator yielding all messages indefinitely |
 | `interrupt()` | Cancel the current turn |
 | `onAxonEvent(listener)` | Subscribe to all Axon events (returns unsubscribe fn) |
+| `abortStream()` | Abort the SSE stream without clearing listeners |
 | `disconnect()` | Close transport + run `onDisconnect` callback |
 
 ## Constraints and gotchas
