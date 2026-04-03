@@ -1,26 +1,66 @@
-// ---------------------------------------------------------------------------
-// Core API
-// ---------------------------------------------------------------------------
+/**
+ * ACP (Agent Client Protocol) module for connecting to ACP-compatible agents
+ * running inside Runloop devboxes via the Axon event bus.
+ *
+ * **Getting started:** Create an {@link ACPAxonConnection} with your Axon
+ * channel, call {@link ACPAxonConnection.initialize | initialize()}, then
+ * use {@link ACPAxonConnection.newSession | newSession()} and
+ * {@link ACPAxonConnection.prompt | prompt()} to interact with the agent.
+ * Subscribe to streaming updates with
+ * {@link ACPAxonConnection.onSessionUpdate | onSessionUpdate()} and narrow
+ * them using the type guard functions.
+ *
+ * @categoryDescription Connection
+ * The main connection class and its low-level stream factory.
+ *
+ * @categoryDescription Configuration
+ * Options, callbacks, and listener types used when creating a connection.
+ *
+ * @categoryDescription Session Updates
+ * Type guards and narrowed types for discriminating {@link SessionUpdate} variants
+ * received via {@link ACPAxonConnection.onSessionUpdate | onSessionUpdate()}.
+ *
+ * @categoryDescription ACP Protocol
+ * Re-exported request/response types and constants from the upstream
+ * `@agentclientprotocol/sdk`. Use these to type method parameters.
+ *
+ * @module
+ */
 
+// Full upstream type surface for consumers who need additional ACP protocol
+// types beyond what this library's API explicitly re-exports above.
+export type * from "@agentclientprotocol/sdk";
+export type {
+  AuthenticateRequest,
+  AuthenticateResponse,
+  CancelNotification,
+  InitializeRequest,
+  InitializeResponse,
+  ListSessionsRequest,
+  ListSessionsResponse,
+  LoadSessionRequest,
+  LoadSessionResponse,
+  NewSessionRequest,
+  NewSessionResponse,
+  PromptRequest,
+  PromptResponse,
+  RequestPermissionRequest,
+  RequestPermissionResponse,
+  SessionNotification,
+  SessionUpdate,
+  SetSessionConfigOptionRequest,
+  SetSessionConfigOptionResponse,
+  SetSessionModeRequest,
+  SetSessionModeResponse,
+  Stream,
+} from "@agentclientprotocol/sdk";
+export {
+  CLIENT_METHODS,
+  ClientSideConnection,
+  PROTOCOL_VERSION,
+} from "@agentclientprotocol/sdk";
 export { axonStream } from "./axon-stream.js";
 export { ACPAxonConnection } from "./connection.js";
-
-// ---------------------------------------------------------------------------
-// Library types
-// ---------------------------------------------------------------------------
-
-export type {
-  ACPAxonConnectionOptions,
-  AxonEventView,
-  AxonStreamOptions,
-  RawEventListener,
-  SessionUpdateListener,
-} from "./types.js";
-
-// ---------------------------------------------------------------------------
-// Session update type guards & narrowed types
-// ---------------------------------------------------------------------------
-
 export type {
   AgentMessageChunkUpdate,
   AgentThoughtChunkUpdate,
@@ -47,49 +87,10 @@ export {
   isUsageUpdate,
   isUserMessageChunk,
 } from "./session-update-guards.js";
-
-// ---------------------------------------------------------------------------
-// ACP protocol re-exports — types used in this library's public API
-// ---------------------------------------------------------------------------
-
-// Full upstream type surface for advanced consumers who need access to
-// additional ACP protocol types beyond what this library's API requires.
-export type * from "@agentclientprotocol/sdk";
-
 export type {
-  // Authentication
-  AuthenticateRequest,
-  AuthenticateResponse,
-  CancelNotification,
-  // Initialization
-  InitializeRequest,
-  InitializeResponse,
-  ListSessionsRequest,
-  ListSessionsResponse,
-  LoadSessionRequest,
-  LoadSessionResponse,
-  // Sessions
-  NewSessionRequest,
-  NewSessionResponse,
-  // Prompting
-  PromptRequest,
-  PromptResponse,
-  // Permissions
-  RequestPermissionRequest,
-  RequestPermissionResponse,
-  SessionNotification,
-  // Session updates
-  SessionUpdate,
-  SetSessionConfigOptionRequest,
-  SetSessionConfigOptionResponse,
-  // Session configuration
-  SetSessionModeRequest,
-  SetSessionModeResponse,
-  // Stream primitive
-  Stream,
-} from "@agentclientprotocol/sdk";
-export {
-  CLIENT_METHODS,
-  ClientSideConnection,
-  PROTOCOL_VERSION,
-} from "@agentclientprotocol/sdk";
+  ACPAxonConnectionOptions,
+  AxonEventView,
+  AxonStreamOptions,
+  RawEventListener,
+  SessionUpdateListener,
+} from "./types.js";

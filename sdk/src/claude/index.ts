@@ -1,3 +1,27 @@
+/**
+ * Claude module for connecting to Claude Code instances running inside
+ * Runloop devboxes via the Axon event bus.
+ *
+ * **Getting started:** Create a {@link ClaudeAxonConnection} with your
+ * Axon channel and an optional Devbox, call
+ * {@link ClaudeAxonConnection.connect | connect()}, then use
+ * {@link ClaudeAxonConnection.send | send()} and
+ * {@link ClaudeAxonConnection.receiveResponse | receiveResponse()} to
+ * interact with Claude Code.
+ *
+ * @categoryDescription Connection
+ * The main connection class for interacting with Claude Code.
+ *
+ * @categoryDescription Configuration
+ * Options and handler types used when creating and configuring a connection.
+ *
+ * @categoryDescription Transport
+ * Low-level transport layer that bridges Axon SSE streams and the Claude
+ * wire protocol. Most users won't need this directly.
+ *
+ * @module
+ */
+
 export {
   ClaudeAxonConnection,
   type ClaudeAxonConnectionOptions,

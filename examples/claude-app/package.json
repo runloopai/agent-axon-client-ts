@@ -11,7 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.90",
+    "@anthropic-ai/claude-agent-sdk": "0.2.91",
     "@runloop/agent-axon-client": "workspace:*",
     "@runloop/api-client": "^1.16.2",
     "diff": "^8.0.4",

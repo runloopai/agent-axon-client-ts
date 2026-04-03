@@ -27,6 +27,8 @@ const NOTIFICATION_TYPES = new Set<string>([CLIENT_METHODS.session_update]);
  *   publish envelopes (`event_type` + `payload`).
  * - **Inbound**: Wrapping axon events back into JSON-RPC messages using
  *   a method -> request-ID correlation map.
+ *
+ * @category Connection
  */
 export function axonStream(options: AxonStreamOptions): Stream {
   const { axon, signal, onRawEvent, onDisconnect } = options;
