@@ -41,3 +41,50 @@ bun run check        # lint + format check (SDK)
 - `@runloop/api-client` is a required peer dependency of the SDK
 - `@anthropic-ai/claude-agent-sdk` is an optional peer dep (Claude module only)
 - Conventional commits enforced on PR titles
+
+## Pre-push checks
+
+After editing any file under `sdk/src/`, and before committing, pushing, or declaring a task complete, run all three in order:
+
+```bash
+bun run check   # Biome lint + format
+bun run build   # TypeScript compilation
+bun run test    # Vitest suite
+```
+
+If any step fails, fix the issue and re-run from that step. Common Biome fixes:
+
+- **Import sorting** — third-party imports first, then relative paths alphabetically.
+- **Type-only imports** — use `import { type Foo } from "bar"` when `Foo` is only used as a type.
+- **Formatting** — run `bun run check` to see the exact diff Biome expects.
+
+## Pull request conventions
+
+PR titles **must** follow Conventional Commits:
+
+```
+<type>(<scope>): <description>
+```
+
+| Types  | `feat` · `fix` · `docs` · `style` · `refactor` · `perf` · `test` · `build` · `ci` · `chore` · `revert` |
+|--------|---|
+| Scopes | `sdk` · `acp` · `claude` · `examples` · `deps` · `project` |
+
+PR body must use this template:
+
+```markdown
+## What
+<1-3 bullet points describing the changes>
+
+## Why
+<Motivation and context>
+
+## Checklist
+- [ ] PR title follows `<type>(<scope>): <description>` format
+- [ ] `bun run check` passes (lint + format)
+- [ ] `bun run build` passes
+- [ ] `bun run test` passes
+- [ ] SDK documentation updated (if applicable)
+```
+
+Check off items that have been verified before submitting.
