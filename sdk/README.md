@@ -30,7 +30,7 @@ npm install @anthropic-ai/claude-agent-sdk
 ## Imports
 
 ```typescript
-// Subpath imports (recommended — tree-shakeable)
+// Subpath imports (recommended — tree-shakable)
 import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 
@@ -404,7 +404,7 @@ type WireData = Record<string, any>;
 
 ## Known Limitations
 
-- **Eager SSE connection** (ACP): The `ACPAxonConnection` constructor immediately opens an SSE subscription via `axon.subscribeSse()`. Connection errors surface on the first `await`ed method call, not at construction time.
+- **Eager SSE connection** (ACP): The `ACPAxonConnection` constructor immediately opens an SSE subscription via `axon.subscribeSse()`. Connection errors surface on the first awaited method call, not at construction time.
 - **No automatic reconnection**: If an SSE stream drops, the connection is dead. Create a new instance to reconnect.
 - **Permission handling** (Claude): The `ClaudeAxonConnection` auto-approves all tool use by default. Override via incoming control request handling is not yet exposed as a configuration option.
 
