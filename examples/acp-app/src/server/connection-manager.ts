@@ -53,7 +53,7 @@ export class ConnectionManager {
       ...(baseUrl ? { baseURL: baseUrl } : {}),
     });
 
-    const axon = await sdk.axon.create({ name: "node-demo-acp" });
+    const axon = await sdk.axon.create({ name: "acp-app" });
     // The runloop/agents blueprint used has opencode pre-installed.
     // When using an AxonACPConnection, ensure the Agent is on the blueprint by
     // using the AgentAPI or a Blueprint.

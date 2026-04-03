@@ -44,7 +44,7 @@ const DEFAULT_BLUEPRINT_NAME = "runloop/agents";
 const runloop = new RunloopSDK();
 
 console.log("Starting devbox...");
-const axon = await runloop.axon.create({ name: "cli-sdk-session" });
+const axon = await runloop.axon.create({ name: "claude-cli" });
 // The runloop/agents blueprint used has Claude pre-installed.
 // When using a ClaudeSDKConnection, ensure the Agent is on the blueprint by
 // using the AgentAPI or a Blueprint.
