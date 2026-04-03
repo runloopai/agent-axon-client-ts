@@ -61,7 +61,7 @@ npm install @anthropic-ai/claude-agent-sdk
 | Cancel / interrupt turns                     | ✅               | ✅               |
 | Permission / control requests (auto-approve) | ⚠️ *Auto-approve | ⚠️ *Auto-approve |
 
-*Auto-approve only for now, premission request flow pending
+*Auto-approve only for now, permission request flow pending
 
 ### Coming Soon
 
