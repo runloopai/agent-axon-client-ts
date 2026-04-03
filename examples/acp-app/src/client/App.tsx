@@ -12,19 +12,18 @@ import {
 } from "./hooks/useNodeAgent.js";
 
 import { SetupCard } from "./components/SetupCard.js";
-import { SessionsSidebar } from "./components/SessionsSidebar.js";
 import { ControlsBar } from "./components/ControlsBar.js";
-import { ConnectionInfoBanner, AuthBanner } from "./components/Banners.js";
+import { ConnectionInfoBanner } from "./components/Banners.js";
 import { AssistantTurn } from "./components/AssistantTurn.js";
 import { ElicitationForm } from "./components/ElicitationForm.js";
 import { CommandPicker } from "./components/CommandPicker.js";
 import { UsageBar } from "./components/UsageBar.js";
 import {
-  ToolActivityItem,
   FileOpItem,
   TerminalCard,
 } from "./components/ActivityPanel.js";
 import { AxonEventItem } from "./components/AxonEventItem.js";
+import { TurnBlocksInspector } from "./components/TurnBlocksInspector.js";
 
 export default function App() {
   const agent = useNodeAgent();
@@ -36,6 +35,7 @@ export default function App() {
   const [agentBinary, setAgentBinary] = useState("opencode");
   const [launchArgs, setLaunchArgs] = useState("acp");
   const [launchCommands, setLaunchCommands] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState("");
   const [inputText, setInputText] = useState("");
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [expandedAxonEvents, setExpandedAxonEvents] = useState<Set<number>>(
@@ -43,9 +43,6 @@ export default function App() {
   );
   const [rightTab, setRightTab] = useState<"activity" | "axon">("activity");
   const [expandedTerminal, setExpandedTerminal] = useState<string | null>(null);
-  const [expandedToolActivity, setExpandedToolActivity] = useState<
-    string | null
-  >(null);
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [commandPickerIndex, setCommandPickerIndex] = useState(0);
 
@@ -80,6 +77,7 @@ export default function App() {
       launchCommands: launchCommands
         ? launchCommands.split("\n").filter(Boolean)
         : undefined,
+      systemPrompt: systemPrompt || undefined,
     });
   };
 
@@ -204,6 +202,8 @@ export default function App() {
             setLaunchArgs={setLaunchArgs}
             launchCommands={launchCommands}
             setLaunchCommands={setLaunchCommands}
+            systemPrompt={systemPrompt}
+            setSystemPrompt={setSystemPrompt}
             onStart={handleStart}
             connectionPhase={agent.connectionPhase}
             error={agent.error}
@@ -216,7 +216,7 @@ export default function App() {
   const terminalArray = Array.from(agent.terminals.values());
 
   return (
-    <div className="app app-with-sessions">
+    <div className="app">
       <div className="header">
         <h1>Node ACP Demo</h1>
         <div className="status-bar">
@@ -258,15 +258,6 @@ export default function App() {
         </div>
       </div>
 
-      <SessionsSidebar
-        sessions={agent.sessions}
-        activeSessionId={agent.sessionId}
-        isLoading={agent.isLoadingSessions}
-        onNewSession={agent.createNewSession}
-        onSwitchSession={agent.switchSession}
-        onRefresh={agent.refreshSessions}
-      />
-
       <div className="main-area">
         {(agent.availableModes.length > 0 ||
           agent.configOptions.length > 0 ||
@@ -292,18 +283,13 @@ export default function App() {
               currentMode={agent.currentMode}
               availableModes={agent.availableModes}
               availableCommands={agent.availableCommands}
+              authMethods={agent.authMethods}
+              isAuthenticated={agent.isAuthenticated}
+              authDismissed={agent.authDismissed}
+              onAuthenticate={agent.authenticate}
+              onDismissAuth={agent.dismissAuth}
             />
           )}
-
-          {agent.authMethods.length > 0 &&
-            !agent.isAuthenticated &&
-            !agent.authDismissed && (
-              <AuthBanner
-                methods={agent.authMethods}
-                onAuthenticate={agent.authenticate}
-                onDismiss={agent.dismissAuth}
-              />
-            )}
 
           {agent.messages.length === 0 &&
             !agent.isAgentTurn &&
@@ -331,13 +317,13 @@ export default function App() {
             ),
           )}
 
-          {agent.isAgentTurn && agent.currentTurnBlocks.length > 0 && (
+          {agent.currentTurnBlocks.length > 0 && (
             <AssistantTurn
               blocks={agent.currentTurnBlocks}
               expandedBlocks={expandedBlocks}
               onToggleBlock={toggleBlock}
               terminals={agent.terminals}
-              isLive={true}
+              isLive={agent.isAgentTurn}
             />
           )}
 
@@ -367,9 +353,9 @@ export default function App() {
             onKeyDown={handleKeyDown}
             placeholder="Send a message"
             rows={1}
-            disabled={agent.connectionPhase !== "ready"}
+            disabled={agent.connectionPhase !== "ready" || agent.isAgentTurn}
           />
-          {agent.isStreaming ? (
+          {agent.isAgentTurn ? (
             <button className="btn btn-cancel" onClick={agent.cancel}>
               Cancel
             </button>
@@ -392,14 +378,10 @@ export default function App() {
             onClick={() => setRightTab("activity")}
           >
             Activity
-            {agent.toolActivity.length +
-              agent.fileOps.length +
-              terminalArray.length >
-              0 && (
+            {agent.messages.length + agent.currentTurnBlocks.length > 0 && (
               <span className="tab-count">
-                {agent.toolActivity.length +
-                  agent.fileOps.length +
-                  terminalArray.length}
+                {agent.messages.reduce((s, m) => s + (m.blocks?.length ?? 0), 0) +
+                  agent.currentTurnBlocks.length}
               </span>
             )}
           </button>
@@ -416,31 +398,13 @@ export default function App() {
 
         {rightTab === "activity" ? (
           <div className="events-list">
-            {agent.toolActivity.length === 0 &&
-              agent.fileOps.length === 0 &&
-              terminalArray.length === 0 && (
-                <div className="empty-state">No activity yet</div>
-              )}
-
-            {agent.toolActivity.length > 0 && (
-              <div className="activity-section">
-                <div className="activity-section-title">Agent Tool Calls</div>
-                {agent.toolActivity.map((ta) => (
-                  <ToolActivityItem
-                    key={ta.toolCallId}
-                    activity={ta}
-                    expanded={expandedToolActivity === ta.toolCallId}
-                    onToggle={() =>
-                      setExpandedToolActivity(
-                        expandedToolActivity === ta.toolCallId
-                          ? null
-                          : ta.toolCallId,
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            )}
+            <TurnBlocksInspector
+              messages={agent.messages}
+              currentTurnBlocks={agent.currentTurnBlocks}
+              isAgentTurn={agent.isAgentTurn}
+              expandedBlocks={expandedBlocks}
+              onToggleBlock={toggleBlock}
+            />
 
             {terminalArray.length > 0 && (
               <div className="activity-section">

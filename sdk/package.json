@@ -61,7 +61,8 @@
     "check:fix": "biome check --fix ./src",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "docs": "typedoc"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "0.18.0"
@@ -80,6 +81,7 @@
     "@biomejs/biome": "^2.4.10",
     "@runloop/api-client": "^1.16.2",
     "@vitest/coverage-v8": "^4.1.2",
+    "typedoc": "^0.28.18",
     "typescript": "^5.8.0",
     "vitest": "^4.1.2"
   }

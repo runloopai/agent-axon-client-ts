@@ -36,33 +36,53 @@ export type ClientEvent =
   | { type: "file_read"; path: string; lines: number }
   | { type: "file_write"; path: string; bytes: number }
   | { type: "terminal_create"; terminalId: string; command: string }
-  | { type: "terminal_output"; terminalId: string; output: string; exited: boolean }
+  | {
+      type: "terminal_output";
+      terminalId: string;
+      output: string;
+      exited: boolean;
+    }
   | { type: "terminal_kill"; terminalId: string }
   | { type: "terminal_release"; terminalId: string }
   | { type: "permission"; title: string; outcome: string }
-  | { type: "elicitation_request"; requestId: string; request: ElicitationRequest }
+  | {
+      type: "elicitation_request";
+      requestId: string;
+      request: ElicitationRequest;
+    }
   | { type: "elicitation_dismissed" }
   | { type: "axon_event"; event: AxonEventView }
+  | { type: "turn_started"; turnId: number }
+  | { type: "turn_completed"; turnId: number; stopReason: string }
   | ({ type: "turn_complete" } & PromptResponse)
   | { type: "turn_error"; error: string };
 
 export class NodeACPClient implements Client {
   private terminalManager = new TerminalManager();
   private listeners = new Set<ClientEventListener>();
-  private pendingElicitations = new Map<string, {
-    resolve: (resp: ElicitationResponse) => void;
-    reject: (err: Error) => void;
-  }>();
+  private pendingElicitations = new Map<
+    string,
+    {
+      resolve: (resp: ElicitationResponse) => void;
+      reject: (err: Error) => void;
+    }
+  >();
   private elicitationCounter = 0;
 
   onEvent(listener: ClientEventListener): () => void {
     this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   private emit(event: ClientEvent): void {
     for (const listener of this.listeners) {
-      try { listener(event); } catch { /* ignore */ }
+      try {
+        listener(event);
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -106,7 +126,9 @@ export class NodeACPClient implements Client {
   async readTextFile(
     params: ReadTextFileRequest,
   ): Promise<ReadTextFileResponse> {
-    console.log(`[ACP] fs/read_text_file: "${params.path}" line=${params.line ?? 0} limit=${params.limit ?? "all"}`);
+    console.log(
+      `[ACP] fs/read_text_file: "${params.path}" line=${params.line ?? 0} limit=${params.limit ?? "all"}`,
+    );
     const raw = await fs.readFile(params.path, "utf-8");
     let lines = raw.split("\n");
 
@@ -125,7 +147,9 @@ export class NodeACPClient implements Client {
   async writeTextFile(
     params: WriteTextFileRequest,
   ): Promise<WriteTextFileResponse> {
-    console.log(`[ACP] fs/write_text_file: "${params.path}" (${Buffer.byteLength(params.content)} bytes)`);
+    console.log(
+      `[ACP] fs/write_text_file: "${params.path}" (${Buffer.byteLength(params.content)} bytes)`,
+    );
     await fs.mkdir(path.dirname(params.path), { recursive: true });
     await fs.writeFile(params.path, params.content, "utf-8");
     this.emit({
@@ -140,7 +164,9 @@ export class NodeACPClient implements Client {
     params: CreateTerminalRequest,
   ): Promise<CreateTerminalResponse> {
     const cmdStr = [params.command, ...(params.args ?? [])].join(" ");
-    console.log(`[ACP] terminal/create: "${cmdStr}" cwd=${params.cwd ?? "(none)"}`);
+    console.log(
+      `[ACP] terminal/create: "${cmdStr}" cwd=${params.cwd ?? "(none)"}`,
+    );
 
     const terminalId = this.terminalManager.create({
       command: params.command,
@@ -203,7 +229,18 @@ export class NodeACPClient implements Client {
     return {};
   }
 
-  async extNotification(method: string, params: Record<string, unknown>): Promise<void> {
+  // These notifications are just informational and are already sent as events.
+  private static IGNORED_NOTIFICATIONS = new Set([
+    "initialize",
+    "session/new",
+    "session/set_mode",
+    "session/prompt",
+  ]);
+
+  async extNotification(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<void> {
     if (method === CLIENT_METHODS.session_elicitation_complete) {
       for (const [id, pending] of this.pendingElicitations) {
         pending.reject(new Error("Elicitation completed by agent"));
@@ -212,19 +249,25 @@ export class NodeACPClient implements Client {
       this.emit({ type: "elicitation_dismissed" });
       return;
     }
+    if (NodeACPClient.IGNORED_NOTIFICATIONS.has(method)) return;
     console.log(`[ACP] unhandled notification: ${method}`, params);
   }
 
-  async extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async extMethod(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     if (method === CLIENT_METHODS.session_elicitation) {
       const request = params as unknown as ElicitationRequest;
       const requestId = `elicit-${++this.elicitationCounter}`;
 
       this.emit({ type: "elicitation_request", requestId, request });
 
-      const response = await new Promise<ElicitationResponse>((resolve, reject) => {
-        this.pendingElicitations.set(requestId, { resolve, reject });
-      });
+      const response = await new Promise<ElicitationResponse>(
+        (resolve, reject) => {
+          this.pendingElicitations.set(requestId, { resolve, reject });
+        },
+      );
 
       return response as unknown as Record<string, unknown>;
     }

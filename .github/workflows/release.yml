@@ -54,5 +54,5 @@ jobs:
         run: bun run build
 
       - name: Publish to npm
-        run: npm publish --access public --ignore-scripts
+        run: npm publish --access public --provenance --ignore-scripts
         working-directory: sdk

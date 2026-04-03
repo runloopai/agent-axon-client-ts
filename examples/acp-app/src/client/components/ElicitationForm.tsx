@@ -13,7 +13,7 @@ export function ElicitationForm({
     if (elicitation.schema?.properties) {
       const defaults: Record<string, ElicitationContentValue> = {};
       for (const [key, field] of Object.entries(elicitation.schema.properties)) {
-        if (field.default != null) defaults[key] = field.default;
+        if (field.default != null) defaults[key] = field.default as ElicitationContentValue;
       }
       setValues(defaults);
     }
