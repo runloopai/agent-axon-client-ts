@@ -12,6 +12,7 @@
 import { RunloopSDK } from "@runloop/api-client";
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { createInterface } from "readline";
 import { parseArgs } from "util";
 
 const { values: args } = parseArgs({
@@ -23,6 +24,25 @@ const { values: args } = parseArgs({
 
 const MODEL = args.model ?? null;
 const DEFAULT_BLUEPRINT_NAME = "runloop/agents";
+
+// ---------------------------------------------------------------------------
+// Resolve ANTHROPIC_API_KEY — prompt interactively if missing
+// ---------------------------------------------------------------------------
+
+let anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? "";
+if (!anthropicApiKey) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  anthropicApiKey = await new Promise<string>((resolve) =>
+    rl.question("ANTHROPIC_API_KEY not set. Enter your Anthropic API key: ", (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    }),
+  );
+  if (!anthropicApiKey) {
+    console.error("No API key provided. Exiting.");
+    process.exit(1);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -47,7 +67,7 @@ const devbox = await runloop.devbox.create({
   ],
   blueprint_name: DEFAULT_BLUEPRINT_NAME,
   environment_variables: {
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
+    ANTHROPIC_API_KEY: anthropicApiKey,
   },
 });
 console.log(`Devbox ready: ${devbox.id}`);
