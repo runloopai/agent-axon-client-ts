@@ -48,6 +48,9 @@ export type {
   TextBlock,
   PlanBlock,
   ResourceLinkBlock,
+  ImageBlock,
+  AudioBlock,
+  EmbeddedResourceBlock,
   TurnBlock,
   ChatMessage,
   ElicitationFieldSchema,
@@ -120,7 +123,7 @@ export function useNodeAgent(): UseNodeAgentReturn {
         return;
       }
 
-      // Fan out to sub-hooks
+      // Fan out to sub-hooks (turn_started / turn_completed are handled here)
       turnBlocks.onEvent(data);
       activity.onEvent(data);
       sessionConfig.onEvent(data);
@@ -192,7 +195,7 @@ export function useNodeAgent(): UseNodeAgentReturn {
   // --- Actions ---
 
   const start = useCallback(async (
-    config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[] },
+    config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string },
   ) => {
     try {
       setError(null);
@@ -217,6 +220,7 @@ export function useNodeAgent(): UseNodeAgentReturn {
         agentBinary: config.agentBinary,
         launchArgs: config.launchArgs,
         launchCommands: config.launchCommands,
+        systemPrompt: config.systemPrompt,
       });
 
       setDevboxId(resp.devboxId);
@@ -254,9 +258,9 @@ export function useNodeAgent(): UseNodeAgentReturn {
     try {
       await api("/api/prompt", { text });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      // Force a turn_complete through the sub-hook
-      turnBlocks.onEvent({ type: "turn_complete", stopReason: "end_turn" } as ClientEvent);
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      turnBlocks.onEvent({ type: "turn_error", error: message } as ClientEvent);
     }
   }, [turnBlocks.startTurn, turnBlocks.onEvent]);
 

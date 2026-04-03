@@ -408,6 +408,32 @@ type WireData = Record<string, any>;
 - **No automatic reconnection**: If an SSE stream drops, the connection is dead. Create a new instance to reconnect.
 - **Permission handling** (Claude): The `ClaudeAxonConnection` auto-approves all tool use by default. Override via incoming control request handling is not yet exposed as a configuration option.
 
+### ACP: `prompt()` resolves before all session updates arrive
+
+The Axon broker delivers events in this order for a given turn:
+
+1. `session/prompt` response — resolves the `prompt()` promise (`stopReason: "end_turn"`)
+2. `turn.completed` system event
+3. `session/update` notifications — thought chunks, message chunks, etc.
+
+This means **`await agent.prompt(...)` returns before the agent's response text has been delivered via `onSessionUpdate`**. If you need to know when all content for a turn has arrived, use one of these strategies:
+
+- **Use `onRawEvent` to watch for `turn.started` / `turn.completed` system events** (recommended). These bracket all content for a turn:
+
+  ```typescript
+  agent.onRawEvent((event) => {
+    if (event.origin !== "SYSTEM_EVENT") return;
+    if (event.event_type === "turn.started") {
+      // Agent turn began — disable input, show cancel button
+    }
+    if (event.event_type === "turn.completed") {
+      // All content for this turn has been delivered
+    }
+  });
+  ```
+
+- **Debounce after `prompt()` resolves** — wait a short period (e.g. 200ms) for trailing `session/update` events. This is a heuristic and may drop events on slow connections.
+
 ## License
 
 [MIT](../LICENSE)

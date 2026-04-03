@@ -1,4 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, forwardRef } from "react";
+import Markdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import type { ToolKind, ToolCallStatus, PlanEntryStatus } from "../hooks/useNodeAgent.js";
 
 export function CopyButton({ text }: { text: string }) {
@@ -52,3 +55,36 @@ export function planStatusIcon(status: PlanEntryStatus): React.ReactNode {
     default: return <span className="plan-status-pending">{"\u25CB"}</span>;
   }
 }
+
+const markdownComponents: Record<string, React.ComponentType<Record<string, unknown>>> = {
+  code({ className, children, ...props }: Record<string, unknown>) {
+    const match = /language-(\w+)/.exec((className as string) || "");
+    const codeStr = String(children).replace(/\n$/, "");
+    if (match) {
+      return (
+        <div className="code-block-wrapper">
+          <CopyButton text={codeStr} />
+          <SyntaxHighlighter
+            style={vscDarkPlus}
+            language={match[1]}
+            customStyle={{ margin: 0, borderRadius: "6px", fontSize: "12px" }}
+          >
+            {codeStr}
+          </SyntaxHighlighter>
+        </div>
+      );
+    }
+    return <code className={className as string} {...props}>{children as React.ReactNode}</code>;
+  },
+};
+
+export const MarkdownContent = forwardRef<
+  HTMLDivElement,
+  { text: string; className?: string; style?: React.CSSProperties }
+>(function MarkdownContent({ text, className, style }, ref) {
+  return (
+    <div ref={ref} className={className} style={style}>
+      <Markdown components={markdownComponents}>{text}</Markdown>
+    </div>
+  );
+});

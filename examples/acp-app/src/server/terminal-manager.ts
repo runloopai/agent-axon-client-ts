@@ -42,7 +42,7 @@ export class TerminalManager {
       env: envObj ? { ...process.env, ...envObj } : process.env,
       shell: true,
       stdio: ["ignore", "pipe", "pipe"],
-    });
+    }) as ChildProcess;
 
     const entry: TerminalEntry = {
       id,
@@ -68,14 +68,15 @@ export class TerminalManager {
     proc.stdout?.on("data", appendOutput);
     proc.stderr?.on("data", appendOutput);
 
+    const emitter = proc as ChildProcess & NodeJS.EventEmitter;
     entry.exitPromise = new Promise<void>((resolve) => {
-      proc.on("exit", (code, sig) => {
+      emitter.on("exit", (code: number | null, sig: string | null) => {
         entry.exitCode = code;
         entry.signal = sig ?? null;
         entry.exited = true;
         resolve();
       });
-      proc.on("error", (err) => {
+      emitter.on("error", (err: Error) => {
         entry.output += `\n[error: ${err.message}]`;
         entry.exited = true;
         entry.exitCode = 1;

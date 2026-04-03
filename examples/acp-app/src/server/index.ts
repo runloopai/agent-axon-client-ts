@@ -50,13 +50,17 @@ app.post(
 
     connection
       .prompt({ sessionId, prompt: [{ type: "text", text }] })
-      .then((resp) => ws.broadcast({ type: "turn_complete", ...resp }))
-      .catch((err) =>
+      .then((resp) => {
+        console.log("[prompt] turn complete, stopReason:", resp.stopReason);
+        ws.broadcast({ type: "turn_complete", ...resp });
+      })
+      .catch((err) => {
+        console.error("[prompt] turn error:", err);
         ws.broadcast({
           type: "turn_error",
           error: err instanceof Error ? err.message : String(err),
-        }),
-      );
+        });
+      });
 
     res.json({ ok: true });
   }),

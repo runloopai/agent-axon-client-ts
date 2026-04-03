@@ -1,4 +1,12 @@
-import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+  forwardRef,
+  type KeyboardEvent,
+} from "react";
 import Markdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -32,14 +40,21 @@ const PERMISSION_MODES = [
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }, [text]);
+  const handleCopy = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    },
+    [text],
+  );
   return (
-    <button className={`copy-btn ${copied ? "copied" : ""}`} onClick={handleCopy} title="Copy">
+    <button
+      className={`copy-btn ${copied ? "copied" : ""}`}
+      onClick={handleCopy}
+      title="Copy"
+    >
       {copied ? "Copied" : "Copy"}
     </button>
   );
@@ -98,7 +113,9 @@ export default function App() {
   const handleStart = async () => {
     await agent.start({
       blueprintName: blueprintName || undefined,
-      launchCommands: launchCommands ? launchCommands.split("\n").filter(Boolean) : undefined,
+      launchCommands: launchCommands
+        ? launchCommands.split("\n").filter(Boolean)
+        : undefined,
       systemPrompt: systemPrompt || undefined,
       model: startModel || undefined,
     });
@@ -126,15 +143,23 @@ export default function App() {
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
   };
 
-  if (agent.connectionPhase === "idle" || agent.connectionPhase === "error" || agent.connectionPhase === "connecting") {
+  if (
+    agent.connectionPhase === "idle" ||
+    agent.connectionPhase === "error" ||
+    agent.connectionPhase === "connecting"
+  ) {
     return (
       <div className="app">
         <div className="setup-panel">
           <SetupCard
-            blueprintName={blueprintName} setBlueprintName={setBlueprintName}
-            launchCommands={launchCommands} setLaunchCommands={setLaunchCommands}
-            systemPrompt={systemPrompt} setSystemPrompt={setSystemPrompt}
-            startModel={startModel} setStartModel={setStartModel}
+            blueprintName={blueprintName}
+            setBlueprintName={setBlueprintName}
+            launchCommands={launchCommands}
+            setLaunchCommands={setLaunchCommands}
+            systemPrompt={systemPrompt}
+            setSystemPrompt={setSystemPrompt}
+            startModel={startModel}
+            setStartModel={setStartModel}
             onStart={handleStart}
             connectionPhase={agent.connectionPhase}
             error={agent.error}
@@ -146,8 +171,14 @@ export default function App() {
 
   // Collect tool calls from current turn for activity sidebar
   const allToolCalls = [
-    ...agent.messages.flatMap((m) => (m.blocks ?? []).filter((b): b is ToolCallBlock => b.type === "tool_call")),
-    ...agent.currentTurnBlocks.filter((b): b is ToolCallBlock => b.type === "tool_call"),
+    ...agent.messages.flatMap((m) =>
+      (m.blocks ?? []).filter(
+        (b): b is ToolCallBlock => b.type === "tool_call",
+      ),
+    ),
+    ...agent.currentTurnBlocks.filter(
+      (b): b is ToolCallBlock => b.type === "tool_call",
+    ),
   ];
 
   return (
@@ -155,23 +186,47 @@ export default function App() {
       <div className="header">
         <h1>Claude SDK Demo</h1>
         <div className="status-bar">
-          <div className={`status-dot ${agent.connectionPhase === "ready" ? "ready" : "connecting"}`} />
+          <div
+            className={`status-dot ${agent.connectionPhase === "ready" ? "ready" : "connecting"}`}
+          />
           <div className="status-ids">
             {agent.devboxId && (
-              <div className="status-id">devbox: {agent.runloopUrl ? (
-                <a href={`${agent.runloopUrl}/devboxes/${agent.devboxId}`} target="_blank" rel="noopener noreferrer">{agent.devboxId}</a>
-              ) : (
-                <span>{agent.devboxId}</span>
-              )}</div>
+              <div className="status-id">
+                devbox:{" "}
+                {agent.runloopUrl ? (
+                  <a
+                    href={`${agent.runloopUrl}/devboxes/${agent.devboxId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {agent.devboxId}
+                  </a>
+                ) : (
+                  <span>{agent.devboxId}</span>
+                )}
+              </div>
             )}
-            {agent.axonId && <div className="status-id">axon: {agent.runloopUrl ? (
-                <a href={`${agent.runloopUrl}/axons/${agent.axonId}`} target="_blank" rel="noopener noreferrer">{agent.axonId}</a>
-              ) : (
-                <span>{agent.axonId}</span>
-              )}</div>}
+            {agent.axonId && (
+              <div className="status-id">
+                axon:{" "}
+                {agent.runloopUrl ? (
+                  <a
+                    href={`${agent.runloopUrl}/axons/${agent.axonId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {agent.axonId}
+                  </a>
+                ) : (
+                  <span>{agent.axonId}</span>
+                )}
+              </div>
+            )}
           </div>
           {agent.usage && <UsageBar usage={agent.usage} />}
-          <button className="btn btn-danger" onClick={agent.shutdown}>Shutdown</button>
+          <button className="btn btn-danger" onClick={agent.shutdown}>
+            Shutdown
+          </button>
         </div>
       </div>
 
@@ -190,7 +245,7 @@ export default function App() {
             <div className="empty-state">Send a message to start chatting</div>
           )}
 
-          {agent.messages.map((msg) => (
+          {agent.messages.map((msg) =>
             msg.role === "user" ? (
               <div key={msg.id} className="message user">
                 <div className="message-text">{msg.content}</div>
@@ -207,8 +262,8 @@ export default function App() {
                 numTurns={msg.numTurns}
                 durationMs={msg.durationMs}
               />
-            )
-          ))}
+            ),
+          )}
 
           {agent.isAgentTurn && agent.currentTurnBlocks.length > 0 && (
             <AssistantTurn
@@ -232,12 +287,14 @@ export default function App() {
             value={inputText}
             onChange={handleTextareaInput}
             onKeyDown={handleKeyDown}
-            placeholder="Send a message\u2026"
+            placeholder="Send a message"
             rows={1}
             disabled={agent.connectionPhase !== "ready"}
           />
           {agent.isStreaming || agent.isAgentTurn ? (
-            <button className="btn btn-cancel" onClick={agent.cancel}>Cancel</button>
+            <button className="btn btn-cancel" onClick={agent.cancel}>
+              Cancel
+            </button>
           ) : (
             <button
               className="btn-send"
@@ -295,7 +352,14 @@ export default function App() {
 // ── Block-based assistant turn ──────────────────────────────
 
 function AssistantTurn({
-  blocks, expandedBlocks, onToggleBlock, isLive, stopReason, cost, numTurns, durationMs,
+  blocks,
+  expandedBlocks,
+  onToggleBlock,
+  isLive,
+  stopReason,
+  cost,
+  numTurns,
+  durationMs,
 }: {
   blocks: TurnBlock[];
   expandedBlocks: Set<string>;
@@ -347,20 +411,40 @@ function AssistantTurn({
             return null;
         }
       })}
-      {!isLive && <TurnSummaryFooter blocks={blocks} stopReason={stopReason} cost={cost} numTurns={numTurns} durationMs={durationMs} />}
+      {!isLive && (
+        <TurnSummaryFooter
+          blocks={blocks}
+          stopReason={stopReason}
+          cost={cost}
+          numTurns={numTurns}
+          durationMs={durationMs}
+        />
+      )}
     </div>
   );
 }
 
-function TurnSummaryFooter({ blocks, stopReason, cost, numTurns, durationMs }: {
+function TurnSummaryFooter({
+  blocks,
+  stopReason,
+  cost,
+  numTurns,
+  durationMs,
+}: {
   blocks: TurnBlock[];
   stopReason?: string;
   cost?: number;
   numTurns?: number;
   durationMs?: number;
 }) {
-  const toolCalls = blocks.filter((b): b is ToolCallBlock => b.type === "tool_call");
-  const hasInfo = toolCalls.length > 0 || cost != null || durationMs != null || (stopReason && stopReason !== "end_turn");
+  const toolCalls = blocks.filter(
+    (b): b is ToolCallBlock => b.type === "tool_call",
+  );
+  const hasInfo =
+    toolCalls.length > 0 ||
+    cost != null ||
+    durationMs != null ||
+    (stopReason && stopReason !== "end_turn");
 
   if (!hasInfo) return null;
 
@@ -381,13 +465,22 @@ function TurnSummaryFooter({ blocks, stopReason, cost, numTurns, durationMs }: {
         <span className="turn-summary-text">{parts.join(", ")}</span>
       )}
       {durationMs != null && (
-        <span className="turn-summary-text"> {"\u00B7"} {(durationMs / 1000).toFixed(1)}s</span>
+        <span className="turn-summary-text">
+          {" "}
+          {"\u00B7"} {(durationMs / 1000).toFixed(1)}s
+        </span>
       )}
       {cost != null && (
-        <span className="turn-summary-text"> {"\u00B7"} ${cost.toFixed(4)}</span>
+        <span className="turn-summary-text">
+          {" "}
+          {"\u00B7"} ${cost.toFixed(4)}
+        </span>
       )}
       {numTurns != null && numTurns > 1 && (
-        <span className="turn-summary-text"> {"\u00B7"} {numTurns} turns</span>
+        <span className="turn-summary-text">
+          {" "}
+          {"\u00B7"} {numTurns} turns
+        </span>
       )}
       {stopReason && stopReason !== "end_turn" && (
         <span className="stop-reason-badge">{stopReason}</span>
@@ -396,19 +489,72 @@ function TurnSummaryFooter({ blocks, stopReason, cost, numTurns, durationMs }: {
   );
 }
 
+const markdownComponents: Record<
+  string,
+  React.ComponentType<Record<string, unknown>>
+> = {
+  code({ className, children, ...props }: Record<string, unknown>) {
+    const match = /language-(\w+)/.exec((className as string) || "");
+    const codeStr = String(children).replace(/\n$/, "");
+    if (match) {
+      return (
+        <div className="code-block-wrapper">
+          <CopyButton text={codeStr} />
+          <SyntaxHighlighter
+            style={vscDarkPlus}
+            language={match[1]}
+            customStyle={{ margin: 0, borderRadius: "6px", fontSize: "12px" }}
+          >
+            {codeStr}
+          </SyntaxHighlighter>
+        </div>
+      );
+    }
+    return (
+      <code className={className as string} {...props}>
+        {children as React.ReactNode}
+      </code>
+    );
+  },
+};
+
+const MarkdownContent = forwardRef<
+  HTMLDivElement,
+  { text: string; className?: string; style?: React.CSSProperties }
+>(function MarkdownContent({ text, className, style }, ref) {
+  return (
+    <div ref={ref} className={className} style={style}>
+      <Markdown components={markdownComponents}>{text}</Markdown>
+    </div>
+  );
+});
+
+const THINKING_COLLAPSED_HEIGHT = 60;
+
 function ThinkingBlockView({
-  block, expanded, onToggle,
+  block,
+  expanded,
+  onToggle,
 }: {
   block: ThinkingBlock;
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const showBody = block.isActive || expanded;
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (el) setOverflows(el.scrollHeight > THINKING_COLLAPSED_HEIGHT);
+  }, [block.text]);
+
+  if (!block.text && !block.isActive) return null;
+
+  const isCollapsedOverflow = overflows && !expanded;
 
   return (
     <div className="turn-block thinking-block">
-      <div className="thinking-header" onClick={onToggle}>
-        <span className={`chevron ${showBody ? "expanded" : ""}`}>{"\u25B6"}</span>
+      <div className="thinking-header-inline">
         <span className="thinking-label">
           Thinking{block.isActive ? "\u2026" : ""}
         </span>
@@ -416,8 +562,20 @@ function ThinkingBlockView({
           <span className="thinking-duration">{block.duration}s</span>
         )}
       </div>
-      {showBody && block.text && (
-        <div className="thinking-body">{block.text}</div>
+      {block.text && (
+        <MarkdownContent
+          ref={contentRef}
+          text={block.text}
+          className={`thinking-content${expanded ? " thinking-content-expanded" : ""}${isCollapsedOverflow ? " thinking-content-overflow" : ""}`}
+          style={
+            !expanded ? { maxHeight: THINKING_COLLAPSED_HEIGHT } : undefined
+          }
+        />
+      )}
+      {overflows && !block.isActive && (
+        <button className="thinking-toggle" onClick={onToggle}>
+          {expanded ? "Show less" : "Show more"}
+        </button>
       )}
     </div>
   );
@@ -425,9 +583,25 @@ function ThinkingBlockView({
 
 function getToolIcon(toolName: string): string {
   const name = toolName.toLowerCase();
-  if (name.includes("read") || name.includes("glob") || name.includes("grep") || name.includes("search")) return "\u{1F441}";
-  if (name.includes("edit") || name.includes("write") || name.includes("notebook")) return "\u270F";
-  if (name.includes("bash") || name.includes("exec") || name.includes("terminal")) return "\u{1F4BB}";
+  if (
+    name.includes("read") ||
+    name.includes("glob") ||
+    name.includes("grep") ||
+    name.includes("search")
+  )
+    return "\u{1F441}";
+  if (
+    name.includes("edit") ||
+    name.includes("write") ||
+    name.includes("notebook")
+  )
+    return "\u270F";
+  if (
+    name.includes("bash") ||
+    name.includes("exec") ||
+    name.includes("terminal")
+  )
+    return "\u{1F4BB}";
   if (name.includes("delete") || name.includes("remove")) return "\u{1F5D1}";
   if (name.includes("fetch") || name.includes("web")) return "\u{1F310}";
   if (name.includes("task") || name.includes("agent")) return "\u{1F9E0}";
@@ -436,16 +610,34 @@ function getToolIcon(toolName: string): string {
 
 function getToolColorClass(toolName: string): string {
   const name = toolName.toLowerCase();
-  if (name.includes("read") || name.includes("glob") || name.includes("grep") || name.includes("search")) return "kind-read";
-  if (name.includes("edit") || name.includes("write") || name.includes("notebook")) return "kind-edit";
-  if (name.includes("bash") || name.includes("exec") || name.includes("terminal")) return "kind-execute";
+  if (
+    name.includes("read") ||
+    name.includes("glob") ||
+    name.includes("grep") ||
+    name.includes("search")
+  )
+    return "kind-read";
+  if (
+    name.includes("edit") ||
+    name.includes("write") ||
+    name.includes("notebook")
+  )
+    return "kind-edit";
+  if (
+    name.includes("bash") ||
+    name.includes("exec") ||
+    name.includes("terminal")
+  )
+    return "kind-execute";
   if (name.includes("delete") || name.includes("remove")) return "kind-delete";
   if (name.includes("fetch") || name.includes("web")) return "kind-fetch";
   return "kind-other";
 }
 
 function ToolCallBlockView({
-  block, expanded, onToggle,
+  block,
+  expanded,
+  onToggle,
 }: {
   block: ToolCallBlock;
   expanded: boolean;
@@ -460,9 +652,11 @@ function ToolCallBlockView({
   const autoExpand = isBash || isFailed;
   const showBody = autoExpand || expanded;
 
-  const durationLabel = block.duration != null && (block.status === "completed" || block.status === "failed")
-    ? `${block.duration}s`
-    : null;
+  const durationLabel =
+    block.duration != null &&
+    (block.status === "completed" || block.status === "failed")
+      ? `${block.duration}s`
+      : null;
 
   // Format display title
   let displayTitle = block.toolName;
@@ -470,20 +664,33 @@ function ToolCallBlockView({
     const input = block.input as Record<string, unknown>;
     if (input.command) displayTitle = input.command as string;
     else if (input.file_path) displayTitle = input.file_path as string;
-    else if (input.pattern) displayTitle = `${block.toolName}: ${input.pattern}`;
+    else if (input.pattern)
+      displayTitle = `${block.toolName}: ${input.pattern}`;
     else if (input.path) displayTitle = input.path as string;
   }
 
   if (isBash) {
     return (
-      <div className={`turn-block tool-call-block tc-execute ${colorClass} status-${block.status}`}>
-        <div className="tc-header tc-header-exec" onClick={hasContent ? onToggle : undefined} style={hasContent ? { cursor: "pointer" } : undefined}>
+      <div
+        className={`turn-block tool-call-block tc-execute ${colorClass} status-${block.status}`}
+      >
+        <div
+          className="tc-header tc-header-exec"
+          onClick={hasContent ? onToggle : undefined}
+          style={hasContent ? { cursor: "pointer" } : undefined}
+        >
           {statusIndicator(block.status)}
           <span className="tc-kind-icon">{icon}</span>
           <span className="tc-title tc-title-cmd">{displayTitle}</span>
-          {durationLabel && <span className="tc-duration">{durationLabel}</span>}
+          {durationLabel && (
+            <span className="tc-duration">{durationLabel}</span>
+          )}
           {hasContent && !autoExpand && (
-            <span className={`chevron tc-chevron ${expanded ? "expanded" : ""}`}>{"\u25B6"}</span>
+            <span
+              className={`chevron tc-chevron ${expanded ? "expanded" : ""}`}
+            >
+              {"\u25B6"}
+            </span>
           )}
         </div>
         {showBody && block.output && (
@@ -497,14 +704,22 @@ function ToolCallBlockView({
   }
 
   return (
-    <div className={`turn-block tool-call-block ${colorClass} status-${block.status}`}>
-      <div className="tc-header" onClick={hasContent ? onToggle : undefined} style={hasContent ? { cursor: "pointer" } : undefined}>
+    <div
+      className={`turn-block tool-call-block ${colorClass} status-${block.status}`}
+    >
+      <div
+        className="tc-header"
+        onClick={hasContent ? onToggle : undefined}
+        style={hasContent ? { cursor: "pointer" } : undefined}
+      >
         {statusIndicator(block.status)}
         <span className="tc-kind-icon">{icon}</span>
         <span className="tc-title">{displayTitle}</span>
         {durationLabel && <span className="tc-duration">{durationLabel}</span>}
         {hasContent && (
-          <span className={`chevron tc-chevron ${expanded ? "expanded" : ""}`}>{"\u25B6"}</span>
+          <span className={`chevron tc-chevron ${expanded ? "expanded" : ""}`}>
+            {"\u25B6"}
+          </span>
         )}
       </div>
       {showBody && block.output && (
@@ -520,9 +735,12 @@ function ToolCallBlockView({
 }
 
 function TaskBlockView({ block }: { block: TaskBlock }) {
-  const statusIcon = block.status === "completed" ? "\u2713"
-    : block.status === "failed" || block.status === "stopped" ? "\u2717"
-    : null;
+  const statusIcon =
+    block.status === "completed"
+      ? "\u2713"
+      : block.status === "failed" || block.status === "stopped"
+        ? "\u2717"
+        : null;
 
   return (
     <div className={`turn-block task-block task-${block.status}`}>
@@ -530,25 +748,28 @@ function TaskBlockView({ block }: { block: TaskBlock }) {
         {block.status === "started" || block.status === "in_progress" ? (
           <span className="tc-status-spinner" />
         ) : (
-          <span className={`task-status-icon ${block.status}`}>{statusIcon}</span>
+          <span className={`task-status-icon ${block.status}`}>
+            {statusIcon}
+          </span>
         )}
         <span className="task-description">{block.description}</span>
         {block.toolUses != null && (
           <span className="task-meta">{block.toolUses} tool uses</span>
         )}
       </div>
-      {block.summary && (
-        <div className="task-summary">{block.summary}</div>
-      )}
+      {block.summary && <div className="task-summary">{block.summary}</div>}
     </div>
   );
 }
 
 function todoStatusIcon(status: string) {
   switch (status) {
-    case "in_progress": return <span className="todo-status-spinner" />;
-    case "completed": return <span className="todo-status-check">{"\u2713"}</span>;
-    default: return <span className="todo-status-pending">{"\u25CB"}</span>;
+    case "in_progress":
+      return <span className="todo-status-spinner" />;
+    case "completed":
+      return <span className="todo-status-check">{"\u2713"}</span>;
+    default:
+      return <span className="todo-status-pending">{"\u25CB"}</span>;
   }
 }
 
@@ -570,38 +791,24 @@ function TodoEntryView({ entry }: { entry: TodoEntry }) {
     <div className={`todo-entry todo-entry-${entry.status}`}>
       {todoStatusIcon(entry.status)}
       <span className="todo-entry-text">
-        {entry.activeForm && entry.status === "in_progress" ? entry.activeForm : entry.content}
+        {entry.activeForm && entry.status === "in_progress"
+          ? entry.activeForm
+          : entry.content}
       </span>
     </div>
   );
 }
 
-const markdownComponents: Record<string, React.ComponentType<Record<string, unknown>>> = {
-  code({ className, children, ...props }: Record<string, unknown>) {
-    const match = /language-(\w+)/.exec((className as string) || "");
-    const codeStr = String(children).replace(/\n$/, "");
-    if (match) {
-      return (
-        <div className="code-block-wrapper">
-          <CopyButton text={codeStr} />
-          <SyntaxHighlighter
-            style={vscDarkPlus}
-            language={match[1]}
-            customStyle={{ margin: 0, borderRadius: "6px", fontSize: "12px" }}
-          >
-            {codeStr}
-          </SyntaxHighlighter>
-        </div>
-      );
-    }
-    return <code className={className as string} {...props}>{children as React.ReactNode}</code>;
-  },
-};
-
-function TextBlockView({ block, showCursor }: { block: TextBlock; showCursor: boolean }) {
+function TextBlockView({
+  block,
+  showCursor,
+}: {
+  block: TextBlock;
+  showCursor: boolean;
+}) {
   return (
     <div className="turn-block text-block">
-      <Markdown components={markdownComponents}>{block.text}</Markdown>
+      <MarkdownContent text={block.text} />
       {showCursor && <span className="streaming-cursor" />}
     </div>
   );
@@ -610,7 +817,10 @@ function TextBlockView({ block, showCursor }: { block: TextBlock; showCursor: bo
 function UsageBar({ usage }: { usage: UsageState }) {
   const total = usage.inputTokens + usage.outputTokens;
   return (
-    <div className="usage-bar" title={`Input: ${usage.inputTokens.toLocaleString()} | Output: ${usage.outputTokens.toLocaleString()} | Cache: ${usage.cacheReadInputTokens.toLocaleString()} read, ${usage.cacheCreationInputTokens.toLocaleString()} created`}>
+    <div
+      className="usage-bar"
+      title={`Input: ${usage.inputTokens.toLocaleString()} | Output: ${usage.outputTokens.toLocaleString()} | Cache: ${usage.cacheReadInputTokens.toLocaleString()} read, ${usage.cacheCreationInputTokens.toLocaleString()} created`}
+    >
       <span className="usage-label">{total.toLocaleString()} tokens</span>
     </div>
   );
@@ -619,7 +829,10 @@ function UsageBar({ usage }: { usage: UsageState }) {
 // ── Controls Bar ────────────────────────────────────────────
 
 function ControlsBar({
-  permissionMode, currentModel, onSetPermissionMode, onSetModel,
+  permissionMode,
+  currentModel,
+  onSetPermissionMode,
+  onSetModel,
 }: {
   permissionMode: string | null;
   currentModel: string | null;
@@ -661,7 +874,13 @@ function ControlsBar({
               autoFocus
             />
           ) : (
-            <span className="model-name" onClick={() => { setModelInput(currentModel); setShowModelInput(true); }}>
+            <span
+              className="model-name"
+              onClick={() => {
+                setModelInput(currentModel);
+                setShowModelInput(true);
+              }}
+            >
               {currentModel}
             </span>
           )}
@@ -674,18 +893,26 @@ function ControlsBar({
 // ── Setup Card ──────────────────────────────────────────────
 
 function SetupCard({
-  blueprintName, setBlueprintName,
-  launchCommands, setLaunchCommands,
-  systemPrompt, setSystemPrompt,
-  startModel, setStartModel,
+  blueprintName,
+  setBlueprintName,
+  launchCommands,
+  setLaunchCommands,
+  systemPrompt,
+  setSystemPrompt,
+  startModel,
+  setStartModel,
   onStart,
   connectionPhase,
   error,
 }: {
-  blueprintName: string; setBlueprintName: (v: string) => void;
-  launchCommands: string; setLaunchCommands: (v: string) => void;
-  systemPrompt: string; setSystemPrompt: (v: string) => void;
-  startModel: string; setStartModel: (v: string) => void;
+  blueprintName: string;
+  setBlueprintName: (v: string) => void;
+  launchCommands: string;
+  setLaunchCommands: (v: string) => void;
+  systemPrompt: string;
+  setSystemPrompt: (v: string) => void;
+  startModel: string;
+  setStartModel: (v: string) => void;
   onStart: () => void;
   connectionPhase: ConnectionPhase;
   error: string | null;
@@ -694,31 +921,122 @@ function SetupCard({
 
   return (
     <div className="setup-card">
-      <h2>Claude SDK Demo</h2>
-      <p className="setup-subtitle">Full Claude Code SDK client with streaming and tool visualization</p>
-      <div className="form-group">
-        <label>Blueprint name (optional)</label>
-        <input value={blueprintName} onChange={(e) => setBlueprintName(e.target.value)} placeholder="runloop/agents" disabled={connecting} />
+      <div className="setup-header">
+        <h2>Claude Code Demo</h2>
+        <p className="setup-subtitle">
+          Interactive client for{" "}
+          <a
+            href="https://docs.anthropic.com/en/docs/claude-code"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Claude Code
+          </a>{" "}
+          running in a secure cloud sandbox via the native Claude SDK.
+        </p>
       </div>
-      <div className="form-group">
-        <label>Launch Commands (one per line, optional)</label>
-        <input value={launchCommands} onChange={(e) => setLaunchCommands(e.target.value)} placeholder="" disabled={connecting} />
+
+      <div className="setup-architecture">
+        <div className="arch-label">How it works</div>
+        <div className="arch-diagram">
+          <div className="arch-node">
+            <div className="arch-node-label">This browser</div>
+            <div className="arch-node-desc">React UI</div>
+          </div>
+          <div className="arch-arrow">
+            <span className="arch-arrow-line" />
+            <span className="arch-arrow-proto">WebSocket</span>
+          </div>
+          <div className="arch-node">
+            <div className="arch-node-label">Express server</div>
+            <div className="arch-node-desc">Claude SDK client</div>
+          </div>
+          <div className="arch-arrow">
+            <span className="arch-arrow-line" />
+            <span className="arch-arrow-proto">Axon (SSE)</span>
+          </div>
+          <div className="arch-node arch-node-cloud">
+            <div className="arch-node-label">Runloop Sandbox</div>
+            <div className="arch-node-desc">Claude Code</div>
+          </div>
+        </div>
+        <p className="arch-explain">
+          Clicking start provisions a Runloop <strong>devbox</strong> (cloud
+          sandbox) and an <strong>Axon channel</strong> (real-time event bus).
+          The Claude SDK streams messages through Axon to Claude Code running
+          inside the sandbox. You chat here, Claude works there.
+        </p>
       </div>
-      <div className="form-group">
-        <label>Model (optional)</label>
-        <input value={startModel} onChange={(e) => setStartModel(e.target.value)} placeholder="claude-sonnet-4-20250514" disabled={connecting} />
+
+      <div className="setup-form-section">
+        <div className="form-group">
+          <label>Blueprint</label>
+          <div className="form-hint">
+            A Runloop blueprint pre-configures the sandbox environment
+            (installed packages, repos, files). Leave blank for a default
+            sandbox.
+          </div>
+          <input
+            value={blueprintName}
+            onChange={(e) => setBlueprintName(e.target.value)}
+            placeholder="runloop/agents"
+            disabled={connecting}
+          />
+        </div>
+        <div className="form-group">
+          <label>Model</label>
+          <div className="form-hint">
+            Which Claude model to use. Haiku is fast and cheap for testing;
+            Sonnet/Opus for production quality.
+          </div>
+          <input
+            value={startModel}
+            onChange={(e) => setStartModel(e.target.value)}
+            placeholder="claude-sonnet-4-20250514"
+            disabled={connecting}
+          />
+        </div>
+        <div className="form-group">
+          <label>Launch Commands</label>
+          <div className="form-hint">
+            Shell commands to run in the sandbox before starting Claude (one per
+            line). Use for cloning repos, installing dependencies, etc.
+          </div>
+          <input
+            value={launchCommands}
+            onChange={(e) => setLaunchCommands(e.target.value)}
+            placeholder="git clone https://..."
+            disabled={connecting}
+          />
+        </div>
+        <div className="form-group">
+          <label>System Prompt</label>
+          <div className="form-hint">
+            Custom instructions prepended to the conversation. Sets Claude's
+            behavior, focus area, or constraints.
+          </div>
+          <textarea
+            className="setup-textarea"
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            placeholder="You are a senior engineer. Focus on writing tests..."
+            disabled={connecting}
+            rows={3}
+          />
+        </div>
       </div>
-      <div className="form-group">
-        <label>System Prompt (optional)</label>
-        <textarea className="setup-textarea" value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} placeholder="Custom instructions for Claude..." disabled={connecting} rows={3} />
-      </div>
-      <button className="btn btn-primary" onClick={onStart} disabled={connecting}>
-        {connecting ? "Connecting\u2026" : "Create Sandbox"}
+
+      <button
+        className="btn btn-primary"
+        onClick={onStart}
+        disabled={connecting}
+      >
+        {connecting ? "Connecting" : "Create Sandbox & Start"}
       </button>
       {connecting && (
         <div className="phase-indicator">
           <div className="phase-spinner" />
-          {phaseLabel(connectionPhase)}
+          <span>Provisioning sandbox and connecting to Claude Code</span>
         </div>
       )}
       {error && <div className="error-banner">{error}</div>}
@@ -742,17 +1060,27 @@ function ToolCallSidebarItem({ toolCall }: { toolCall: ToolCallBlock }) {
 
   return (
     <div className={`tool-activity-item ${toolCall.status}`}>
-      <div className="tool-activity-header" onClick={hasOutput ? () => setExpanded(!expanded) : undefined} style={hasOutput ? { cursor: "pointer" } : undefined}>
+      <div
+        className="tool-activity-header"
+        onClick={hasOutput ? () => setExpanded(!expanded) : undefined}
+        style={hasOutput ? { cursor: "pointer" } : undefined}
+      >
         <div className="tool-call-sidebar-icon">{icon}</div>
         <div className="tool-activity-info">
           <div className="tool-activity-title">{displayTitle}</div>
           <div className="tool-activity-meta">
-            <span className={`tool-activity-status ${toolCall.status}`}>{toolCall.status}</span>
-            {toolCall.duration != null && <span className="tool-activity-time">{toolCall.duration}s</span>}
+            <span className={`tool-activity-status ${toolCall.status}`}>
+              {toolCall.status}
+            </span>
+            {toolCall.duration != null && (
+              <span className="tool-activity-time">{toolCall.duration}s</span>
+            )}
           </div>
         </div>
         {hasOutput && (
-          <span className={`chevron ${expanded ? "expanded" : ""}`}>{"\u25B6"}</span>
+          <span className={`chevron ${expanded ? "expanded" : ""}`}>
+            {"\u25B6"}
+          </span>
         )}
       </div>
       {expanded && toolCall.output && (
@@ -766,7 +1094,13 @@ function ToolCallSidebarItem({ toolCall }: { toolCall: ToolCallBlock }) {
 
 // ── Info Panel ──────────────────────────────────────────────
 
-function InfoPanel({ initInfo, usage }: { initInfo: InitInfo; usage: UsageState | null }) {
+function InfoPanel({
+  initInfo,
+  usage,
+}: {
+  initInfo: InitInfo;
+  usage: UsageState | null;
+}) {
   return (
     <div className="info-panel">
       <div className="info-section">
@@ -782,21 +1116,33 @@ function InfoPanel({ initInfo, usage }: { initInfo: InitInfo; usage: UsageState 
           <div className="info-section-title">Token Usage</div>
           <div className="info-grid">
             <span className="info-label">Input:</span>
-            <span className="info-value">{usage.inputTokens.toLocaleString()}</span>
+            <span className="info-value">
+              {usage.inputTokens.toLocaleString()}
+            </span>
             <span className="info-label">Output:</span>
-            <span className="info-value">{usage.outputTokens.toLocaleString()}</span>
+            <span className="info-value">
+              {usage.outputTokens.toLocaleString()}
+            </span>
             <span className="info-label">Cache Read:</span>
-            <span className="info-value">{usage.cacheReadInputTokens.toLocaleString()}</span>
+            <span className="info-value">
+              {usage.cacheReadInputTokens.toLocaleString()}
+            </span>
             <span className="info-label">Cache Created:</span>
-            <span className="info-value">{usage.cacheCreationInputTokens.toLocaleString()}</span>
+            <span className="info-value">
+              {usage.cacheCreationInputTokens.toLocaleString()}
+            </span>
           </div>
         </div>
       )}
       <div className="info-section">
-        <div className="info-section-title">Tools ({initInfo.tools.length})</div>
+        <div className="info-section-title">
+          Tools ({initInfo.tools.length})
+        </div>
         <div className="info-list">
           {initInfo.tools.map((t) => (
-            <span key={t} className="info-chip">{t}</span>
+            <span key={t} className="info-chip">
+              {t}
+            </span>
           ))}
         </div>
       </div>
@@ -806,7 +1152,8 @@ function InfoPanel({ initInfo, usage }: { initInfo: InitInfo; usage: UsageState 
           <div className="info-list">
             {initInfo.mcpServers.map((s) => (
               <span key={s.name} className="info-chip">
-                {s.name} <span className={`mcp-status ${s.status}`}>({s.status})</span>
+                {s.name}{" "}
+                <span className={`mcp-status ${s.status}`}>({s.status})</span>
               </span>
             ))}
           </div>
@@ -817,7 +1164,9 @@ function InfoPanel({ initInfo, usage }: { initInfo: InitInfo; usage: UsageState 
           <div className="info-section-title">Slash Commands</div>
           <div className="info-list">
             {initInfo.slashCommands.map((c) => (
-              <span key={c} className="info-chip">/{c}</span>
+              <span key={c} className="info-chip">
+                /{c}
+              </span>
             ))}
           </div>
         </div>

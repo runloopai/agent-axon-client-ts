@@ -86,7 +86,7 @@ app.post("/api/start", async (req, res) => {
         ...(anthropicApiKey ? { ANTHROPIC_API_KEY: anthropicApiKey } : {}),
       },
       launch_parameters: launchCommands?.length
-        ? { launch_commands: launchCommands, keep_alive_time_seconds: 300 }
+        ? { launch_commands: launchCommands }
         : undefined,
     });
 
@@ -111,10 +111,7 @@ app.post("/api/start", async (req, res) => {
     res.json({
       devboxId: devbox.id,
       axonId: axon.id,
-      runloopUrl: (baseUrl ?? "https://api.runloop.ai").replace(
-        "api",
-        "platform",
-      ),
+      runloopUrl: baseUrl ?? "https://platform.runloop.ai",
     });
   } catch (err) {
     console.error("Start error:", err);
@@ -189,35 +186,9 @@ app.post("/api/set-permission-mode", async (req, res) => {
   }
 });
 
-app.post("/api/get-context-usage", async (_req, res) => {
-  if (!connection) {
-    res.status(400).json({ error: "Not connected" });
-    return;
-  }
-  try {
-    const usage = await connection.getContextUsage();
-    res.json(usage);
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: err instanceof Error ? err.message : String(err) });
-  }
-});
-
-app.post("/api/get-mcp-status", async (_req, res) => {
-  if (!connection) {
-    res.status(400).json({ error: "Not connected" });
-    return;
-  }
-  try {
-    const status = await connection.getMcpStatus();
-    res.json(status);
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: err instanceof Error ? err.message : String(err) });
-  }
-});
+// TODO: re-enable when getContextUsage / getMcpStatus are added to ClaudeAxonConnection
+// app.post("/api/get-context-usage", async (_req, res) => { ... });
+// app.post("/api/get-mcp-status", async (_req, res) => { ... });
 
 app.get("/api/axon-events", (_req, res) => {
   res.json(axonEvents);

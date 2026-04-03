@@ -1,6 +1,15 @@
 {
   "name": "agent-axon-client",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/runloopai/agent-axon-client-ts.git"
+  },
+  "homepage": "https://github.com/runloopai/agent-axon-client-ts#readme",
+  "bugs": {
+    "url": "https://github.com/runloopai/agent-axon-client-ts/issues"
+  },
+  "license": "MIT",
   "workspaces": [
     "sdk",
     "examples/*"

@@ -1,5 +1,10 @@
 # @runloop/agent-axon-client
 
+[CI](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml)
+[npm](https://www.npmjs.com/package/@runloop/agent-axon-client)
+[codecov](https://codecov.io/gh/runloopai/agent-axon-client-ts)
+[License: MIT](https://opensource.org/licenses/MIT)
+
 > **Alpha — subject to change.** This SDK is in early development. APIs, interfaces, and behavior may change without notice between versions.
 
 TypeScript SDK for connecting to coding agents (Claude Code, OpenCode, etc.) running inside [Runloop](https://runloop.ai) devboxes via the Axon event bus.
@@ -43,14 +48,50 @@ If you're using the Claude module, also install:
 npm install @anthropic-ai/claude-agent-sdk
 ```
 
+## Status & Roadmap
+
+### Supported Features by Protocol
+
+
+| Capability                                   | Claude          | ACP             |
+| -------------------------------------------- | --------------- | --------------- |
+| Send prompts / messages                      | ✅               | ✅               |
+| Streaming responses                          | ✅               | ✅               |
+| Tool use / tool results                      | ⚠️ *Auto-approve | ⚠️ *Auto-approve |
+| Cancel / interrupt turns                     | ✅               | ✅               |
+| Permission / control requests (auto-approve) | ⚠️ *Auto-approve | ⚠️ *Auto-approve |
+
+*Auto-approve only for now, premission request flow pending
+
+### Coming Soon
+
+| Status     | Description                                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 🚧 Planned | **Granual Permission control** — Control request / response in transaction. This is currently resolved  by allowing all                                                  |
+| 🚧 Planned | **Agent installation** — support for automatically getting agents installed on the devbox                                                  |
+| 🚧 Planned | **Devbox state-transition events** — expose devbox lifecycle state changes (creating → running → suspended → …) as first-class Axon events |
+| 🚧 Planned | **Axon subscribe over WebSockets** — WebSocket transport for Axon subscriptions, enabling browser clients without a backend proxy          |
+
+
+### Known Issues
+
+
+| Status | Description                                                                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 🐛 Bug | Failure on binary missing — agent launch does not surface a clear error when the requested agent binary is not present on the devbox |
+| 🐛 Bug | Suspend and resume of a devbox will not work correctly at the moment, this will be fixed soon. |
+
+
 ## Modules
 
 The SDK has two independent modules — pick the one that matches your agent's protocol:
 
-| Module | Import path | Protocol | Use when |
-|--------|-------------|----------|----------|
-| **ACP** | `@runloop/agent-axon-client/acp` | [Agent Client Protocol](https://agentclientprotocol.com) (JSON-RPC 2.0) | Using OpenCode, or Claude via ACP |
-| **Claude** | `@runloop/agent-axon-client/claude` | Claude Code SDK wire format | Using Claude Code with native SDK message types |
+
+| Module     | Import path                         | Protocol                                                                | Use when                                        |
+| ---------- | ----------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------- |
+| **ACP**    | `@runloop/agent-axon-client/acp`    | [Agent Client Protocol](https://agentclientprotocol.com) (JSON-RPC 2.0) | Using OpenCode, or Claude via ACP               |
+| **Claude** | `@runloop/agent-axon-client/claude` | Claude Code SDK wire format                                             | Using Claude Code with native SDK message types |
+
 
 ### Which module should I use?
 
@@ -149,11 +190,14 @@ See the [SDK documentation](sdk/README.md) for the full API reference.
 ## Repository Structure
 
 ```
-sdk/          → @runloop/agent-axon-client (the published npm package)
+sdk/                      → @runloop/agent-axon-client (the published npm package)
 examples/
-  acp-app/    → Full-stack ACP demo (Express + React)
-  claude-app/ → Full-stack Claude demo (Express + React)
-  claude-cli/ → Minimal Claude CLI demo
+  acp-hello-world/        → Minimal ACP single-prompt script
+  acp-cli/                → Interactive ACP REPL
+  acp-app/                → Full-stack ACP demo (Express + React)
+  claude-hello-world/     → Minimal Claude single-prompt script
+  claude-cli/             → Interactive Claude REPL
+  claude-app/             → Full-stack Claude demo (Express + React)
 ```
 
 ## Development
