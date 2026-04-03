@@ -81,6 +81,14 @@ if (MODEL) {
 }
 console.log("Connected.\n");
 
+// Handle Ctrl+C gracefully
+process.on("SIGINT", async () => {
+  console.log(`\nInterrupted — shutting down devbox ${devbox.id}...`);
+  rl.close();
+  await client.disconnect();
+  process.exit(0);
+});
+
 // ---------------------------------------------------------------------------
 // Message rendering
 // ---------------------------------------------------------------------------
