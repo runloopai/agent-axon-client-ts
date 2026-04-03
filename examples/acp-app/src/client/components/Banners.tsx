@@ -31,6 +31,11 @@ export function ConnectionInfoBanner({
   currentMode,
   availableModes,
   availableCommands,
+  authMethods,
+  isAuthenticated,
+  authDismissed,
+  onAuthenticate,
+  onDismissAuth,
 }: {
   info: AgentInfo;
   connectionDetails: ConnectionDetails;
@@ -38,13 +43,20 @@ export function ConnectionInfoBanner({
   currentMode: string | null;
   availableModes: SessionMode[];
   availableCommands: AvailableCommand[];
+  authMethods?: AuthMethod[];
+  isAuthenticated?: boolean;
+  authDismissed?: boolean;
+  onAuthenticate?: (methodId: string) => void;
+  onDismissAuth?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [authDismissedLocal, setAuthDismissedLocal] = useState(false);
   const displayName = info.title ?? info.name ?? "Agent";
   const ac = connectionDetails.agentCapabilities;
   const cc = connectionDetails.clientCapabilities;
   const meta = connectionDetails.sessionMeta;
   const opencodeMeta = meta?.opencode as { availableVariants?: string[]; modelId?: string; variant?: string | null } | undefined;
+  const showAuth = authMethods && authMethods.length > 0 && !isAuthenticated && !authDismissed && !authDismissedLocal;
 
   return (
     <div className={`conn-banner ${expanded ? "conn-banner-expanded" : ""}`}>
@@ -61,12 +73,13 @@ export function ConnectionInfoBanner({
         <span className={`chevron conn-banner-chevron ${expanded ? "expanded" : ""}`}>{"\u25B6"}</span>
       </div>
 
-      {!expanded && ac && (
+      {!expanded && (
         <div className="conn-banner-summary">
-          {ac.promptCapabilities?.image && <span className="cap-badge cap-yes cap-inline">image</span>}
-          {ac.promptCapabilities?.embeddedContext && <span className="cap-badge cap-yes cap-inline">context</span>}
-          {ac.mcpCapabilities?.http && <span className="cap-badge cap-yes cap-inline">mcp</span>}
-          {ac.sessionCapabilities?.list && <span className="cap-badge cap-yes cap-inline">sessions</span>}
+          {ac?.promptCapabilities?.image && <span className="cap-badge cap-yes cap-inline">image</span>}
+          {ac?.promptCapabilities?.embeddedContext && <span className="cap-badge cap-yes cap-inline">context</span>}
+          {ac?.mcpCapabilities?.http && <span className="cap-badge cap-yes cap-inline">mcp</span>}
+          {ac?.sessionCapabilities?.list && <span className="cap-badge cap-yes cap-inline">sessions</span>}
+          {showAuth && <span className="cap-badge conn-auth-badge cap-inline">auth</span>}
           {opencodeMeta?.modelId && (
             <span className="conn-model-chip">{opencodeMeta.modelId}</span>
           )}
@@ -146,6 +159,48 @@ export function ConnectionInfoBanner({
               </div>
             </div>
           )}
+
+          {showAuth && (
+            <div className="conn-section conn-auth-section">
+              <div className="conn-section-title">
+                Authentication
+                <button
+                  className="conn-auth-dismiss"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAuthDismissedLocal(true);
+                    onDismissAuth?.();
+                  }}
+                  title="Dismiss"
+                >&#x2715;</button>
+              </div>
+              <div className="conn-auth-methods">
+                {authMethods!.map((method) => {
+                  const m = method as { id: string; name: string; type?: string; description?: string };
+                  const isClientActionable = m.type === "env_var" || m.type === "terminal";
+                  return (
+                    <div key={m.id} className="conn-auth-method">
+                      <div className="conn-auth-method-info">
+                        <span className="conn-auth-method-name">{m.name}</span>
+                        {m.type && <span className="conn-auth-method-type">{m.type}</span>}
+                      </div>
+                      {m.description && (
+                        <div className="conn-auth-method-desc">{m.description}</div>
+                      )}
+                      {isClientActionable && onAuthenticate && (
+                        <button
+                          className="btn btn-ghost conn-auth-method-btn"
+                          onClick={(e) => { e.stopPropagation(); onAuthenticate(m.id); }}
+                        >
+                          Authenticate
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -182,6 +237,7 @@ export function AuthBanner({
       <div className="auth-banner-methods">
         {methods.map((method) => {
           const m = method as { id: string; name: string; type?: string; description?: string };
+          const isClientActionable = m.type === "env_var" || m.type === "terminal";
           return (
             <div key={m.id} className="auth-method-card">
               <div className="auth-method-info">
@@ -191,12 +247,14 @@ export function AuthBanner({
               {m.description && (
                 <div className="auth-method-desc">{m.description}</div>
               )}
-              <button
-                className="btn btn-primary auth-method-btn"
-                onClick={() => onAuthenticate(m.id)}
-              >
-                Authenticate
-              </button>
+              {isClientActionable && (
+                <button
+                  className="btn btn-primary auth-method-btn"
+                  onClick={() => onAuthenticate(m.id)}
+                >
+                  Authenticate
+                </button>
+              )}
             </div>
           );
         })}

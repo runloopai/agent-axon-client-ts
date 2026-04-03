@@ -1,0 +1,10 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts", "src/acp/index.ts", "src/claude/index.ts"],
+  "out": "docs",
+  "name": "@runloop/agent-axon-client",
+  "readme": "README.md",
+  "excludeInternal": true,
+  "excludePrivate": true,
+  "githubPages": true
+}

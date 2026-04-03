@@ -141,7 +141,39 @@ export interface ResourceLinkBlock {
   title?: string | null;
 }
 
-export type TurnBlock = ThinkingBlock | ToolCallBlock | TextBlock | PlanBlock | ResourceLinkBlock;
+export interface ImageBlock {
+  type: "image";
+  id: string;
+  data: string;
+  mimeType: string;
+  uri?: string | null;
+}
+
+export interface AudioBlock {
+  type: "audio";
+  id: string;
+  data: string;
+  mimeType: string;
+}
+
+export interface EmbeddedResourceBlock {
+  type: "resource";
+  id: string;
+  uri: string;
+  mimeType?: string | null;
+  text?: string;
+  blob?: string;
+}
+
+export type TurnBlock =
+  | ThinkingBlock
+  | ToolCallBlock
+  | TextBlock
+  | PlanBlock
+  | ResourceLinkBlock
+  | ImageBlock
+  | AudioBlock
+  | EmbeddedResourceBlock;
 
 // --- Chat message ---
 
@@ -247,7 +279,7 @@ export interface UseNodeAgentReturn {
   axonEvents: AxonEventView[];
   sessions: SessionListEntry[];
   isLoadingSessions: boolean;
-  start: (config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[] }) => Promise<void>;
+  start: (config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string }) => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
   cancel: () => Promise<void>;
   setMode: (modeId: string) => Promise<void>;
