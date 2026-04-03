@@ -1,9 +1,9 @@
 # @runloop/agent-axon-client
 
-[CI](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml)
-[npm](https://www.npmjs.com/package/@runloop/agent-axon-client)
-[codecov](https://codecov.io/gh/runloopai/agent-axon-client-ts)
-[License: MIT](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@runloop/agent-axon-client)](https://www.npmjs.com/package/@runloop/agent-axon-client)
+[![codecov](https://codecov.io/gh/runloopai/agent-axon-client-ts/branch/main/graph/badge.svg)](https://codecov.io/gh/runloopai/agent-axon-client-ts)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **Alpha — subject to change.** This SDK is in early development. APIs, interfaces, and behavior may change without notice between versions.
 
