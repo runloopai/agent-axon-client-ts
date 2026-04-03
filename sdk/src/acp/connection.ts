@@ -43,6 +43,8 @@ function defaultOnError(error: unknown): void {
  *
  * The underlying `ClientSideConnection` is accessible via `.protocol` for
  * advanced use cases (e.g. unstable/experimental ACP methods).
+ *
+ * @category Connection
  */
 export class ACPAxonConnection {
   /** The Axon channel ID this connection is bound to. */
