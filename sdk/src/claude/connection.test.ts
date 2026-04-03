@@ -83,7 +83,7 @@ async function createConnectedClient(
   options?: { onDisconnect?: () => void | Promise<void>; model?: string },
 ) {
   const axon = createMockAxon();
-  const conn = new ClaudeAxonConnection(axon as never, "dbx-test", {
+  const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
     onDisconnect: options?.onDisconnect,
     model: options?.model,
   });

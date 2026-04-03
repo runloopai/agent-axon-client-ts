@@ -104,7 +104,7 @@ app.post("/api/start", async (req, res) => {
     abortController = new AbortController();
     axonEvents = [];
 
-    const conn = new ClaudeAxonConnection(axon, devbox.id, {
+    const conn = new ClaudeAxonConnection(axon, devbox, {
       onDisconnect: async () => {
         await devbox.shutdown();
       },

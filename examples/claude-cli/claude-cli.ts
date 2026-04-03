@@ -88,7 +88,7 @@ console.log(`Devbox ready: ${devbox.id}`);
 // Connect the client
 // ---------------------------------------------------------------------------
 
-const client = new ClaudeAxonConnection(axon, devbox.id, {
+const client = new ClaudeAxonConnection(axon, devbox, {
   onDisconnect: async () => {
     await devbox.shutdown();
   },

@@ -46,7 +46,7 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection(axon, devbox.id, {
+const agent = new ACPAxonConnection(axon, devbox, {
   onDisconnect: async () => {
     await devbox.shutdown();
   },
@@ -128,7 +128,7 @@ const devbox = await sdk.devbox.create({
 });
 
 // 2. Connect
-const conn = new ClaudeAxonConnection(axon, devbox.id, { model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
 await conn.connect();
 
 // 3. Send and receive

@@ -64,7 +64,7 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection(axon, devbox.id);
+const agent = new ACPAxonConnection(axon, devbox);
 
 await agent.initialize({
   protocolVersion: PROTOCOL_VERSION,
@@ -104,7 +104,7 @@ const devbox = await sdk.devbox.create({
   }],
 });
 
-const conn = new ClaudeAxonConnection(axon, devbox.id, { model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
 await conn.connect();
 
 await conn.send("What files are in this directory?");
@@ -124,12 +124,12 @@ await conn.disconnect();
 
 Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the ACP `ClientSideConnection`.
 
-**Constructor**: `new ACPAxonConnection(axon, devboxId, options?)`
+**Constructor**: `new ACPAxonConnection(axon, devbox, options?)`
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `axon` | `Axon` | Axon channel from `@runloop/api-client` |
-| `devboxId` | `string` | Runloop devbox ID |
+| `devbox` | `Devbox` | Runloop devbox from `@runloop/api-client` |
 
 **Options** (`ACPAxonConnectionOptions`):
 
@@ -277,12 +277,12 @@ import type {
 
 Bidirectional, interactive client for Claude Code via Axon. Messages are yielded as `SDKMessage` from `@anthropic-ai/claude-agent-sdk` — the exact types the Claude Code CLI emits.
 
-**Constructor**: `new ClaudeAxonConnection(axon, devboxId, options?)`
+**Constructor**: `new ClaudeAxonConnection(axon, devbox, options?)`
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `axon` | `Axon` | Axon channel from `@runloop/api-client` |
-| `devboxId` | `string` | Runloop devbox ID |
+| `devbox` | `Devbox` | Runloop devbox from `@runloop/api-client` |
 
 **Options** (`ClaudeAxonConnectionOptions`):
 

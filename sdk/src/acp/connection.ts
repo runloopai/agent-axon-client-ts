@@ -24,7 +24,7 @@ import {
   type SetSessionModeResponse,
 } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
-import type { Axon } from "@runloop/api-client/sdk";
+import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { axonStream } from "./axon-stream.js";
 import type {
   ACPAxonConnectionOptions,
@@ -76,9 +76,9 @@ export class ACPAxonConnection {
     | undefined;
   private disconnectFn: (() => void | Promise<void>) | undefined;
 
-  constructor(axon: Axon, devboxId: string, options?: ACPAxonConnectionOptions) {
+  constructor(axon: Axon, devbox: Devbox, options?: ACPAxonConnectionOptions) {
     this.axonId = axon.id;
-    this.devboxId = devboxId;
+    this.devboxId = devbox.id;
     this.abortController = new AbortController();
     this.handleError = options?.onError ?? defaultOnError;
     this.handlePermission = options?.requestPermission;

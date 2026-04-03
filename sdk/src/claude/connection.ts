@@ -23,7 +23,7 @@ import type {
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
-import type { Axon } from "@runloop/api-client/sdk";
+import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { AxonTransport, type Transport } from "./transport.js";
 import type { WireData } from "./types.js";
 
@@ -140,8 +140,8 @@ export class ClaudeAxonConnection {
 
   private axonEventListeners = new Set<AxonEventListener>();
 
-  constructor(axon: Axon, devboxId: string, options?: ClaudeAxonConnectionOptions) {
-    this.devboxId = devboxId;
+  constructor(axon: Axon, devbox: Devbox, options?: ClaudeAxonConnectionOptions) {
+    this.devboxId = devbox.id;
     this.options = options ?? {};
     this.disconnectFn = options?.onDisconnect;
     this.transport = new AxonTransport(axon, {
