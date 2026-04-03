@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.1.2...agent-axon-client-v0.2.0) (2026-04-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sdk:** Connection constructor signatures and callback names changed.
+
+### Features
+
+* **claude:** add control request handler for mid turn agent control flow ([#35](https://github.com/runloopai/agent-axon-client-ts/issues/35)) ([d6f1e35](https://github.com/runloopai/agent-axon-client-ts/commit/d6f1e35dc0d27139f1ebe3e3e4f6565524fe873d))
+* **sdk:** align ACP and Claude connection APIs ([#44](https://github.com/runloopai/agent-axon-client-ts/issues/44)) ([a978c65](https://github.com/runloopai/agent-axon-client-ts/commit/a978c65bb29670d80307932730e331ffc933f784))
+
 ## [0.1.2](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.1.1...agent-axon-client-v0.1.2) (2026-04-02)
 
 
