@@ -3,7 +3,6 @@ import {
   useRef,
   useEffect,
   useCallback,
-  useLayoutEffect,
   forwardRef,
   type KeyboardEvent,
 } from "react";
@@ -195,7 +194,7 @@ export default function App() {
                 devbox:{" "}
                 {agent.runloopUrl ? (
                   <a
-                    href={`${agent.runloopUrl}/devboxes/${agent.devboxId}`}
+                    href={`${agent.runloopUrl.replace("api", "platform")}/devboxes/${agent.devboxId}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -529,7 +528,7 @@ const MarkdownContent = forwardRef<
   );
 });
 
-const THINKING_COLLAPSED_HEIGHT = 60;
+const THINKING_PREVIEW_HEIGHT = 40;
 
 function ThinkingBlockView({
   block,
@@ -540,21 +539,23 @@ function ThinkingBlockView({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [overflows, setOverflows] = useState(false);
-
-  useLayoutEffect(() => {
-    const el = contentRef.current;
-    if (el) setOverflows(el.scrollHeight > THINKING_COLLAPSED_HEIGHT);
-  }, [block.text]);
-
   if (!block.text && !block.isActive) return null;
 
-  const isCollapsedOverflow = overflows && !expanded;
+  const hasContent = !!block.text;
+  const isFinished = !block.isActive;
+  const canToggle = hasContent && isFinished;
 
   return (
-    <div className="turn-block thinking-block">
+    <div
+      className={`turn-block thinking-block${canToggle ? " thinking-block-clickable" : ""}`}
+      onClick={canToggle ? onToggle : undefined}
+      role={canToggle ? "button" : undefined}
+      tabIndex={canToggle ? 0 : undefined}
+    >
       <div className="thinking-header-inline">
+        <span
+          className={`thinking-chevron${expanded ? " thinking-chevron-open" : ""}${block.isActive ? " thinking-chevron-active" : ""}`}
+        />
         <span className="thinking-label">
           Thinking{block.isActive ? "\u2026" : ""}
         </span>
@@ -564,18 +565,10 @@ function ThinkingBlockView({
       </div>
       {block.text && (
         <MarkdownContent
-          ref={contentRef}
           text={block.text}
-          className={`thinking-content${expanded ? " thinking-content-expanded" : ""}${isCollapsedOverflow ? " thinking-content-overflow" : ""}`}
-          style={
-            !expanded ? { maxHeight: THINKING_COLLAPSED_HEIGHT } : undefined
-          }
+          className={`thinking-content${expanded ? " thinking-content-expanded" : " thinking-content-collapsed"}`}
+          style={!expanded ? { maxHeight: THINKING_PREVIEW_HEIGHT } : undefined}
         />
-      )}
-      {overflows && !block.isActive && (
-        <button className="thinking-toggle" onClick={onToggle}>
-          {expanded ? "Show less" : "Show more"}
-        </button>
       )}
     </div>
   );
