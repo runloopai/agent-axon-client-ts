@@ -173,7 +173,7 @@ const devbox = await sdk.devbox.create({
   }],
 });
 
-const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection({ axon, devbox, model: "claude-sonnet-4-5" });
 await conn.connect();
 
 await conn.send("What files are in this directory?");

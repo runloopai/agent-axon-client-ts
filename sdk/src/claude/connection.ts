@@ -89,6 +89,16 @@ interface PendingControlRequest {
 
 /** @category Configuration */
 export interface ClaudeAxonConnectionOptions {
+  /**
+   * The Axon channel to communicate over. Axon should be mounted to a
+   * devbox with the "claude_json" protocol.
+   */
+  axon: Axon;
+  /**
+   * Optional Devbox instance. If provided, it will be shut down
+   * automatically when {@link ClaudeAxonConnection.disconnect} is called.
+   */
+  devbox?: Devbox;
   /** If true, emit verbose logs to stderr. */
   verbose?: boolean;
   /** Override the system prompt for this session. */
@@ -124,17 +134,10 @@ export class ClaudeAxonConnection {
   // biome-ignore lint/suspicious/noExplicitAny: handlers are typed at registration via onControlRequest()
   private controlRequestHandlers = new Map<string, ControlRequestHandler<any>>();
 
-  /**
-   * @param axon    The Axon channel to communicate over. Axon should be mounted to a
-   *                devbox with the "claude_json" protocol.
-   * @param devbox  Optional Devbox instance. If provided, it will be shut down
-   *                automatically when {@link disconnect} is called.
-   * @param options Connection options (verbose logging, system prompt, model, etc.).
-   */
-  constructor(axon: Axon, devbox?: Devbox, options?: ClaudeAxonConnectionOptions) {
-    this.options = options ?? {};
-    this.devbox = devbox;
-    this.transport = new AxonTransport(axon, {
+  constructor(options: ClaudeAxonConnectionOptions) {
+    this.options = options;
+    this.devbox = options.devbox;
+    this.transport = new AxonTransport(options.axon, {
       verbose: this.options.verbose,
     });
   }

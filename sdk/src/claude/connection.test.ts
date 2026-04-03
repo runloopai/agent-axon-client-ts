@@ -87,7 +87,9 @@ async function createConnectedClient(
   options?: { devbox?: ReturnType<typeof createMockDevbox>; model?: string },
 ) {
   const axon = createMockAxon();
-  const conn = new ClaudeAxonConnection(axon as never, options?.devbox as never, {
+  const conn = new ClaudeAxonConnection({
+    axon: axon as never,
+    devbox: options?.devbox as never,
     model: options?.model,
   });
 

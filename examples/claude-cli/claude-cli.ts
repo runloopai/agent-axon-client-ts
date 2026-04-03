@@ -88,7 +88,9 @@ console.log(`Devbox ready: ${devbox.id}`);
 // Connect the client
 // ---------------------------------------------------------------------------
 
-const client = new ClaudeAxonConnection(axon, devbox, {
+const client = new ClaudeAxonConnection({
+  axon,
+  devbox,
   verbose: VERBOSE,
   ...(MODEL && { model: MODEL }),
   ...(SYSTEM_PROMPT && { systemPrompt: SYSTEM_PROMPT }),

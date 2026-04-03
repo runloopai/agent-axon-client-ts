@@ -76,7 +76,9 @@ console.log(`Devbox ready: ${devbox.id}`);
 // Connect
 // ---------------------------------------------------------------------------
 
-const client = new ClaudeAxonConnection(axon, devbox, {
+const client = new ClaudeAxonConnection({
+  axon,
+  devbox,
   ...(MODEL && { model: MODEL }),
 });
 

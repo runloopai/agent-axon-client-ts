@@ -104,7 +104,7 @@ const devbox = await sdk.devbox.create({
   }],
 });
 
-const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection({ axon, devbox, model: "claude-sonnet-4-5" });
 await conn.connect();
 
 await conn.send("What files are in this directory?");
@@ -162,6 +162,7 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 | `closed: Promise<void>` | Resolves when the connection closes |
 | `onSessionUpdate(listener)` | Register a session update listener. Returns unsubscribe function. |
 | `onRawEvent(listener)` | Register a raw Axon event listener. Returns unsubscribe function. |
+| `abortStream()` | Abort the SSE stream without clearing listeners (useful for testing / reconnect) |
 | `disconnect()` | Abort the stream and clear all listeners |
 | `shutdown()` | Disconnect and run the teardown callback (e.g. devbox shutdown) |
 
@@ -274,26 +275,16 @@ import type {
 
 Bidirectional, interactive client for Claude Code via Axon. Messages are yielded as `SDKMessage` from `@anthropic-ai/claude-agent-sdk` — the exact types the Claude Code CLI emits.
 
-**Constructor**:
+**Constructor** (`ClaudeAxonConnectionOptions`):
 
-```typescript
-new ClaudeAxonConnection(axon: Axon, devbox?: Devbox, options?: ClaudeAxonConnectionOptions)
-```
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `axon` | `Axon` | Yes | The Axon channel (from `@runloop/api-client`) |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `axon` | `Axon` | Yes | Axon channel from `@runloop/api-client` |
 | `devbox` | `Devbox` | No | If provided, shut down automatically on `disconnect()` |
-| `options` | `ClaudeAxonConnectionOptions` | No | See below |
-
-**`ClaudeAxonConnectionOptions`**:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `verbose` | `boolean` | Emit verbose logs to stderr |
-| `systemPrompt` | `string` | Override the system prompt |
-| `appendSystemPrompt` | `string` | Append to the default system prompt |
-| `model` | `string` | Model ID (e.g. `"claude-sonnet-4-5"`) — set after initialization |
+| `verbose` | `boolean` | No | Emit verbose logs to stderr |
+| `systemPrompt` | `string` | No | Override the system prompt |
+| `appendSystemPrompt` | `string` | No | Append to the default system prompt |
+| `model` | `string` | No | Model ID (e.g. `"claude-sonnet-4-5"`) — set after initialization |
 
 **Lifecycle**:
 

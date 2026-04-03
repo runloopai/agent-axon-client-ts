@@ -106,6 +106,7 @@ Available guards: `isUserMessageChunk`, `isAgentMessageChunk`,
 | `prompt(params)` | Send a prompt |
 | `cancel(params)` | Cancel an in-progress turn |
 | `onSessionUpdate(listener)` | Subscribe to session updates (returns unsubscribe fn) |
+| `abortStream()` | Abort the SSE stream without clearing listeners |
 | `disconnect()` | Close the connection |
 | `shutdown()` | Disconnect + tear down devbox |
 
@@ -129,7 +130,7 @@ const devbox = await sdk.devbox.create({
 });
 
 // 2. Connect
-const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection({ axon, devbox, model: "claude-sonnet-4-5" });
 await conn.connect();
 
 // 3. Send and receive

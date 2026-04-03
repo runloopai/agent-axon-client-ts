@@ -192,9 +192,20 @@ export class ACPAxonConnection {
     return this.protocol.closed;
   }
 
+  /**
+   * Aborts the underlying SSE stream without clearing registered listeners.
+   *
+   * Useful for simulating a transport-level disconnection in tests, or as a
+   * building block for reconnect logic. Unlike {@link disconnect}, listeners
+   * remain registered so they can fire again if a new stream is established.
+   */
+  abortStream(): void {
+    this.abortController.abort();
+  }
+
   /** Aborts the Axon stream and clears all registered listeners. */
   disconnect(): void {
-    this.abortController.abort();
+    this.abortStream();
     this.sessionUpdateListeners.clear();
     this.rawEventListeners.clear();
   }
