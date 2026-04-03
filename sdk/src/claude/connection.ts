@@ -29,6 +29,10 @@ import type { WireData } from "./types.js";
 
 /**
  * Callback invoked for every Axon event (before origin filtering).
+ *
+ * @param event - The raw {@link AxonEventView} from the Axon SSE feed,
+ *   including events from all origins (agent, user, system).
+ *
  * @category Configuration
  */
 export type AxonEventListener = (event: AxonEventView) => void;
@@ -70,6 +74,10 @@ type ControlRequestOfSubtype<S extends ControlRequestInner["subtype"]> = Extract
  * });
  * ```
  *
+ * @param request - The full control request message, narrowed so that
+ *   `request.request` is typed to the specific subtype `S`.
+ * @returns A complete {@link SDKControlResponse} to send back to the CLI.
+ *
  * @category Configuration
  */
 export type ControlRequestHandler<S extends ControlRequestInner["subtype"]> = (
@@ -80,13 +88,26 @@ export type ControlRequestHandler<S extends ControlRequestInner["subtype"]> = (
 // Control protocol helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Generates a unique request ID for an outbound control request.
+ * Combines a monotonic counter with a random suffix to avoid collisions.
+ *
+ * @param counter - The current monotonically increasing counter value.
+ * @returns A string of the form `req_{counter}_{random}`.
+ */
 function nextRequestId(counter: number): string {
   const rand = Math.random().toString(36).slice(2, 10);
   return `req_${counter}_${rand}`;
 }
 
+/**
+ * Tracks a single in-flight control request so its promise can be
+ * resolved or rejected when the matching response arrives.
+ */
 interface PendingControlRequest {
+  /** Settles the promise with the response payload on success. */
   resolve: (value: WireData) => void;
+  /** Rejects the promise on error or timeout. */
   reject: (reason: Error) => void;
 }
 
@@ -174,37 +195,85 @@ export interface ClaudeAxonConnectionOptions {
 // ClaudeAxonConnection
 // ---------------------------------------------------------------------------
 
+/**
+ * Fallback error handler used when no `onError` option is provided.
+ * Writes the error to stderr so it is always visible.
+ *
+ * @param error - The value that was thrown or rejected.
+ */
 function defaultOnError(error: unknown): void {
   console.error("[ClaudeAxonConnection]", error);
 }
 
-/** @category Connection */
+/**
+ * Bidirectional, interactive client for Claude Code via Axon.
+ *
+ * Provides:
+ * - {@link connect} / {@link disconnect} lifecycle
+ * - {@link send} to send user messages
+ * - {@link receiveMessages} / {@link receiveResponse} async iterators
+ * - Control protocol: {@link interrupt}, {@link setPermissionMode}, {@link setModel}
+ * - {@link onControlRequest} to intercept incoming control requests (e.g. tool permissions)
+ *
+ * Messages are yielded as `SDKMessage` from `@anthropic-ai/claude-agent-sdk` —
+ * the exact types the Claude Code CLI emits.
+ *
+ * @category Connection
+ */
 export class ClaudeAxonConnection {
   /** The Runloop devbox ID. */
   readonly devboxId: string;
 
+  /** Low-level transport that reads/writes messages over the Axon channel. */
   private transport: Transport;
+
+  /** Resolved options (user-provided values merged with defaults). */
   private options: ClaudeAxonConnectionOptions;
+
+  /** Error sink for listener exceptions; defaults to `console.error`. */
   private handleError: (error: unknown) => void;
+
+  /** Optional teardown callback invoked by {@link disconnect}. */
   private disconnectFn: (() => void | Promise<void>) | undefined;
 
-  // Message routing
+  /** Buffer of SDK messages that arrived before a consumer called {@link nextMessage}. */
   private messageQueue: SDKMessage[] = [];
+
+  /** Promise resolvers waiting for the next SDK message. */
   private messageWaiters: Array<(msg: SDKMessage | null) => void> = [];
+
+  /** Whether the background read loop has been started. */
   private readLoopRunning = false;
+
+  /** Whether the background read loop has finished (stream ended or errored). */
   private readLoopDone = false;
 
-  // Control protocol
+  /** Monotonically increasing counter used to generate unique control request IDs. */
   private requestCounter = 0;
+
+  /** In-flight control requests awaiting a response from the CLI. */
   private pendingControlRequests = new Map<string, PendingControlRequest>();
+
+  /** Whether {@link disconnect} has been called. */
   private closed = false;
 
-  // Registered handlers for incoming control requests (keyed by subtype)
+  /** User-registered handlers for incoming control requests, keyed by subtype. */
   // biome-ignore lint/suspicious/noExplicitAny: handlers are typed at registration via onControlRequest()
   private controlRequestHandlers = new Map<string, ControlRequestHandler<any>>();
 
+  /** Registered raw Axon event listeners. */
   private axonEventListeners = new Set<AxonEventListener>();
 
+  /**
+   * Creates a new Claude connection over the given Axon channel and devbox.
+   *
+   * Unlike ACP, the transport is not opened until {@link connect} is called.
+   *
+   * @param axon    - The Axon channel to communicate over (from `@runloop/api-client`).
+   * @param devbox  - The Runloop devbox hosting the Claude Code agent.
+   * @param options - Optional configuration for verbose logging, system prompt,
+   *   model selection, error handling, and lifecycle hooks.
+   */
   constructor(axon: Axon, devbox: Devbox, options?: ClaudeAxonConnectionOptions) {
     this.devboxId = devbox.id;
     this.options = options ?? {};
@@ -216,6 +285,12 @@ export class ClaudeAxonConnection {
     });
   }
 
+  /**
+   * Writes a timestamped diagnostic line to stderr when verbose mode is on.
+   *
+   * @param tag  - Short label identifying the subsystem (e.g. "init", "readLoop").
+   * @param args - Values to log after the tag.
+   */
   private log(tag: string, ...args: unknown[]): void {
     if (!this.options.verbose) return;
     const ts = new Date().toISOString().slice(11, 23);
@@ -227,7 +302,11 @@ export class ClaudeAxonConnection {
   // -----------------------------------------------------------------------
 
   /**
-   * Connect to the remote Claude Code instance.
+   * Opens the transport, starts the background read loop, performs the
+   * `initialize` handshake, and optionally sets the model.
+   *
+   * @throws If this instance has already been disconnected (connections
+   *   are single-use — create a new instance instead).
    */
   async connect(): Promise<void> {
     if (this.closed) {
@@ -259,7 +338,14 @@ export class ClaudeAxonConnection {
     this.transport.abortStream();
   }
 
-  /** Disconnect from Claude Code. */
+  /**
+   * Closes the transport, fails all pending control requests, clears
+   * listeners, and runs the `onDisconnect` callback if one was provided.
+   *
+   * Idempotent — subsequent calls are no-ops.
+   *
+   * @returns Resolves once all teardown (including `onDisconnect`) completes.
+   */
   async disconnect(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
@@ -296,6 +382,9 @@ export class ClaudeAxonConnection {
   /**
    * Registers a listener for every Axon event (before origin filtering).
    * Useful for debugging, observability, and building Axon event viewers.
+   *
+   * @param listener - Callback invoked with the raw {@link AxonEventView}
+   *   for every event on the channel, regardless of origin.
    * @returns An unsubscribe function that removes the listener.
    */
   onAxonEvent(listener: AxonEventListener): () => void {
@@ -305,6 +394,13 @@ export class ClaudeAxonConnection {
     };
   }
 
+  /**
+   * Fans out a raw Axon event to all registered {@link onAxonEvent} listeners.
+   * Listener exceptions are caught and routed to {@link handleError} so one
+   * faulty listener cannot prevent subsequent listeners from being called.
+   *
+   * @param event - The raw Axon event to broadcast.
+   */
   private emitAxonEvent(event: AxonEventView): void {
     for (const listener of this.axonEventListeners) {
       try {
@@ -319,6 +415,12 @@ export class ClaudeAxonConnection {
   // Read loop — routes control messages vs SDK messages
   // -----------------------------------------------------------------------
 
+  /**
+   * Spawns a background async loop that reads messages from the transport
+   * and routes them via {@link routeMessage}. On error, all pending control
+   * requests are failed. When the loop ends (normally or via error), all
+   * message waiters are unblocked with `null`.
+   */
   private startReadLoop(): void {
     if (this.readLoopRunning) return;
     this.readLoopRunning = true;
@@ -347,6 +449,16 @@ export class ClaudeAxonConnection {
     })();
   }
 
+  /**
+   * Dispatches a single inbound wire message to the correct handler:
+   * - `control_response` → resolves or rejects the matching pending request.
+   * - `control_request`  → delegates to {@link handleIncomingControlRequest}.
+   * - `control_cancel_request` → silently dropped (no-op).
+   * - Everything else → treated as an `SDKMessage` and delivered to
+   *   the next {@link nextMessage} waiter or buffered in the message queue.
+   *
+   * @param message - The parsed wire-level message from the transport.
+   */
   private routeMessage(message: WireData): void {
     const msgType = message.type;
 
@@ -391,7 +503,13 @@ export class ClaudeAxonConnection {
     }
   }
 
-  /** Wait for the next SDK message (non-control). */
+  /**
+   * Returns the next buffered SDK message, or waits for one to arrive.
+   * Resolves with `null` when the read loop has ended or the connection
+   * has been closed.
+   *
+   * @returns The next SDK message, or `null` if no more messages will arrive.
+   */
   private nextMessage(): Promise<SDKMessage | null> {
     if (this.messageQueue.length > 0) {
       // biome-ignore lint/style/noNonNullAssertion: guarded by .length > 0 check above
@@ -409,6 +527,19 @@ export class ClaudeAxonConnection {
   // Control protocol
   // -----------------------------------------------------------------------
 
+  /**
+   * Sends a control request to the CLI and waits for the matching response.
+   *
+   * Internally assigns a unique request ID, publishes the request via the
+   * transport, and returns a promise that resolves when the CLI sends a
+   * `control_response` with the same ID. Times out if no response arrives
+   * within `timeoutMs`.
+   *
+   * @param request   - The control request payload (must include a `subtype`).
+   * @param timeoutMs - Maximum time to wait for the response (default 60 s).
+   * @returns The `response` field from the successful `control_response`.
+   * @throws On timeout, error-subtype responses, or transport failures.
+   */
   private async sendControlRequest(request: WireData, timeoutMs = 60_000): Promise<WireData> {
     this.requestCounter++;
     const requestId = nextRequestId(this.requestCounter);
@@ -442,6 +573,15 @@ export class ClaudeAxonConnection {
     return promise;
   }
 
+  /**
+   * Sends the `initialize` control request to the Claude Code CLI,
+   * including system prompt overrides if configured.
+   *
+   * Uses a longer timeout (120 s) because the agent may need to start up.
+   *
+   * @returns The CLI's initialization response payload.
+   * @throws On timeout or if the CLI rejects initialization.
+   */
   private async initialize(): Promise<WireData> {
     this.log("init", "sending initialize request");
     const response = await this.sendControlRequest(
@@ -469,6 +609,11 @@ export class ClaudeAxonConnection {
    * - `can_use_tool` → auto-allow with the original input
    * - `hook_callback` → continue without modification
    * - `mcp_message`  → error (not supported)
+   *
+   * If the handler or default logic throws, an error response is sent
+   * back to the CLI so it does not hang waiting.
+   *
+   * @param message - The incoming `SDKControlRequest` from the CLI.
    */
   private async handleIncomingControlRequest(message: SDKControlRequest): Promise<void> {
     const requestId = message.request_id;
@@ -536,8 +681,18 @@ export class ClaudeAxonConnection {
   // -----------------------------------------------------------------------
 
   /**
-   * Send a single user message to Claude.
-   * Convenience: if given a string, it is wrapped into an SDKUserMessage.
+   * Sends a single user message to Claude.
+   *
+   * If given a plain string, it is automatically wrapped into an
+   * `SDKUserMessage` with `role: "user"`. Pass a pre-built
+   * `SDKUserMessage` for full control (e.g. to set `parent_tool_use_id`).
+   *
+   * @param prompt - A string message or a fully formed `SDKUserMessage`.
+   *
+   * @example
+   * ```ts
+   * await conn.send("What files are in this directory?");
+   * ```
    */
   async send(prompt: string | SDKUserMessage): Promise<void> {
     const message: SDKUserMessage =
@@ -556,8 +711,13 @@ export class ClaudeAxonConnection {
   // -----------------------------------------------------------------------
 
   /**
-   * Async iterator that yields all SDKMessages from Claude indefinitely.
-   * Does not stop at result — use receiveResponse() for that.
+   * Async iterator that yields every `SDKMessage` from Claude indefinitely.
+   *
+   * Does **not** stop at `result` messages — use {@link receiveResponse}
+   * for single-turn convenience. Iteration ends when the transport closes
+   * or {@link disconnect} is called.
+   *
+   * @yields Each `SDKMessage` as it arrives from the agent.
    */
   async *receiveMessages(): AsyncGenerator<SDKMessage, void, undefined> {
     while (true) {
@@ -568,8 +728,21 @@ export class ClaudeAxonConnection {
   }
 
   /**
-   * Async iterator that yields SDKMessages until (and including) a result message.
-   * Automatically terminates after the result — convenient for single-turn usage.
+   * Async iterator that yields `SDKMessage`s until (and including) a
+   * `result` message, then terminates automatically.
+   *
+   * Convenient for single-turn usage: send a prompt, iterate
+   * `receiveResponse()`, and the loop ends when Claude finishes.
+   *
+   * @yields Each `SDKMessage` up to and including the `result`.
+   *
+   * @example
+   * ```ts
+   * await conn.send("Summarize this file.");
+   * for await (const msg of conn.receiveResponse()) {
+   *   console.log(msg.type, msg);
+   * }
+   * ```
    */
   async *receiveResponse(): AsyncGenerator<SDKMessage, void, undefined> {
     for await (const msg of this.receiveMessages()) {
@@ -584,12 +757,21 @@ export class ClaudeAxonConnection {
   // Public API — control operations
   // -----------------------------------------------------------------------
 
-  /** Interrupt the current conversation turn. */
+  /**
+   * Interrupts the current conversation turn.
+   *
+   * @throws On timeout or if the CLI rejects the interrupt.
+   */
   async interrupt(): Promise<void> {
     await this.sendControlRequest({ subtype: "interrupt" });
   }
 
-  /** Change the permission mode. */
+  /**
+   * Changes the permission mode for tool use.
+   *
+   * @param mode - The new permission mode (e.g. `"default"`, `"acceptEdits"`).
+   * @throws On timeout or if the CLI rejects the mode change.
+   */
   async setPermissionMode(mode: PermissionMode): Promise<void> {
     await this.sendControlRequest({
       subtype: "set_permission_mode",
@@ -597,7 +779,13 @@ export class ClaudeAxonConnection {
     });
   }
 
-  /** Change the AI model. */
+  /**
+   * Changes the AI model used by Claude Code.
+   *
+   * @param model - Anthropic model identifier (e.g. `"claude-sonnet-4-5"`),
+   *   or `null` to revert to the agent's default.
+   * @throws On timeout or if the CLI rejects the model change.
+   */
   async setModel(model: string | null): Promise<void> {
     await this.sendControlRequest({
       subtype: "set_model",

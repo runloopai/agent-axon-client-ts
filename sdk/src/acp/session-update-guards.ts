@@ -10,50 +10,73 @@ export type UserMessageChunkUpdate = Extract<
   SessionUpdate,
   { sessionUpdate: "user_message_chunk" }
 >;
-/** @category Session Updates */
+
+/** Streamed chunk of an agent response message.
+ * @category Session Updates */
 export type AgentMessageChunkUpdate = Extract<
   SessionUpdate,
   { sessionUpdate: "agent_message_chunk" }
 >;
-/** @category Session Updates */
+
+/** Streamed chunk of agent internal reasoning/thought.
+ * @category Session Updates */
 export type AgentThoughtChunkUpdate = Extract<
   SessionUpdate,
   { sessionUpdate: "agent_thought_chunk" }
 >;
-/** @category Session Updates */
+
+/** Notification that the agent invoked a tool.
+ * @category Session Updates */
 export type ToolCallSessionUpdate = Extract<SessionUpdate, { sessionUpdate: "tool_call" }>;
-/** @category Session Updates */
+
+/** Progress update for an in-flight tool call (e.g. streaming output).
+ * @category Session Updates */
 export type ToolCallProgressSessionUpdate = Extract<
   SessionUpdate,
   { sessionUpdate: "tool_call_update" }
 >;
-/** @category Session Updates */
+
+/** Agent plan or step-list update.
+ * @category Session Updates */
 export type PlanSessionUpdate = Extract<SessionUpdate, { sessionUpdate: "plan" }>;
-/** @category Session Updates */
+
+/** Update to the set of commands available in the current session.
+ * @category Session Updates */
 export type AvailableCommandsSessionUpdate = Extract<
   SessionUpdate,
   { sessionUpdate: "available_commands_update" }
 >;
-/** @category Session Updates */
+
+/** Update to the session's current operational mode (e.g. "ask", "code").
+ * @category Session Updates */
 export type CurrentModeSessionUpdate = Extract<
   SessionUpdate,
   { sessionUpdate: "current_mode_update" }
 >;
-/** @category Session Updates */
+
+/** Update to a session configuration option.
+ * @category Session Updates */
 export type ConfigOptionSessionUpdate = Extract<
   SessionUpdate,
   { sessionUpdate: "config_option_update" }
 >;
-/** @category Session Updates */
+
+/** Metadata about the session itself (e.g. title, cwd).
+ * @category Session Updates */
 export type SessionInfoSessionUpdate = Extract<
   SessionUpdate,
   { sessionUpdate: "session_info_update" }
 >;
-/** @category Session Updates */
+
+/** Token/cost usage statistics for the current turn.
+ * @category Session Updates */
 export type UsageSessionUpdate = Extract<SessionUpdate, { sessionUpdate: "usage_update" }>;
 
 /**
  * Type guard for `user_message_chunk` session updates.
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is a {@link UserMessageChunkUpdate}.
  * @category Session Updates
  */
 export function isUserMessageChunk(u: SessionUpdate): u is UserMessageChunkUpdate {
@@ -62,6 +85,9 @@ export function isUserMessageChunk(u: SessionUpdate): u is UserMessageChunkUpdat
 
 /**
  * Type guard for `agent_message_chunk` session updates.
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is an {@link AgentMessageChunkUpdate}.
  * @category Session Updates
  */
 export function isAgentMessageChunk(u: SessionUpdate): u is AgentMessageChunkUpdate {
@@ -70,6 +96,9 @@ export function isAgentMessageChunk(u: SessionUpdate): u is AgentMessageChunkUpd
 
 /**
  * Type guard for `agent_thought_chunk` session updates.
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is an {@link AgentThoughtChunkUpdate}.
  * @category Session Updates
  */
 export function isAgentThoughtChunk(u: SessionUpdate): u is AgentThoughtChunkUpdate {
@@ -78,6 +107,9 @@ export function isAgentThoughtChunk(u: SessionUpdate): u is AgentThoughtChunkUpd
 
 /**
  * Type guard for `tool_call` session updates.
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is a {@link ToolCallSessionUpdate}.
  * @category Session Updates
  */
 export function isToolCall(u: SessionUpdate): u is ToolCallSessionUpdate {
@@ -85,7 +117,10 @@ export function isToolCall(u: SessionUpdate): u is ToolCallSessionUpdate {
 }
 
 /**
- * Type guard for `tool_call_update` session updates.
+ * Type guard for `tool_call_update` (progress) session updates.
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is a {@link ToolCallProgressSessionUpdate}.
  * @category Session Updates
  */
 export function isToolCallProgress(u: SessionUpdate): u is ToolCallProgressSessionUpdate {
@@ -94,6 +129,9 @@ export function isToolCallProgress(u: SessionUpdate): u is ToolCallProgressSessi
 
 /**
  * Type guard for `plan` session updates.
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is a {@link PlanSessionUpdate}.
  * @category Session Updates
  */
 export function isPlan(u: SessionUpdate): u is PlanSessionUpdate {
@@ -102,6 +140,9 @@ export function isPlan(u: SessionUpdate): u is PlanSessionUpdate {
 
 /**
  * Type guard for `available_commands_update` session updates.
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is an {@link AvailableCommandsSessionUpdate}.
  * @category Session Updates
  */
 export function isAvailableCommandsUpdate(u: SessionUpdate): u is AvailableCommandsSessionUpdate {
@@ -110,6 +151,9 @@ export function isAvailableCommandsUpdate(u: SessionUpdate): u is AvailableComma
 
 /**
  * Type guard for `current_mode_update` session updates.
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is a {@link CurrentModeSessionUpdate}.
  * @category Session Updates
  */
 export function isCurrentModeUpdate(u: SessionUpdate): u is CurrentModeSessionUpdate {
@@ -118,6 +162,9 @@ export function isCurrentModeUpdate(u: SessionUpdate): u is CurrentModeSessionUp
 
 /**
  * Type guard for `config_option_update` session updates.
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is a {@link ConfigOptionSessionUpdate}.
  * @category Session Updates
  */
 export function isConfigOptionUpdate(u: SessionUpdate): u is ConfigOptionSessionUpdate {
@@ -126,6 +173,9 @@ export function isConfigOptionUpdate(u: SessionUpdate): u is ConfigOptionSession
 
 /**
  * Type guard for `session_info_update` session updates.
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is a {@link SessionInfoSessionUpdate}.
  * @category Session Updates
  */
 export function isSessionInfoUpdate(u: SessionUpdate): u is SessionInfoSessionUpdate {
@@ -134,6 +184,9 @@ export function isSessionInfoUpdate(u: SessionUpdate): u is SessionInfoSessionUp
 
 /**
  * Type guard for `usage_update` session updates.
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is a {@link UsageSessionUpdate}.
  * @category Session Updates
  */
 export function isUsageUpdate(u: SessionUpdate): u is UsageSessionUpdate {
