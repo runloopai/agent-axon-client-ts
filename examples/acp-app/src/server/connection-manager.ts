@@ -77,6 +77,7 @@ export class ConnectionManager {
     }
 
     const devbox = await sdk.devbox.create({
+      name: "acp-app",
       blueprint_name: "runloop/agents",
       mounts: [
         {

@@ -36,6 +36,7 @@ const axon = await runloop.axon.create({ name: "hello-world-session" });
 // When using a ClaudeSDKConnection, ensure the Agent is on the blueprint by
 // using the AgentAPI or a Blueprint.
 const devbox = await runloop.devbox.create({
+  name: "claude-hello-world",
   mounts: [
     {
       type: "broker_mount",
