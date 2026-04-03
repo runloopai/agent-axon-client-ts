@@ -68,7 +68,7 @@ app.post("/api/start", async (req, res) => {
       ...(baseUrl ? { baseURL: baseUrl } : {}),
     });
 
-    const axon = await sdk.axon.create({ name: "claude-app" });
+    const axon = await sdk.axon.create({ name: "claude-demo-sdk" });
     // The runloop/agents blueprint used has Claude pre-installed.
     // When using a ClaudeSDKConnection, ensure the Agent is on the blueprint by
     // using the AgentAPI or a Blueprint.
