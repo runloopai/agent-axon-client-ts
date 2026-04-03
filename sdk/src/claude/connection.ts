@@ -431,48 +431,4 @@ export class ClaudeAxonConnection {
     });
   }
 
-  // /** Stop a running background task. */
-  // async stopTask(taskId: string): Promise<void> {
-  //   await this.sendControlRequest({
-  //     subtype: "stop_task",
-  //     task_id: taskId,
-  //   });
-  // }
-
-  // /** Get MCP server connection status. */
-  // async getMcpStatus(): Promise<WireData> {
-  //   return this.sendControlRequest({ subtype: "mcp_status" });
-  // }
-
-  // /** Get context window usage breakdown. */
-  // async getContextUsage(): Promise<SDKControlGetContextUsageResponse> {
-  //   return this.sendControlRequest({
-  //     subtype: "get_context_usage",
-  //   }) as Promise<SDKControlGetContextUsageResponse>;
-  // }
-
-  // /** Reconnect a disconnected MCP server. */
-  // async reconnectMcpServer(serverName: string): Promise<void> {
-  //   await this.sendControlRequest({
-  //     subtype: "mcp_reconnect",
-  //     serverName,
-  //   });
-  // }
-
-  // /** Toggle an MCP server on/off. */
-  // async toggleMcpServer(serverName: string, enabled: boolean): Promise<void> {
-  //   await this.sendControlRequest({
-  //     subtype: "mcp_toggle",
-  //     serverName,
-  //     enabled,
-  //   });
-  // }
-
-  // /** Rewind tracked files to a specific user message checkpoint. */
-  // async rewindFiles(userMessageId: string): Promise<void> {
-  //   await this.sendControlRequest({
-  //     subtype: "rewind_files",
-  //     user_message_id: userMessageId,
-  //   });
-  // }
 }

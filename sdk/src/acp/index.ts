@@ -11,7 +11,6 @@ export { ACPAxonConnection } from "./connection.js";
 
 export type {
   ACPAxonConnectionOptions,
-  AgentLaunchConfig,
   AxonEventView,
   AxonStreamOptions,
   RawEventListener,
