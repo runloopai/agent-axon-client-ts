@@ -455,6 +455,82 @@ describe("ClaudeAxonConnection", () => {
     });
   });
 
+  describe("onAxonEvent()", () => {
+    it("notifies registered listeners when Axon events arrive", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const listener = vi.fn();
+      conn.onAxonEvent(listener);
+
+      // Since we replaced the transport in createConnectedClient,
+      // call emitAxonEvent directly to trigger the listeners.
+      const emitAxonEvent = (
+        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
+      ).emitAxonEvent.bind(conn);
+      const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
+      emitAxonEvent(fakeEvent);
+
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener).toHaveBeenCalledWith(fakeEvent);
+    });
+
+    it("returns an unsubscribe function that removes the listener", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const listener = vi.fn();
+      const unsub = conn.onAxonEvent(listener);
+
+      const emitAxonEvent = (
+        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
+      ).emitAxonEvent.bind(conn);
+      const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
+
+      emitAxonEvent(fakeEvent);
+      expect(listener).toHaveBeenCalledOnce();
+
+      unsub();
+
+      emitAxonEvent(fakeEvent);
+      expect(listener).toHaveBeenCalledOnce();
+    });
+
+    it("catches listener exceptions without crashing", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const throwingListener = vi.fn(() => {
+        throw new Error("listener boom");
+      });
+      const normalListener = vi.fn();
+
+      conn.onAxonEvent(throwingListener);
+      conn.onAxonEvent(normalListener);
+
+      const emitAxonEvent = (
+        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
+      ).emitAxonEvent.bind(conn);
+      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+
+      expect(throwingListener).toHaveBeenCalledOnce();
+      expect(normalListener).toHaveBeenCalledOnce();
+    });
+
+    it("disconnect() clears all Axon event listeners", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const listener = vi.fn();
+      conn.onAxonEvent(listener);
+
+      await conn.disconnect();
+
+      const emitAxonEvent = (
+        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
+      ).emitAxonEvent.bind(conn);
+      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+  });
+
   describe("setPermissionMode()", () => {
     it("sends a set_permission_mode control request", async () => {
       const conn = await createConnectedClient(transport);

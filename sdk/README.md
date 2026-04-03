@@ -161,7 +161,7 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 | `signal: AbortSignal` | Fires when the connection closes |
 | `closed: Promise<void>` | Resolves when the connection closes |
 | `onSessionUpdate(listener)` | Register a session update listener. Returns unsubscribe function. |
-| `onRawEvent(listener)` | Register a raw Axon event listener. Returns unsubscribe function. |
+| `onAxonEvent(listener)` | Register an Axon event listener. Returns unsubscribe function. |
 | `abortStream()` | Abort the SSE stream without clearing listeners (useful for testing / reconnect) |
 | `disconnect()` | Abort the stream and clear all listeners |
 | `shutdown()` | Disconnect and run the teardown callback (e.g. devbox shutdown) |
@@ -221,7 +221,7 @@ Low-level function that creates an ACP-compatible duplex stream backed by an `Ax
 |-------|------|----------|-------------|
 | `axon` | `Axon` | Yes | Axon channel from `@runloop/api-client` |
 | `signal` | `AbortSignal` | No | Cancellation signal |
-| `onRawEvent` | `(event: AxonEventView) => void` | No | Callback for every raw Axon event |
+| `onAxonEvent` | `(event: AxonEventView) => void` | No | Callback for every Axon event |
 | `onError` | `(error: unknown) => void` | No | Callback for swallowed parse errors |
 | `onDisconnect` | `() => void` | No | Called when the SSE stream disconnects |
 
@@ -308,6 +308,12 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 | `interrupt()` | Interrupt the current conversation turn |
 | `setPermissionMode(mode)` | Change the permission mode |
 | `setModel(model)` | Change the AI model |
+
+**Listeners**:
+
+| Method | Description |
+|--------|-------------|
+| `onAxonEvent(listener)` | Register an Axon event listener. Returns unsubscribe function. |
 
 ### `AxonTransport`
 
@@ -411,10 +417,10 @@ The Axon broker delivers events in this order for a given turn:
 
 This means **`await agent.prompt(...)` returns before the agent's response text has been delivered via `onSessionUpdate`**. If you need to know when all content for a turn has arrived, use one of these strategies:
 
-- **Use `onRawEvent` to watch for `turn.started` / `turn.completed` system events** (recommended). These bracket all content for a turn:
+- **Use `onAxonEvent` to watch for `turn.started` / `turn.completed` system events** (recommended). These bracket all content for a turn:
 
   ```typescript
-  agent.onRawEvent((event) => {
+  agent.onAxonEvent((event) => {
     if (event.origin !== "SYSTEM_EVENT") return;
     if (event.event_type === "turn.started") {
       // Agent turn began — disable input, show cancel button

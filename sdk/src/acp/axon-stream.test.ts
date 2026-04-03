@@ -253,20 +253,20 @@ describe("axonStream", () => {
       expect(messages).toHaveLength(1);
     });
 
-    it("calls onRawEvent for every event including non-AGENT_EVENT", async () => {
+    it("calls onAxonEvent for every event including non-AGENT_EVENT", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl.stream);
 
-      const onRawEvent = vi.fn();
+      const onAxonEvent = vi.fn();
 
       ctrl.push(makeUserEvent("ping", {}));
       ctrl.push(makeAgentEvent("session/update", { x: 1 }));
       ctrl.end();
 
-      const { readable } = axonStream({ axon: axon as never, onRawEvent });
+      const { readable } = axonStream({ axon: axon as never, onAxonEvent });
       await drain(readable);
 
-      expect(onRawEvent).toHaveBeenCalledTimes(2);
+      expect(onAxonEvent).toHaveBeenCalledTimes(2);
     });
 
     it("stops reading when signal is aborted", async () => {

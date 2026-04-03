@@ -25,7 +25,11 @@ import {
 } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import { axonStream } from "./axon-stream.js";
-import type { ACPAxonConnectionOptions, RawEventListener, SessionUpdateListener } from "./types.js";
+import type {
+  ACPAxonConnectionOptions,
+  AxonEventListener,
+  SessionUpdateListener,
+} from "./types.js";
 
 function defaultOnError(error: unknown): void {
   console.error("[ACPAxonConnection]", error);
@@ -64,7 +68,7 @@ export class ACPAxonConnection {
 
   private abortController: AbortController;
   private sessionUpdateListeners = new Set<SessionUpdateListener>();
-  private rawEventListeners = new Set<RawEventListener>();
+  private axonEventListeners = new Set<AxonEventListener>();
   private handleError: (error: unknown) => void;
   private handlePermission:
     | ((params: RequestPermissionRequest) => Promise<RequestPermissionResponse>)
@@ -82,7 +86,7 @@ export class ACPAxonConnection {
     const stream = axonStream({
       axon: options.axon,
       signal: this.abortController.signal,
-      onRawEvent: (ev) => this.emitRawEvent(ev),
+      onAxonEvent: (ev) => this.emitAxonEvent(ev),
       onError: this.handleError,
       onDisconnect: options.onDisconnect,
     });
@@ -167,14 +171,14 @@ export class ACPAxonConnection {
   }
 
   /**
-   * Registers a listener for every raw Axon event (before JSON-RPC translation).
+   * Registers a listener for every Axon event (before JSON-RPC translation).
    * Useful for debugging and observability.
    * @returns An unsubscribe function that removes the listener.
    */
-  onRawEvent(listener: RawEventListener): () => void {
-    this.rawEventListeners.add(listener);
+  onAxonEvent(listener: AxonEventListener): () => void {
+    this.axonEventListeners.add(listener);
     return () => {
-      this.rawEventListeners.delete(listener);
+      this.axonEventListeners.delete(listener);
     };
   }
 
@@ -207,7 +211,7 @@ export class ACPAxonConnection {
   disconnect(): void {
     this.abortStream();
     this.sessionUpdateListeners.clear();
-    this.rawEventListeners.clear();
+    this.axonEventListeners.clear();
   }
 
   /**
@@ -259,8 +263,8 @@ export class ACPAxonConnection {
     };
   }
 
-  private emitRawEvent(event: AxonEventView): void {
-    for (const listener of this.rawEventListeners) {
+  private emitAxonEvent(event: AxonEventView): void {
+    for (const listener of this.axonEventListeners) {
       try {
         listener(event);
       } catch (err) {

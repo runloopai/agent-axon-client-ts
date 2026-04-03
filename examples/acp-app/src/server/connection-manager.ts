@@ -102,7 +102,7 @@ export class ConnectionManager {
     const stream = axonStream({
       axon,
       signal: this.abortController.signal,
-      onRawEvent: (ev) => {
+      onAxonEvent: (ev) => {
         this.axonEvents.push(ev);
         this.ws.broadcast({ type: "axon_event", event: ev });
 

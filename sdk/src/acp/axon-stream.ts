@@ -31,7 +31,7 @@ const NOTIFICATION_TYPES = new Set<string>([CLIENT_METHODS.session_update]);
  * @category Connection
  */
 export function axonStream(options: AxonStreamOptions): Stream {
-  const { axon, signal, onRawEvent, onDisconnect } = options;
+  const { axon, signal, onAxonEvent, onDisconnect } = options;
   const onError = options.onError ?? defaultOnError;
 
   // Maps outbound JSON-RPC request method -> id so we can correlate
@@ -49,7 +49,7 @@ export function axonStream(options: AxonStreamOptions): Stream {
     signal,
     pendingRequests,
     pendingClientRequests,
-    onRawEvent,
+    onAxonEvent,
     () => nextAgentRequestId++,
     onError,
     onDisconnect,
@@ -69,7 +69,7 @@ function createReadable(
   signal: AbortSignal | undefined,
   pendingRequests: Map<string, string | number | null>,
   pendingClientRequests: Map<string | number, string>,
-  onRawEvent: ((event: AxonEventView) => void) | undefined,
+  onAxonEvent: ((event: AxonEventView) => void) | undefined,
   nextId: () => number,
   onError: (error: unknown) => void,
   onDisconnect: (() => void) | undefined,
@@ -81,7 +81,7 @@ function createReadable(
         for await (const axonEvent of sseStream) {
           if (signal?.aborted) break;
 
-          onRawEvent?.(axonEvent);
+          onAxonEvent?.(axonEvent);
 
           if (axonEvent.origin !== "AGENT_EVENT") continue;
 

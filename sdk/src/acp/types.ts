@@ -17,8 +17,8 @@ export interface AxonStreamOptions {
   axon: Axon;
   /** AbortSignal to cancel the SSE connection and stop publishing. */
   signal?: AbortSignal;
-  /** Called for every raw Axon event before JSON-RPC translation. */
-  onRawEvent?: (event: AxonEventView) => void;
+  /** Called for every Axon event before JSON-RPC translation. */
+  onAxonEvent?: (event: AxonEventView) => void;
   /**
    * Called when a non-critical error occurs (e.g. unparseable SSE event).
    * Defaults to `console.error`.
@@ -71,7 +71,7 @@ export interface ACPAxonConnectionOptions {
 export type SessionUpdateListener = (sessionId: string | null, update: SessionUpdate) => void;
 
 /**
- * Callback invoked for every raw Axon event before JSON-RPC translation.
+ * Callback invoked for every Axon event before JSON-RPC translation.
  * @category Configuration
  */
-export type RawEventListener = (event: AxonEventView) => void;
+export type AxonEventListener = (event: AxonEventView) => void;

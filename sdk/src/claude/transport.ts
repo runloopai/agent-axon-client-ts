@@ -45,6 +45,8 @@ export interface Transport {
 export interface AxonTransportOptions {
   /** If true, emit verbose logs to stderr. */
   verbose?: boolean;
+  /** Called for every Axon event (before origin filtering). */
+  onAxonEvent?: (event: AxonEventView) => void;
 }
 
 /**
@@ -56,6 +58,7 @@ export interface AxonTransportOptions {
 export class AxonTransport implements Transport {
   private axon: Axon;
   private verbose: boolean;
+  private onAxonEvent?: (event: AxonEventView) => void;
 
   private sseStream: Stream<AxonEventView> | null = null;
   private connected = false;
@@ -64,6 +67,7 @@ export class AxonTransport implements Transport {
   constructor(axon: Axon, options?: AxonTransportOptions) {
     this.axon = axon;
     this.verbose = options?.verbose ?? false;
+    this.onAxonEvent = options?.onAxonEvent;
   }
 
   private log(tag: string, ...args: unknown[]): void {
@@ -116,6 +120,8 @@ export class AxonTransport implements Transport {
     for await (const event of this.sseStream) {
       if (this.closed) break;
       eventCount++;
+
+      this.onAxonEvent?.(event);
 
       if (event.origin === "AGENT_EVENT") {
         this.log("read", `#${eventCount} ${event.event_type}`);

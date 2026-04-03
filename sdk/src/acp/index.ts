@@ -89,8 +89,8 @@ export {
 } from "./session-update-guards.js";
 export type {
   ACPAxonConnectionOptions,
+  AxonEventListener,
   AxonEventView,
   AxonStreamOptions,
-  RawEventListener,
   SessionUpdateListener,
 } from "./types.js";

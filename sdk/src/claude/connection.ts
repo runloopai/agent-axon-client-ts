@@ -22,9 +22,16 @@ import type {
   SDKMessage,
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { AxonTransport, type Transport } from "./transport.js";
 import type { WireData } from "./types.js";
+
+/**
+ * Callback invoked for every Axon event (before origin filtering).
+ * @category Configuration
+ */
+export type AxonEventListener = (event: AxonEventView) => void;
 
 /** The inner request payload — discriminated by `subtype`. */
 type ControlRequestInner = SDKControlRequest["request"];
@@ -134,11 +141,14 @@ export class ClaudeAxonConnection {
   // biome-ignore lint/suspicious/noExplicitAny: handlers are typed at registration via onControlRequest()
   private controlRequestHandlers = new Map<string, ControlRequestHandler<any>>();
 
+  private axonEventListeners = new Set<AxonEventListener>();
+
   constructor(options: ClaudeAxonConnectionOptions) {
     this.options = options;
     this.devbox = options.devbox;
     this.transport = new AxonTransport(options.axon, {
       verbose: this.options.verbose,
+      onAxonEvent: (ev) => this.emitAxonEvent(ev),
     });
   }
 
@@ -189,6 +199,7 @@ export class ClaudeAxonConnection {
       pending.reject(new Error("Client disconnected"));
     }
     this.pendingControlRequests.clear();
+    this.axonEventListeners.clear();
 
     await this.transport.close();
 
@@ -199,6 +210,32 @@ export class ClaudeAxonConnection {
         this.log("disconnect", "devbox shut down");
       } catch (err) {
         this.log("disconnect", `devbox shutdown error: ${err}`);
+      }
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Axon event listeners
+  // -----------------------------------------------------------------------
+
+  /**
+   * Registers a listener for every Axon event (before origin filtering).
+   * Useful for debugging, observability, and building Axon event viewers.
+   * @returns An unsubscribe function that removes the listener.
+   */
+  onAxonEvent(listener: AxonEventListener): () => void {
+    this.axonEventListeners.add(listener);
+    return () => {
+      this.axonEventListeners.delete(listener);
+    };
+  }
+
+  private emitAxonEvent(event: AxonEventView): void {
+    for (const listener of this.axonEventListeners) {
+      try {
+        listener(event);
+      } catch (err) {
+        this.log("axonEvent", `listener error: ${err}`);
       }
     }
   }

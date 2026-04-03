@@ -1,12 +1,13 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
+import type { AxonEventView } from "@runloop/agent-axon-client/claude";
 
 export type WsEvent =
   | { type: "sdk_message"; message: unknown }
   | { type: "control_request"; controlRequest: unknown }
   | { type: "turn_complete"; result: unknown }
   | { type: "turn_error"; error: string }
-  | { type: "axon_event"; event: unknown };
+  | { type: "axon_event"; event: AxonEventView };
 
 export class WsBroadcaster {
   private wss: WebSocketServer;

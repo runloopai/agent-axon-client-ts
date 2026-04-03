@@ -22,7 +22,9 @@
  * @module
  */
 
+export type { AxonEventView } from "@runloop/api-client/resources/axons";
 export {
+  type AxonEventListener,
   ClaudeAxonConnection,
   type ClaudeAxonConnectionOptions,
   type ControlRequestHandler,

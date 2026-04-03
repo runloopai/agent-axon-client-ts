@@ -27,7 +27,13 @@ jobs:
             ci
             chore
             revert
-          requireScope: false
+          requireScope: true
+          scopes: |
+            sdk
+            acp
+            claude
+            examples
+            deps
           subjectPattern: ^(?![A-Z]).+$
           subjectPatternError: |
             The subject "{subject}" found in the pull request title "{title}"
