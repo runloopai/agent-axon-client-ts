@@ -73,6 +73,7 @@ app.post("/api/start", async (req, res) => {
     // When using a ClaudeSDKConnection, ensure the Agent is on the blueprint by
     // using the AgentAPI or a Blueprint.
     const devbox = await sdk.devbox.create({
+      name: "claude-app",
       blueprint_name: blueprintName ?? "runloop/agents",
       mounts: [
         {

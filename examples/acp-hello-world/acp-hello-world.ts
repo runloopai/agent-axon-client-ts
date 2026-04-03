@@ -39,6 +39,7 @@ console.log(`Starting devbox with agent "${AGENT_BINARY}"...`);
 // (Agent API or custom blueprint).
 const axon = await sdk.axon.create({ name: "acp-transport" });
 const devbox = await sdk.devbox.create({
+  name: "acp-hello-world",
   blueprint_name: "runloop/agents",
   mounts: [
     {

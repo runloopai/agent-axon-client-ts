@@ -58,6 +58,7 @@ export class ConnectionManager {
     // When using an AxonACPConnection, ensure the Agent is on the blueprint by
     // using the AgentAPI or a Blueprint.
     const devbox = await sdk.devbox.create({
+      name: "acp-app",
       blueprint_name: "runloop/agents",
       mounts: [
         {
