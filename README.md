@@ -4,6 +4,31 @@
 
 TypeScript SDK for connecting to coding agents (Claude Code, OpenCode, etc.) running inside [Runloop](https://runloop.ai) devboxes via the Axon event bus.
 
+## Key Concepts
+
+Before getting started, it's helpful to understand these core concepts:
+
+- **Runloop** — A cloud platform that provides on-demand development environments (devboxes) where coding agents can run.
+- **Devbox** — An isolated Linux container/environment running in Runloop's cloud where coding agents execute. It has a filesystem, can run commands, and persists for the duration of your session.
+- **Axon** — A bidirectional message bus that enables real-time communication between your application and an agent running in a Runloop devbox. Think of it as a WebSocket-like channel for agent control.
+- **Broker Mount** — A devbox configuration that connects an Axon channel to an agent binary, specifying which agent to run (opencode, claude, etc.), the protocol to use (acp, claude_json), and launch arguments.
+
+In short: **Runloop** hosts **devboxes** where agents run; a **broker mount** connects that agent to **Axon**; and **Axon** is the message bus your app uses to control it.
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org) >= 22.0.0
+- A [Runloop](https://runloop.ai) API key
+  - Sign up for free at [platform.runloop.ai](https://platform.runloop.ai) (includes $50 in credits)
+  - Navigate to [Settings](https://platform.runloop.ai/settings) → API Keys
+  - Create an API key (starts with `ak_`)
+  - Set environment variable: `export RUNLOOP_API_KEY=ak_your_key`
+- An [Anthropic](https://console.anthropic.com) API key (**only required for Claude module examples**)
+  - Sign up at [console.anthropic.com](https://console.anthropic.com)
+  - Go to API Keys section
+  - Create new key (starts with `sk-ant-`)
+  - Set environment variable: `export ANTHROPIC_API_KEY=sk-ant-your_key`
+
 ## Installation
 
 ```bash
@@ -26,6 +51,20 @@ The SDK has two independent modules — pick the one that matches your agent's p
 |--------|-------------|----------|----------|
 | **ACP** | `@runloop/agent-axon-client/acp` | [Agent Client Protocol](https://agentclientprotocol.com) (JSON-RPC 2.0) | Using OpenCode, or Claude via ACP |
 | **Claude** | `@runloop/agent-axon-client/claude` | Claude Code SDK wire format | Using Claude Code with native SDK message types |
+
+### Which module should I use?
+
+**Use the ACP module when:**
+- You want agent-agnostic code that works with multiple agents (OpenCode, Claude via ACP, future agents)
+- You need a standardized JSON-RPC 2.0 protocol
+- You want maximum compatibility and flexibility
+
+**Use the Claude module when:**
+- You're specifically using Claude Code
+- You want native Claude SDK message types
+- You need Claude-specific features
+
+**Note:** The modules have different APIs and are not directly interchangeable. Choose based on your agent and requirements.
 
 ## Usage
 
@@ -119,7 +158,9 @@ examples/
 
 ## Development
 
-Prerequisites: Node.js >= 22, [Bun](https://bun.sh)
+**Prerequisites:**
+- [Node.js](https://nodejs.org) >= 22.0.0
+- [Bun](https://bun.sh) (package manager and task runner)
 
 ```bash
 bun install
