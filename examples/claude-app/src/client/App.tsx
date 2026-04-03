@@ -21,6 +21,8 @@ import {
   type TodoEntry,
   type UsageState,
   type InitInfo,
+  type PendingControlRequest,
+  type ControlRequestQuestion,
 } from "./hooks/useClaudeAgent.js";
 
 function phaseLabel(phase: ConnectionPhase): string {
@@ -270,6 +272,13 @@ export default function App() {
               expandedBlocks={expandedBlocks}
               onToggleBlock={toggleBlock}
               isLive={true}
+            />
+          )}
+
+          {agent.pendingControlRequest && (
+            <ControlRequestPrompt
+              controlRequest={agent.pendingControlRequest}
+              onSubmit={agent.sendControlResponse}
             />
           )}
 
@@ -1081,6 +1090,138 @@ function ToolCallSidebarItem({ toolCall }: { toolCall: ToolCallBlock }) {
           <pre>{toolCall.output}</pre>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Control Request Prompt (AskUserQuestion) ────────────────
+
+/**
+ * Renders an interactive prompt for a pending can_use_tool control request.
+ * Supports single-select and multi-select questions with option cards.
+ * When the user submits, sends a control response back to Claude Code
+ * with the selected answers in the updatedInput.
+ */
+function ControlRequestPrompt({
+  controlRequest,
+  onSubmit,
+}: {
+  controlRequest: PendingControlRequest;
+  onSubmit: (requestId: string, response: Record<string, unknown>) => void;
+}) {
+  // Track selected options per question index.
+  // For single-select: one label string. For multi-select: a Set of label strings.
+  const [selections, setSelections] = useState<Map<number, Set<string>>>(new Map());
+
+  const toggleOption = (questionIdx: number, label: string, multiSelect: boolean) => {
+    setSelections((prev) => {
+      const next = new Map(prev);
+      const current = next.get(questionIdx) ?? new Set<string>();
+
+      if (multiSelect) {
+        const updated = new Set(current);
+        if (updated.has(label)) {
+          updated.delete(label);
+        } else {
+          updated.add(label);
+        }
+        next.set(questionIdx, updated);
+      } else {
+        // Single-select: replace selection
+        next.set(questionIdx, new Set([label]));
+      }
+
+      return next;
+    });
+  };
+
+  const handleSubmit = () => {
+    // Build the answers map: keyed by question text, value is the selected label(s).
+    // Questions array is emptied — Claude Code expects answers in this format.
+    const answers: Record<string, string> = {};
+    for (const [idx, question] of controlRequest.questions.entries()) {
+      const selected = selections.get(idx);
+      if (selected && selected.size > 0) {
+        answers[question.question] = Array.from(selected).join(", ");
+      }
+    }
+
+    onSubmit(controlRequest.requestId, {
+      behavior: "allow",
+      updatedInput: { questions: [], answers },
+    });
+  };
+
+  // Check if all questions have at least one selection
+  const allAnswered = controlRequest.questions.every(
+    (_, idx) => (selections.get(idx)?.size ?? 0) > 0,
+  );
+
+  return (
+    <div className="control-request-prompt">
+      <div className="control-request-header">
+        Claude is asking a question
+      </div>
+      {controlRequest.questions.map((question, qIdx) => (
+        <QuestionView
+          key={qIdx}
+          question={question}
+          selected={selections.get(qIdx) ?? new Set()}
+          onToggle={(label) => toggleOption(qIdx, label, question.multiSelect)}
+        />
+      ))}
+      <div className="control-request-actions">
+        <button
+          className="btn btn-primary"
+          onClick={handleSubmit}
+          disabled={!allAnswered}
+        >
+          Submit
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QuestionView({
+  question,
+  selected,
+  onToggle,
+}: {
+  question: ControlRequestQuestion;
+  selected: Set<string>;
+  onToggle: (label: string) => void;
+}) {
+  return (
+    <div className="control-request-question">
+      <div className="control-request-question-header">{question.header}</div>
+      {question.question && (
+        <div className="control-request-question-text">{question.question}</div>
+      )}
+      <div className="control-request-options">
+        {question.options.map((option) => {
+          const isSelected = selected.has(option.label);
+          return (
+            <button
+              key={option.label}
+              className={`control-request-option ${isSelected ? "selected" : ""}`}
+              onClick={() => onToggle(option.label)}
+            >
+              <span className="option-indicator">
+                {question.multiSelect
+                  ? (isSelected ? "\u2611" : "\u2610")
+                  : (isSelected ? "\u25C9" : "\u25CB")}
+              </span>
+              <span className="option-content">
+                <span className="option-label">{option.label}</span>
+                {option.description && (
+                  <span className="option-description">{option.description}</span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

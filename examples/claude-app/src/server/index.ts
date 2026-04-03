@@ -16,6 +16,16 @@ let abortController: AbortController | null = null;
 let axonEvents: unknown[] = [];
 let initMessage: SDKMessage | null = null;
 
+// Pending control requests awaiting a response from the frontend.
+// When a can_use_tool control request arrives, we broadcast it to WS clients
+// and park a resolve/reject pair here. The /api/control-response endpoint
+// resolves the matching promise, which unblocks the onControlRequest handler
+// and sends the response back to Claude Code.
+const pendingControlResponses = new Map<
+  string,
+  { resolve: (data: unknown) => void; reject: (err: Error) => void }
+>();
+
 // Background read loop: streams all SDKMessages to WS clients
 async function runReadLoop(conn: ClaudeAxonConnection): Promise<void> {
   console.log("[read-loop] started");
@@ -102,6 +112,23 @@ app.post("/api/start", async (req, res) => {
 
     connection = conn;
 
+    // Intercept can_use_tool control requests: forward them to the frontend
+    // via WebSocket and wait for the user's response via /api/control-response.
+    conn.onControlRequest("can_use_tool", async (message) => {
+      const requestId = message.request_id;
+      console.log(
+        `[control] can_use_tool request: tool=${message.request.tool_name} id=${requestId}`,
+      );
+
+      // Broadcast to connected browser clients
+      ws.broadcast({ type: "control_request", controlRequest: message });
+
+      // Park a promise that will be resolved by /api/control-response
+      return new Promise<Record<string, unknown>>((resolve, reject) => {
+        pendingControlResponses.set(requestId, { resolve: resolve as (data: unknown) => void, reject });
+      });
+    });
+
     await conn.connect();
 
     // Start the background read loop
@@ -187,6 +214,26 @@ app.post("/api/set-permission-mode", async (req, res) => {
   }
 });
 
+// Receive a control response from the frontend (e.g. user answered a question).
+// This resolves the pending promise created by the onControlRequest handler,
+// which in turn sends the response back to Claude Code.
+app.post("/api/control-response", async (req, res) => {
+  const { requestId, response } = req.body;
+  if (!requestId) {
+    res.status(400).json({ error: "requestId is required" });
+    return;
+  }
+  const pending = pendingControlResponses.get(requestId);
+  if (!pending) {
+    res.status(404).json({ error: `No pending control request with id ${requestId}` });
+    return;
+  }
+  pendingControlResponses.delete(requestId);
+  pending.resolve(response);
+  console.log(`[control] resolved control response for id=${requestId}`);
+  res.json({ ok: true });
+});
+
 // TODO: re-enable when getContextUsage / getMcpStatus are added to ClaudeAxonConnection
 // app.post("/api/get-context-usage", async (_req, res) => { ... });
 // app.post("/api/get-mcp-status", async (_req, res) => { ... });
@@ -205,6 +252,11 @@ app.post("/api/shutdown", async (_req, res) => {
     abortController = null;
     axonEvents = [];
     initMessage = null;
+    // Reject any pending control responses
+    for (const [, pending] of pendingControlResponses) {
+      pending.reject(new Error("Shutdown"));
+    }
+    pendingControlResponses.clear();
     res.json({ ok: true });
   } catch (err) {
     res
