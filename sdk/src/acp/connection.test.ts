@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { ACPAxonConnection } from "./connection.js";
 import {
   createControllableStream,
   createMockAxon,
   makeAgentEvent,
 } from "../__test-utils__/mock-axon.js";
+import { ACPAxonConnection } from "./connection.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -452,9 +452,8 @@ describe("ACPAxonConnection", () => {
       conn.abortStream();
 
       // Listeners should still be registered (inspectable via private set size)
-      const listenerCount = (
-        conn as unknown as { sessionUpdateListeners: Set<unknown> }
-      ).sessionUpdateListeners.size;
+      const listenerCount = (conn as unknown as { sessionUpdateListeners: Set<unknown> })
+        .sessionUpdateListeners.size;
       expect(listenerCount).toBe(1);
 
       conn.disconnect();
@@ -471,9 +470,8 @@ describe("ACPAxonConnection", () => {
 
       conn.abortStream();
 
-      const listenerCount = (
-        conn as unknown as { axonEventListeners: Set<unknown> }
-      ).axonEventListeners.size;
+      const listenerCount = (conn as unknown as { axonEventListeners: Set<unknown> })
+        .axonEventListeners.size;
       expect(listenerCount).toBe(1);
 
       conn.disconnect();

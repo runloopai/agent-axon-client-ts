@@ -1,11 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AxonTransport, MESSAGE_TYPE_TO_EVENT_TYPE } from "./transport.js";
+import { beforeEach, describe, expect, it, type vi } from "vitest";
 import {
   createControllableStream,
   createMockAxon,
   makeAgentEvent,
   makeUserEvent,
 } from "../__test-utils__/mock-axon.js";
+import { AxonTransport, MESSAGE_TYPE_TO_EVENT_TYPE } from "./transport.js";
 
 // ---------------------------------------------------------------------------
 // MESSAGE_TYPE_TO_EVENT_TYPE constant tests (preserved from original)
@@ -193,7 +193,9 @@ describe("AxonTransport", () => {
       await transport.connect();
       await transport.close();
 
-      const controller = (ctrl.stream as Record<string, unknown>).controller as { abort: ReturnType<typeof vi.fn> };
+      const controller = (ctrl.stream as Record<string, unknown>).controller as {
+        abort: ReturnType<typeof vi.fn>;
+      };
       expect(controller.abort).toHaveBeenCalledOnce();
     });
 
@@ -202,7 +204,9 @@ describe("AxonTransport", () => {
       await transport.close();
       await transport.close();
 
-      const controller = (ctrl.stream as Record<string, unknown>).controller as { abort: ReturnType<typeof vi.fn> };
+      const controller = (ctrl.stream as Record<string, unknown>).controller as {
+        abort: ReturnType<typeof vi.fn>;
+      };
       expect(controller.abort).toHaveBeenCalledOnce();
     });
   });

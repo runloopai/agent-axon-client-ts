@@ -93,8 +93,7 @@ export function createMockAxon(
     | ReturnType<typeof createControllableStream>
     | { [Symbol.asyncIterator](): AsyncIterator<MockAxonEvent> },
 ) {
-  const stream =
-    "stream" in sseStreamOrCtrl ? sseStreamOrCtrl.stream : sseStreamOrCtrl;
+  const stream = "stream" in sseStreamOrCtrl ? sseStreamOrCtrl.stream : sseStreamOrCtrl;
 
   const published: PublishCall[] = [];
   const axon = {

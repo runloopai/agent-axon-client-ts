@@ -1,6 +1,5 @@
 import { CLIENT_METHODS } from "@agentclientprotocol/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { axonStream } from "./axon-stream.js";
 import {
   createControllableStream,
   createMockAxon,
@@ -9,6 +8,7 @@ import {
   makeUserEvent,
   type PublishCall,
 } from "../__test-utils__/mock-axon.js";
+import { axonStream } from "./axon-stream.js";
 
 // ---------------------------------------------------------------------------
 // Tests
