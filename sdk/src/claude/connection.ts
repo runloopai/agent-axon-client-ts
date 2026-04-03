@@ -6,6 +6,7 @@
  * - send() to send user messages
  * - receiveMessages() / receiveResponse() async iterators
  * - Control protocol: interrupt, setPermissionMode, setModel
+ * - onControlRequest() to intercept incoming control requests (e.g. tool permissions)
  *
  * Messages are yielded as `SDKMessage` from `@anthropic-ai/claude-agent-sdk` —
  * the exact types the Claude Code CLI emits. No parsing/translation layer needed.
@@ -33,6 +34,38 @@ type ControlRequestOfSubtype<S extends ControlRequestInner["subtype"]> = Extract
   ControlRequestInner,
   { subtype: S }
 >;
+
+/**
+ * Handler for an incoming control request from the CLI.
+ *
+ * When Claude Code needs permission to use a tool (subtype "can_use_tool"),
+ * it sends a control request. By registering a handler via
+ * {@link ClaudeAxonConnection.onControlRequest}, you can intercept these
+ * requests and provide a custom response — for example, showing a UI prompt
+ * to the user and returning their selection.
+ *
+ * The handler receives the full {@link SDKControlRequest} and must return
+ * a complete {@link SDKControlResponse}. If no handler is registered for a
+ * given subtype, the built-in default behavior is used (e.g. auto-allow
+ * for can_use_tool).
+ *
+ * @example
+ * ```ts
+ * connection.onControlRequest("can_use_tool", async (request) => {
+ *   return {
+ *     type: "control_response",
+ *     response: {
+ *       subtype: "success",
+ *       request_id: request.request_id,
+ *       response: { behavior: "allow", updatedInput: request.request.input },
+ *     },
+ *   };
+ * });
+ * ```
+ */
+export type ControlRequestHandler<S extends ControlRequestInner["subtype"]> = (
+  request: SDKControlRequest & { request: ControlRequestOfSubtype<S> },
+) => Promise<SDKControlResponse>;
 
 // ---------------------------------------------------------------------------
 // Control protocol helpers
@@ -82,6 +115,10 @@ export class ClaudeAxonConnection {
   private requestCounter = 0;
   private pendingControlRequests = new Map<string, PendingControlRequest>();
   private closed = false;
+
+  // Registered handlers for incoming control requests (keyed by subtype)
+  // biome-ignore lint/suspicious/noExplicitAny: handlers are typed at registration via onControlRequest()
+  private controlRequestHandlers = new Map<string, ControlRequestHandler<any>>();
 
   /**
    * @param axon    The Axon channel to communicate over. Axon should be mounted to a
@@ -303,47 +340,65 @@ export class ClaudeAxonConnection {
     return response;
   }
 
-  /** Handle an incoming control request from the CLI (e.g. permission, hook). */
+  /**
+   * Handle an incoming control request from the CLI (e.g. permission, hook).
+   *
+   * If a handler has been registered for the request's subtype via
+   * {@link onControlRequest}, it is called and its return value is sent
+   * as the response. Otherwise, built-in defaults are used:
+   *
+   * - `can_use_tool` → auto-allow with the original input
+   * - `hook_callback` → continue without modification
+   * - `mcp_message`  → error (not supported)
+   */
   private async handleIncomingControlRequest(message: SDKControlRequest): Promise<void> {
     const requestId = message.request_id;
     const request = message.request;
 
     try {
-      let responseData: WireData = {};
+      let controlResponse: SDKControlResponse;
 
-      switch (request.subtype) {
-        case "can_use_tool": {
-          const permReq: ControlRequestOfSubtype<"can_use_tool"> = request;
-          // Default: allow all tools (users can override via options)
-          responseData = {
-            behavior: "allow",
-            updatedInput: permReq.input,
-          };
-          break;
+      // Check for a registered handler for this subtype
+      const handler = this.controlRequestHandlers.get(request.subtype);
+      if (handler) {
+        controlResponse = await handler(message);
+      } else {
+        // Built-in defaults when no handler is registered
+        let responseData: WireData = {};
+        switch (request.subtype) {
+          case "can_use_tool": {
+            const permReq: ControlRequestOfSubtype<"can_use_tool"> = request;
+            // Default: allow all tools
+            responseData = {
+              behavior: "allow",
+              updatedInput: permReq.input,
+            };
+            break;
+          }
+          case "hook_callback": {
+            // Default: continue without modification
+            responseData = { continue: true };
+            break;
+          }
+          case "mcp_message": {
+            responseData = { error: "SDK MCP servers not supported in AxonTransport" };
+            break;
+          }
+          default:
+            responseData = {};
+            break;
         }
-        case "hook_callback": {
-          // Default: continue without modification
-          responseData = { continue: true };
-          break;
-        }
-        case "mcp_message": {
-          responseData = { error: "SDK MCP servers not supported in AxonTransport" };
-          break;
-        }
-        default:
-          responseData = {};
-          break;
+        controlResponse = {
+          type: "control_response",
+          response: {
+            subtype: "success",
+            request_id: requestId,
+            response: responseData,
+          },
+        };
       }
 
-      const successResponse: SDKControlResponse = {
-        type: "control_response",
-        response: {
-          subtype: "success",
-          request_id: requestId,
-          response: responseData,
-        },
-      };
-      await this.transport.write(JSON.stringify(successResponse));
+      await this.transport.write(JSON.stringify(controlResponse));
     } catch (err) {
       const errorResponse: SDKControlResponse = {
         type: "control_response",
@@ -429,5 +484,40 @@ export class ClaudeAxonConnection {
       subtype: "set_model",
       model,
     });
+  }
+
+  /**
+   * Register a handler for incoming control requests of a given subtype.
+   *
+   * When Claude Code sends a control request (e.g. asking permission to use
+   * a tool), the registered handler is called instead of the built-in default.
+   * The handler receives the full {@link SDKControlRequest} and must return
+   * a complete {@link SDKControlResponse}. The connection sends it back as-is.
+   *
+   * Only one handler can be registered per subtype. Calling this method again
+   * with the same subtype replaces the previous handler.
+   *
+   * @param subtype  The control request subtype to handle (e.g. "can_use_tool").
+   * @param handler  Async function that processes the request and returns a full SDKControlResponse.
+   *
+   * @example
+   * ```ts
+   * connection.onControlRequest("can_use_tool", async (message) => {
+   *   return {
+   *     type: "control_response",
+   *     response: {
+   *       subtype: "success",
+   *       request_id: message.request_id,
+   *       response: { behavior: "allow", updatedInput: message.request.input },
+   *     },
+   *   };
+   * });
+   * ```
+   */
+  onControlRequest<S extends ControlRequestInner["subtype"]>(
+    subtype: S,
+    handler: ControlRequestHandler<S>,
+  ): void {
+    this.controlRequestHandlers.set(subtype, handler);
   }
 }

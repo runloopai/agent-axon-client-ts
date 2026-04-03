@@ -57,6 +57,36 @@ export interface TodoBlock {
 
 export type TurnBlock = ThinkingBlock | ToolCallBlock | TextBlock | TaskBlock | TodoBlock;
 
+/**
+ * A question option within a can_use_tool AskUserQuestion control request.
+ */
+export interface ControlRequestOption {
+  label: string;
+  description?: string;
+}
+
+/**
+ * A single question from an AskUserQuestion control request.
+ */
+export interface ControlRequestQuestion {
+  header: string;
+  question: string;
+  multiSelect: boolean;
+  options: ControlRequestOption[];
+}
+
+/**
+ * Represents a pending control request from Claude Code that requires
+ * user interaction — e.g. answering a question before the tool can proceed.
+ */
+export interface PendingControlRequest {
+  requestId: string;
+  toolName: string;
+  toolUseId: string;
+  questions: ControlRequestQuestion[];
+  rawRequest: Record<string, unknown>;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -97,11 +127,15 @@ export interface UseClaudeAgentReturn {
   runloopUrl: string | null;
   permissionMode: string | null;
   currentModel: string | null;
+  /** A pending control request awaiting user input (e.g. AskUserQuestion), or null. */
+  pendingControlRequest: PendingControlRequest | null;
   start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
   cancel: () => Promise<void>;
   setModel: (model: string) => Promise<void>;
   setPermissionMode: (mode: string) => Promise<void>;
+  /** Send a control response for a pending control request (e.g. user answered a question). */
+  sendControlResponse: (requestId: string, response: Record<string, unknown>) => Promise<void>;
   shutdown: () => Promise<void>;
 }
 
@@ -143,6 +177,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
   const [runloopUrl, setRunloopUrl] = useState<string | null>(null);
   const [permissionMode, setPermissionMode] = useState<string | null>(null);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
+  const [pendingControlRequest, setPendingControlRequest] = useState<PendingControlRequest | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const blocksRef = useRef<TurnBlock[]>([]);
@@ -590,6 +625,36 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
   }
 
   // ---------------------------------------------------------------------------
+  // Incoming control request handling
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Handle a can_use_tool control request from the server.
+   * Parses the request and sets it as the pending control request so the UI
+   * can render an interactive prompt (e.g. multi-select for AskUserQuestion).
+   */
+  function handleControlRequest(msg: Record<string, unknown>): void {
+    const requestId = msg.request_id as string;
+    const request = msg.request as Record<string, unknown>;
+    if (!request || request.subtype !== "can_use_tool") return;
+
+    const toolName = request.tool_name as string;
+    const toolUseId = request.tool_use_id as string;
+    const input = request.input as Record<string, unknown>;
+    const questions = (input?.questions as ControlRequestQuestion[]) ?? [];
+
+    console.log(`[control] can_use_tool: tool=${toolName} id=${requestId} questions=${questions.length}`);
+
+    setPendingControlRequest({
+      requestId,
+      toolName,
+      toolUseId,
+      questions,
+      rawRequest: msg,
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // WebSocket connection
   // ---------------------------------------------------------------------------
 
@@ -615,6 +680,8 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
 
       if (parsed.type === "sdk_message") {
         handleSDKMessage(parsed.message as Record<string, unknown>);
+      } else if (parsed.type === "control_request") {
+        handleControlRequest(parsed.controlRequest as Record<string, unknown>);
       } else if (parsed.type === "turn_complete") {
         // Already handled via sdk_message result
       } else if (parsed.type === "turn_error") {
@@ -722,6 +789,15 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     }
   }, []);
 
+  const sendControlResponse = useCallback(async (requestId: string, response: Record<string, unknown>) => {
+    try {
+      await api("/api/control-response", { requestId, response });
+      setPendingControlRequest(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
   const shutdown = useCallback(async () => {
     try {
       await api("/api/shutdown", {});
@@ -740,6 +816,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     setInitInfo(null);
     setPermissionMode(null);
     setCurrentModel(null);
+    setPendingControlRequest(null);
   }, []);
 
   return {
@@ -756,11 +833,13 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     runloopUrl,
     permissionMode,
     currentModel,
+    pendingControlRequest,
     start,
     sendMessage,
     cancel,
     setModel: setModelFn,
     setPermissionMode: setPermissionModeFn,
+    sendControlResponse,
     shutdown,
   };
 }
