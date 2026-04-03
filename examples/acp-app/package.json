@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@runloop/agent-axon-client": "latest",
+    "@runloop/agent-axon-client": "0.1.2",
     "@runloop/api-client": "^1.16.2",
     "diff": "^8.0.4",
     "express": "^5.2.1",

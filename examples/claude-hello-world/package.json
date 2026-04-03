@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.90",
-    "@runloop/agent-axon-client": "latest",
+    "@runloop/agent-axon-client": "0.1.2",
     "@runloop/api-client": "^1.16.2"
   }
 }
