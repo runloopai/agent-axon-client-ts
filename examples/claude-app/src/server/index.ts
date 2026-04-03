@@ -2,7 +2,7 @@ import express from "express";
 import { createServer } from "node:http";
 import { RunloopSDK } from "@runloop/api-client";
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { SDKControlResponse, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { WsBroadcaster, type WsEvent } from "./ws.ts";
 
 const app = express();
@@ -124,8 +124,20 @@ app.post("/api/start", async (req, res) => {
       ws.broadcast({ type: "control_request", controlRequest: message });
 
       // Park a promise that will be resolved by /api/control-response
-      return new Promise<Record<string, unknown>>((resolve, reject) => {
-        pendingControlResponses.set(requestId, { resolve: resolve as (data: unknown) => void, reject });
+      return new Promise<SDKControlResponse>((resolve, reject) => {
+        pendingControlResponses.set(requestId, {
+          resolve: (data: unknown) => {
+            resolve({
+              type: "control_response",
+              response: {
+                subtype: "success",
+                request_id: requestId,
+                response: data as Record<string, unknown>,
+              },
+            });
+          },
+          reject,
+        });
       });
     });
 

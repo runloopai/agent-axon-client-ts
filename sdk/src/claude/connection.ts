@@ -45,24 +45,27 @@ type ControlRequestOfSubtype<S extends ControlRequestInner["subtype"]> = Extract
  * to the user and returning their selection.
  *
  * The handler receives the full {@link SDKControlRequest} and must return
- * a response object (the `response` field of the control_response message).
- * If no handler is registered for a given subtype, the built-in default
- * behavior is used (e.g. auto-allow for can_use_tool).
+ * a complete {@link SDKControlResponse}. If no handler is registered for a
+ * given subtype, the built-in default behavior is used (e.g. auto-allow
+ * for can_use_tool).
  *
  * @example
  * ```ts
  * connection.onControlRequest("can_use_tool", async (request) => {
- *   // Present UI to the user, collect their answer...
  *   return {
- *     behavior: "allow",
- *     updatedInput: { questions: [{ ...question, answer: "selected option" }] },
+ *     type: "control_response",
+ *     response: {
+ *       subtype: "success",
+ *       request_id: request.request_id,
+ *       response: { behavior: "allow", updatedInput: request.request.input },
+ *     },
  *   };
  * });
  * ```
  */
 export type ControlRequestHandler<S extends ControlRequestInner["subtype"]> = (
   request: SDKControlRequest & { request: ControlRequestOfSubtype<S> },
-) => Promise<WireData>;
+) => Promise<SDKControlResponse>;
 
 // ---------------------------------------------------------------------------
 // Control protocol helpers
@@ -353,14 +356,15 @@ export class ClaudeAxonConnection {
     const request = message.request;
 
     try {
-      let responseData: WireData = {};
+      let controlResponse: SDKControlResponse;
 
       // Check for a registered handler for this subtype
       const handler = this.controlRequestHandlers.get(request.subtype);
       if (handler) {
-        responseData = await handler(message);
+        controlResponse = await handler(message);
       } else {
         // Built-in defaults when no handler is registered
+        let responseData: WireData = {};
         switch (request.subtype) {
           case "can_use_tool": {
             const permReq: ControlRequestOfSubtype<"can_use_tool"> = request;
@@ -384,17 +388,17 @@ export class ClaudeAxonConnection {
             responseData = {};
             break;
         }
+        controlResponse = {
+          type: "control_response",
+          response: {
+            subtype: "success",
+            request_id: requestId,
+            response: responseData,
+          },
+        };
       }
 
-      const successResponse: SDKControlResponse = {
-        type: "control_response",
-        response: {
-          subtype: "success",
-          request_id: requestId,
-          response: responseData,
-        },
-      };
-      await this.transport.write(JSON.stringify(successResponse));
+      await this.transport.write(JSON.stringify(controlResponse));
     } catch (err) {
       const errorResponse: SDKControlResponse = {
         type: "control_response",
@@ -488,29 +492,25 @@ export class ClaudeAxonConnection {
    * When Claude Code sends a control request (e.g. asking permission to use
    * a tool), the registered handler is called instead of the built-in default.
    * The handler receives the full {@link SDKControlRequest} and must return
-   * a response object. The connection takes care of wrapping it in the
-   * `control_response` envelope and sending it back.
+   * a complete {@link SDKControlResponse}. The connection sends it back as-is.
    *
    * Only one handler can be registered per subtype. Calling this method again
    * with the same subtype replaces the previous handler.
    *
    * @param subtype  The control request subtype to handle (e.g. "can_use_tool").
-   * @param handler  Async function that processes the request and returns a response.
+   * @param handler  Async function that processes the request and returns a full SDKControlResponse.
    *
    * @example
    * ```ts
-   * // Intercept tool-permission requests and present a UI to the user
    * connection.onControlRequest("can_use_tool", async (message) => {
-   *   const { tool_name, input } = message.request;
-   *
-   *   // For AskUserQuestion, show a prompt and collect the answer
-   *   if (tool_name === "AskUserQuestion") {
-   *     const answer = await showQuestionUI(input);
-   *     return { behavior: "allow", updatedInput: answer };
-   *   }
-   *
-   *   // Auto-allow everything else
-   *   return { behavior: "allow", updatedInput: input };
+   *   return {
+   *     type: "control_response",
+   *     response: {
+   *       subtype: "success",
+   *       request_id: message.request_id,
+   *       response: { behavior: "allow", updatedInput: message.request.input },
+   *     },
+   *   };
    * });
    * ```
    */
