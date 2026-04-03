@@ -82,7 +82,7 @@
     "@runloop/api-client": "^1.16.2",
     "@vitest/coverage-v8": "^4.1.2",
     "typedoc": "^0.28.18",
-    "typescript": "^5.8.0",
+    "typescript": "^6.0.2",
     "vitest": "^4.1.2"
   }
 }
