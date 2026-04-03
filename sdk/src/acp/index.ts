@@ -27,6 +27,9 @@
  * @module
  */
 
+// Full upstream type surface for consumers who need additional ACP protocol
+// types beyond what this library's API explicitly re-exports above.
+export type * from "@agentclientprotocol/sdk";
 export type {
   AuthenticateRequest,
   AuthenticateResponse,
