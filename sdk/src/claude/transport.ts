@@ -13,7 +13,10 @@ import type { Axon } from "@runloop/api-client/sdk";
 import type { Stream } from "@runloop/api-client/streaming";
 import type { WireData } from "./types.js";
 
-/** Maps SDK message types to Axon event_type values for publishing. */
+/**
+ * Maps SDK message types to Axon event_type values for publishing.
+ * @category Transport
+ */
 export const MESSAGE_TYPE_TO_EVENT_TYPE: Record<string, string> = {
   user: "query",
   assistant: "assistant",
@@ -23,7 +26,10 @@ export const MESSAGE_TYPE_TO_EVENT_TYPE: Record<string, string> = {
   control_response: "control_response",
 };
 
-/** Abstract transport interface matching the Python SDK's Transport ABC. */
+/**
+ * Abstract transport interface matching the Python SDK's Transport ABC.
+ * @category Transport
+ */
 export interface Transport {
   connect(): Promise<void>;
   write(data: string): Promise<void>;
@@ -32,7 +38,10 @@ export interface Transport {
   isReady(): boolean;
 }
 
-/** Options for creating an AxonTransport. */
+/**
+ * Options for creating an AxonTransport.
+ * @category Transport
+ */
 export interface AxonTransportOptions {
   /** If true, emit verbose logs to stderr. */
   verbose?: boolean;
@@ -41,6 +50,8 @@ export interface AxonTransportOptions {
 /**
  * Transport implementation that communicates with a remote Claude Code
  * instance running on a Runloop Devbox via an Axon event channel.
+ *
+ * @category Transport
  */
 export class AxonTransport implements Transport {
   private axon: Axon;

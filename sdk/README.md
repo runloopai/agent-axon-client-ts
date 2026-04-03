@@ -43,7 +43,11 @@ import { acp, claude } from "@runloop/agent-axon-client";
 ### ACP Agent
 
 ```typescript
-import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
+import {
+  ACPAxonConnection,
+  isAgentMessageChunk,
+  PROTOCOL_VERSION,
+} from "@runloop/agent-axon-client/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -73,7 +77,23 @@ await agent.initialize({
   clientInfo: { name: "my-app", version: "1.0.0" },
 });
 
-agent.onSessionUpdate((sessionId, update) => console.log(sessionId, update));
+// Session updates (message chunks, tool calls, etc.) stream in asynchronously.
+// prompt() resolves when the broker acknowledges the prompt — *before* the
+// agent's full response has been delivered via onSessionUpdate.
+agent.onSessionUpdate((sessionId, update) => {
+  if (isAgentMessageChunk(update)) {
+    process.stdout.write(update.message);
+  }
+});
+
+// Use onRawEvent to detect when the turn is fully complete.
+const turnDone = new Promise<void>((resolve) => {
+  agent.onRawEvent((event) => {
+    if (event.origin === "SYSTEM_EVENT" && event.event_type === "turn.completed") {
+      resolve();
+    }
+  });
+});
 
 const session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
 await agent.prompt({
@@ -81,6 +101,8 @@ await agent.prompt({
   prompt: [{ type: "text", text: "Hello!" }],
 });
 
+// Wait for all session updates to arrive before shutting down.
+await turnDone;
 await agent.shutdown();
 ```
 

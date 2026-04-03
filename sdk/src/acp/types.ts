@@ -8,7 +8,10 @@ import type { Axon } from "@runloop/api-client/sdk";
 
 export type { AxonEventView } from "@runloop/api-client/resources/axons";
 
-/** Configuration for creating a low-level Axon stream via {@link axonStream}. */
+/**
+ * Configuration for creating a low-level Axon stream via {@link axonStream}.
+ * @category Configuration
+ */
 export interface AxonStreamOptions {
   /** Axon channel to connect to (from `@runloop/api-client`). */
   axon: Axon;
@@ -28,7 +31,10 @@ export interface AxonStreamOptions {
   onDisconnect?: () => void;
 }
 
-/** Options for creating an {@link ACPAxonConnection}. */
+/**
+ * Options for creating an {@link ACPAxonConnection}.
+ * @category Configuration
+ */
 export interface ACPAxonConnectionOptions {
   /** Axon channel to connect to (from `@runloop/api-client`). */
   axon: Axon;
@@ -58,8 +64,14 @@ export interface ACPAxonConnectionOptions {
   shutdown?: () => Promise<void>;
 }
 
-/** Callback invoked on each `session/update` notification from the agent. */
+/**
+ * Callback invoked on each `session/update` notification from the agent.
+ * @category Configuration
+ */
 export type SessionUpdateListener = (sessionId: string | null, update: SessionUpdate) => void;
 
-/** Callback invoked for every raw Axon event before JSON-RPC translation. */
+/**
+ * Callback invoked for every raw Axon event before JSON-RPC translation.
+ * @category Configuration
+ */
 export type RawEventListener = (event: AxonEventView) => void;
