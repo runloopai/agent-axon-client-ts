@@ -13,7 +13,7 @@ Before getting started, it's helpful to understand these core concepts:
 - **Axon** — A bidirectional message bus that enables real-time communication between your application and an agent running in a Runloop devbox. Think of it as a WebSocket-like channel for agent control.
 - **Broker Mount** — A devbox configuration that connects an Axon channel to an agent binary, specifying which agent to run (opencode, claude, etc.), the protocol to use (acp, claude_json), and launch arguments.
 
-In short: the **devbox** is where the agent runs (compute environment), and the **Axon** is how you communicate with it (message bus).
+In short: **Runloop** hosts **devboxes** where agents run; a **broker mount** connects that agent to **Axon**; and **Axon** is the message bus your app uses to control it.
 
 ## Prerequisites
 
