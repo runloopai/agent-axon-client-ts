@@ -1,4 +1,4 @@
-import Markdown from "react-markdown";
+import { useState, useRef, useLayoutEffect } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import * as Diff from "diff";
@@ -9,12 +9,17 @@ import type {
   PlanBlock,
   PlanEntry,
   ResourceLinkBlock,
+  ImageBlock,
+  AudioBlock,
+  EmbeddedResourceBlock,
   TerminalState,
   ContentItem,
 } from "../hooks/useNodeAgent.js";
-import { CopyButton, toolKindMeta, statusIndicator, planStatusIcon } from "./shared.js";
+import { CopyButton, MarkdownContent, toolKindMeta, statusIndicator, planStatusIcon } from "./shared.js";
 
 // ── Thinking ────────────────────────────────────────────────
+
+const THINKING_COLLAPSED_HEIGHT = 60;
 
 export function ThinkingBlockView({
   block, expanded, onToggle,
@@ -23,12 +28,21 @@ export function ThinkingBlockView({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const showBody = block.isActive || expanded;
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (el) setOverflows(el.scrollHeight > THINKING_COLLAPSED_HEIGHT);
+  }, [block.text]);
+
+  if (!block.text && !block.isActive) return null;
+
+  const isCollapsedOverflow = overflows && !expanded;
 
   return (
     <div className="turn-block thinking-block">
-      <div className="thinking-header" onClick={onToggle}>
-        <span className={`chevron ${showBody ? "expanded" : ""}`}>{"\u25B6"}</span>
+      <div className="thinking-header-inline">
         <span className="thinking-label">
           Thinking{block.isActive ? "\u2026" : ""}
         </span>
@@ -36,8 +50,18 @@ export function ThinkingBlockView({
           <span className="thinking-duration">{block.duration}s</span>
         )}
       </div>
-      {showBody && block.text && (
-        <div className="thinking-body">{block.text}</div>
+      {block.text && (
+        <MarkdownContent
+          ref={contentRef}
+          text={block.text}
+          className={`thinking-content${expanded ? " thinking-content-expanded" : ""}${isCollapsedOverflow ? " thinking-content-overflow" : ""}`}
+          style={!expanded ? { maxHeight: THINKING_COLLAPSED_HEIGHT } : undefined}
+        />
+      )}
+      {overflows && !block.isActive && (
+        <button className="thinking-toggle" onClick={onToggle}>
+          {expanded ? "Show less" : "Show more"}
+        </button>
       )}
     </div>
   );
@@ -247,32 +271,10 @@ function UnifiedDiffView({ diff }: { diff: { path: string; oldText?: string | nu
 
 // ── Text / Markdown ─────────────────────────────────────────
 
-const markdownComponents: Record<string, React.ComponentType<Record<string, unknown>>> = {
-  code({ className, children, ...props }: Record<string, unknown>) {
-    const match = /language-(\w+)/.exec((className as string) || "");
-    const codeStr = String(children).replace(/\n$/, "");
-    if (match) {
-      return (
-        <div className="code-block-wrapper">
-          <CopyButton text={codeStr} />
-          <SyntaxHighlighter
-            style={vscDarkPlus}
-            language={match[1]}
-            customStyle={{ margin: 0, borderRadius: "6px", fontSize: "12px" }}
-          >
-            {codeStr}
-          </SyntaxHighlighter>
-        </div>
-      );
-    }
-    return <code className={className as string} {...props}>{children as React.ReactNode}</code>;
-  },
-};
-
 export function TextBlockView({ block, showCursor }: { block: TextBlock; showCursor: boolean }) {
   return (
     <div className="turn-block text-block">
-      <Markdown components={markdownComponents}>{block.text}</Markdown>
+      <MarkdownContent text={block.text} />
       {showCursor && <span className="streaming-cursor" />}
     </div>
   );
@@ -291,6 +293,108 @@ export function ResourceLinkBlockView({ block }: { block: ResourceLinkBlock }) {
           <span className="resource-link-name">{block.name}</span>
         )}
       </a>
+    </div>
+  );
+}
+
+// ── Image ──────────────────────────────────────────────────
+
+export function ImageBlockView({ block }: { block: ImageBlock }) {
+  const src = `data:${block.mimeType};base64,${block.data}`;
+  return (
+    <div className="turn-block image-block">
+      <img src={src} alt="" className="image-block-img" />
+      {block.uri && (
+        <a href={block.uri} target="_blank" rel="noopener noreferrer" className="image-block-link">
+          Open original
+        </a>
+      )}
+    </div>
+  );
+}
+
+// ── Audio ──────────────────────────────────────────────────
+
+export function AudioBlockView({ block }: { block: AudioBlock }) {
+  const src = `data:${block.mimeType};base64,${block.data}`;
+  return (
+    <div className="turn-block audio-block">
+      <audio controls src={src} className="audio-block-player" />
+    </div>
+  );
+}
+
+// ── Embedded resource ──────────────────────────────────────
+
+const MIME_TO_LANG: Record<string, string> = {
+  "application/json": "json",
+  "application/javascript": "javascript",
+  "text/javascript": "javascript",
+  "text/typescript": "typescript",
+  "text/html": "html",
+  "text/css": "css",
+  "text/markdown": "markdown",
+  "application/xml": "xml",
+  "text/xml": "xml",
+  "application/yaml": "yaml",
+  "text/yaml": "yaml",
+  "text/x-python": "python",
+  "text/x-rust": "rust",
+  "text/x-go": "go",
+  "text/x-java": "java",
+  "text/x-c": "c",
+  "text/x-cpp": "cpp",
+  "text/x-shell": "bash",
+};
+
+export function EmbeddedResourceBlockView({ block }: { block: EmbeddedResourceBlock }) {
+  const basename = block.uri.split("/").pop() ?? block.uri;
+
+  if (block.text != null) {
+    const lang = block.mimeType ? MIME_TO_LANG[block.mimeType] : undefined;
+    return (
+      <div className="turn-block resource-block">
+        <div className="resource-block-header">
+          <span className="resource-block-icon">{"\u{1F4C4}"}</span>
+          <span className="resource-block-name">{basename}</span>
+          <CopyButton text={block.text} />
+        </div>
+        {lang ? (
+          <SyntaxHighlighter
+            style={vscDarkPlus}
+            language={lang}
+            customStyle={{ margin: 0, borderRadius: "0 0 6px 6px", fontSize: "12px" }}
+          >
+            {block.text}
+          </SyntaxHighlighter>
+        ) : (
+          <pre className="resource-block-pre">{block.text}</pre>
+        )}
+      </div>
+    );
+  }
+
+  if (block.blob != null) {
+    const href = `data:${block.mimeType ?? "application/octet-stream"};base64,${block.blob}`;
+    return (
+      <div className="turn-block resource-block">
+        <div className="resource-block-header">
+          <span className="resource-block-icon">{"\u{1F4BE}"}</span>
+          <span className="resource-block-name">{basename}</span>
+        </div>
+        <a href={href} download={basename} className="resource-block-download">
+          Download {basename}
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="turn-block resource-block">
+      <div className="resource-block-header">
+        <span className="resource-block-icon">{"\u{1F4C4}"}</span>
+        <span className="resource-block-name">{basename}</span>
+      </div>
     </div>
   );
 }

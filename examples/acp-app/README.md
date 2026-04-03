@@ -28,7 +28,6 @@ Add to `.env`:
 
 ```
 RUNLOOP_API_KEY=your_runloop_api_key
-RUNLOOP_BASE_URL=https://api.runloop.ai   # optional, this is the default
 ```
 
 ## Running

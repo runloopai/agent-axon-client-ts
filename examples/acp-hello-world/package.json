@@ -4,10 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "bun run acp-hello-world.ts"
+    "start": "bun run acp-hello-world.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@runloop/agent-axon-client": "latest",
+    "@runloop/agent-axon-client": "workspace:*",
     "@runloop/api-client": "^1.16.2"
   }
 }

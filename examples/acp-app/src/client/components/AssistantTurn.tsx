@@ -12,6 +12,9 @@ import {
   TextBlockView,
   PlanBlockView,
   ResourceLinkBlockView,
+  ImageBlockView,
+  AudioBlockView,
+  EmbeddedResourceBlockView,
 } from "./TurnBlocks.js";
 
 type RenderItem =
@@ -64,7 +67,7 @@ const STOP_REASON_LABELS: Record<string, string> = {
 function TurnSummaryFooter({ blocks, stopReason }: { blocks: TurnBlock[]; stopReason?: string }) {
   const toolCalls = blocks.filter((b): b is ToolCallBlock => b.type === "tool_call");
   const hasToolCalls = toolCalls.length > 0;
-  const hasStopBadge = stopReason && stopReason !== "end_turn";
+  const hasStopBadge = stopReason && !/^end.?turn$/i.test(stopReason);
 
   if (!hasToolCalls && !hasStopBadge) return null;
 
@@ -196,6 +199,12 @@ export function AssistantTurn({
             return <PlanBlockView key={block.id} block={block} />;
           case "resource_link":
             return <ResourceLinkBlockView key={block.id} block={block} />;
+          case "image":
+            return <ImageBlockView key={block.id} block={block} />;
+          case "audio":
+            return <AudioBlockView key={block.id} block={block} />;
+          case "resource":
+            return <EmbeddedResourceBlockView key={block.id} block={block} />;
           default:
             return null;
         }

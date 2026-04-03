@@ -12,6 +12,7 @@ export interface StartOptions {
   agentBinary?: string;
   launchArgs?: string[];
   launchCommands?: string[];
+  systemPrompt?: string;
 }
 
 const CLIENT_CAPABILITIES = {
@@ -41,6 +42,9 @@ export class ConnectionManager {
   constructor(private ws: WsBroadcaster) {}
 
   async start(opts: StartOptions) {
+    // Tear down any existing connection
+    await this.shutdown();
+
     const apiKey = process.env.RUNLOOP_API_KEY;
     const baseUrl = process.env.RUNLOOP_BASE_URL;
 
@@ -57,6 +61,21 @@ export class ConnectionManager {
     // The runloop/agents blueprint used has opencode pre-installed.
     // When using an AxonACPConnection, ensure the Agent is on the blueprint by
     // using the AgentAPI or a Blueprint.
+    const launchCommands = opts.launchCommands ? [...opts.launchCommands] : [];
+    if (opts.systemPrompt) {
+      const config = JSON.stringify({
+        $schema: "https://opencode.ai/config.json",
+        agent: {
+          build: {
+            prompt: opts.systemPrompt,
+          },
+        },
+      });
+      launchCommands.unshift(
+        `mkdir -p /home/user && cat > /home/user/opencode.json << 'OPENCODE_CFG_EOF'\n${config}\nOPENCODE_CFG_EOF`,
+      );
+    }
+
     const devbox = await sdk.devbox.create({
       name: "acp-app",
       blueprint_name: "runloop/agents",
@@ -69,8 +88,8 @@ export class ConnectionManager {
           launch_args: opts.launchArgs,
         },
       ],
-      launch_parameters: opts.launchCommands?.length
-        ? { launch_commands: opts.launchCommands, keep_alive_time_seconds: 300 }
+      launch_parameters: launchCommands.length
+        ? { launch_commands: launchCommands, keep_alive_time_seconds: 300 }
         : undefined,
     });
 
@@ -86,6 +105,26 @@ export class ConnectionManager {
       onRawEvent: (ev) => {
         this.axonEvents.push(ev);
         this.ws.broadcast({ type: "axon_event", event: ev });
+
+        if (ev.origin === "SYSTEM_EVENT") {
+          try {
+            const payload = JSON.parse(ev.payload);
+            if (ev.event_type === "turn.started") {
+              this.ws.broadcast({
+                type: "turn_started",
+                turnId: payload.turn_id,
+              });
+            } else if (ev.event_type === "turn.completed") {
+              this.ws.broadcast({
+                type: "turn_completed",
+                turnId: payload.turn_id,
+                stopReason: payload.stop_reason ?? "EndTurn",
+              });
+            }
+          } catch {
+            /* ignore parse errors */
+          }
+        }
       },
     });
 

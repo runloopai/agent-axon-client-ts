@@ -4,11 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "bun run claude-cli.ts"
+    "start": "bun run claude-cli.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.90",
-    "@runloop/agent-axon-client": "latest",
+    "@runloop/agent-axon-client": "workspace:*",
     "@runloop/api-client": "^1.16.2"
   }
 }

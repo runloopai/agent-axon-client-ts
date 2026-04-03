@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { ToolCallContent } from "@runloop/agent-axon-client/acp";
 import {
   isAgentMessageChunk,
@@ -14,9 +14,17 @@ import type {
   ChatMessage,
   PlanEntry,
   StopReason,
-  PendingElicitation,
 } from "./types.js";
 import { parseToolCallContent, nextBlockId } from "./parsers.js";
+
+// Safety net: if the broker signals a turn is active but no events arrive for
+// this long, force the UI back to idle so the input re-enables.
+const STALE_TURN_TIMEOUT_MS = 15_000;
+
+const NORMAL_END_REASONS = new Set(["end_turn", "endturn", "end turn"]);
+function isNormalEndTurn(reason: string): boolean {
+  return NORMAL_END_REASONS.has(reason.toLowerCase());
+}
 
 export interface UseTurnBlocksReturn {
   messages: ChatMessage[];
@@ -41,6 +49,9 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
 
   const blocksRef = useRef<TurnBlock[]>([]);
   const thinkingStartRef = useRef<number | null>(null);
+  const staleTurnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingStopReasonRef = useRef<StopReason | undefined>(undefined);
 
   function pushBlock(block: TurnBlock) {
     blocksRef.current = [...blocksRef.current, block];
@@ -69,7 +80,33 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     thinkingStartRef.current = null;
   }
 
-  function finalizeTurn(stopReason?: StopReason) {
+  function clearStaleTurnTimer() {
+    if (staleTurnTimerRef.current) {
+      clearTimeout(staleTurnTimerRef.current);
+      staleTurnTimerRef.current = null;
+    }
+  }
+
+  function resetStaleTurnTimer() {
+    clearStaleTurnTimer();
+    staleTurnTimerRef.current = setTimeout(() => {
+      console.warn("[useTurnBlocks] stale turn detected — forcing idle");
+      setIsAgentTurn(false);
+      setIsStreaming(false);
+    }, STALE_TURN_TIMEOUT_MS);
+  }
+
+  function clearFlushTimer() {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+  }
+
+  /** Flush accumulated blocks into messages as an assistant message. */
+  function flushBlocksToMessages(stopReason?: StopReason) {
+    clearFlushTimer();
+    pendingStopReasonRef.current = undefined;
     finalizeThinking();
     const turnBlocks = blocksRef.current;
     if (turnBlocks.length > 0) {
@@ -80,18 +117,27 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
           role: "assistant",
           content: "",
           blocks: turnBlocks,
-          ...(stopReason && stopReason !== "end_turn" ? { stopReason } : {}),
+          ...(stopReason && !isNormalEndTurn(stopReason) ? { stopReason } : {}),
         },
       ]);
     }
     blocksRef.current = [];
     thinkingStartRef.current = null;
     setCurrentTurnBlocks([]);
-    setIsAgentTurn(false);
-    setIsStreaming(false);
+  }
+
+  /** Schedule a flush after a short delay to catch trailing events from the broker. */
+  function scheduleDeferredFlush(stopReason?: StopReason) {
+    clearFlushTimer();
+    pendingStopReasonRef.current = stopReason;
+    flushTimerRef.current = setTimeout(() => {
+      flushTimerRef.current = null;
+      flushBlocksToMessages(pendingStopReasonRef.current);
+    }, 100);
   }
 
   const startTurn = useCallback((userText: string) => {
+    flushBlocksToMessages();
     setMessages((prev) => [
       ...prev,
       { id: `user-${Date.now()}`, role: "user", content: userText },
@@ -101,9 +147,12 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     setCurrentTurnBlocks([]);
     setIsAgentTurn(true);
     setIsStreaming(false);
+    resetStaleTurnTimer();
   }, []);
 
   const resetChat = useCallback(() => {
+    clearStaleTurnTimer();
+    clearFlushTimer();
     blocksRef.current = [];
     thinkingStartRef.current = null;
     setCurrentTurnBlocks([]);
@@ -114,19 +163,48 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     setError(null);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      clearStaleTurnTimer();
+      clearFlushTimer();
+    };
+  }, []);
+
   const onEvent = useCallback((data: ClientEvent) => {
+    if (data.type === "turn_started") {
+      setIsAgentTurn(true);
+      setIsStreaming(false);
+      resetStaleTurnTimer();
+      return;
+    }
+
+    if (data.type === "turn_completed") {
+      clearStaleTurnTimer();
+      setIsAgentTurn(false);
+      setIsStreaming(false);
+      scheduleDeferredFlush(data.stopReason);
+      return;
+    }
+
     if (data.type === "turn_complete") {
-      finalizeTurn(data.stopReason);
       return;
     }
 
     if (data.type === "turn_error") {
-      finalizeTurn();
+      clearStaleTurnTimer();
+      flushBlocksToMessages();
+      setIsAgentTurn(false);
+      setIsStreaming(false);
       setError(data.error ?? "Turn failed");
       return;
     }
 
     if (data.type !== "session_update") return;
+
+    // If a deferred flush is pending, reset the timer so trailing events are included.
+    if (flushTimerRef.current) {
+      scheduleDeferredFlush(pendingStopReasonRef.current);
+    }
 
     const { update } = data;
 
@@ -141,7 +219,37 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
           name: content.name ?? null,
           title: content.title ?? null,
         });
-        setIsAgentTurn(true);
+        return;
+      }
+      if (content.type === "image") {
+        pushBlock({
+          type: "image",
+          id: nextBlockId("img"),
+          data: content.data,
+          mimeType: content.mimeType,
+          uri: content.uri ?? null,
+        });
+        return;
+      }
+      if (content.type === "audio") {
+        pushBlock({
+          type: "audio",
+          id: nextBlockId("aud"),
+          data: content.data,
+          mimeType: content.mimeType,
+        });
+        return;
+      }
+      if (content.type === "resource") {
+        const res = content.resource;
+        pushBlock({
+          type: "resource",
+          id: nextBlockId("res"),
+          uri: res.uri,
+          mimeType: res.mimeType ?? null,
+          text: "text" in res ? res.text : undefined,
+          blob: "blob" in res ? res.blob : undefined,
+        });
         return;
       }
       const text = content.type === "text" ? content.text : "";
@@ -156,7 +264,6 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
         pushBlock({ type: "text", id: nextBlockId("txt"), text, messageId });
       }
       setIsStreaming(true);
-      setIsAgentTurn(true);
       return;
     }
 
@@ -182,7 +289,6 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
           isActive: true,
         });
       }
-      setIsAgentTurn(true);
       return;
     }
 
@@ -208,7 +314,6 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
         startedAt: Date.now(),
         duration: null,
       });
-      setIsAgentTurn(true);
       return;
     }
 
@@ -259,7 +364,6 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
       } else {
         pushBlock({ type: "plan", id: nextBlockId("plan"), entries });
       }
-      setIsAgentTurn(true);
       return;
     }
 

@@ -162,3 +162,4 @@ await conn.disconnect();
 - **Node >= 22** required.
 - **`@runloop/api-client`** is a peer dep — you must install it yourself.
 - **`@anthropic-ai/claude-agent-sdk`** is an optional peer dep — only needed for the Claude module.
+- **`prompt()` resolves before all session updates arrive.** The broker sends the prompt response and `turn.completed` system event *before* flushing thought/message chunks as `session/update` notifications. Use `onRawEvent` to watch for `turn.started` / `turn.completed` system events to accurately bracket turn content. See the SDK README for details.
