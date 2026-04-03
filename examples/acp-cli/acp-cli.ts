@@ -21,6 +21,7 @@ import {
   isToolCallProgress,
   isPlan,
   isUsageUpdate,
+  type SessionUpdate,
 } from "@runloop/agent-axon-client/acp";
 import { parseArgs } from "util";
 
@@ -103,41 +104,59 @@ console.log(`Session ready: ${sessionId}\n`);
 // Stream session updates
 // ---------------------------------------------------------------------------
 
-agent.onSessionUpdate((_sid, update) => {
+function handleSessionUpdate(update: SessionUpdate): void {
   if (isAgentMessageChunk(update)) {
     if (update.content.type === "text") {
       process.stdout.write(update.content.text);
     }
-  } else if (isAgentThoughtChunk(update)) {
+    return;
+  }
+
+  if (isAgentThoughtChunk(update)) {
     if (VERBOSE && update.content.type === "text") {
       const thought = update.content.text;
       console.log(
         `\n[thinking] ${thought.slice(0, 200)}${thought.length > 200 ? "..." : ""}`,
       );
     }
-  } else if (isToolCall(update)) {
+    return;
+  }
+
+  if (isToolCall(update)) {
     console.log(`\n[tool] ${update.title}`);
-  } else if (isToolCallProgress(update)) {
+    return;
+  }
+
+  if (isToolCallProgress(update)) {
     if (VERBOSE) {
       console.log(
         `  [${update.status ?? "running"}] ${update.title ?? update.toolCallId}`,
       );
     }
-  } else if (isPlan(update)) {
+    return;
+  }
+
+  if (isPlan(update)) {
     if (VERBOSE) {
       const tasks = update.entries
         .map((e) => `  - [${e.status}] ${e.content}`)
         .join("\n");
       console.log(`\n[plan]\n${tasks}`);
     }
-  } else if (isUsageUpdate(update)) {
+    return;
+  }
+
+  if (isUsageUpdate(update)) {
     if (VERBOSE) {
       const cost =
         update.cost?.amount != null ? ` $${update.cost.amount.toFixed(4)}` : "";
       console.log(`\n[usage] ${update.used}/${update.size} tokens${cost}`);
     }
+    return;
   }
-});
+}
+
+agent.onSessionUpdate((_sid: string | null, update: SessionUpdate) => handleSessionUpdate(update));
 
 // ---------------------------------------------------------------------------
 // REPL
