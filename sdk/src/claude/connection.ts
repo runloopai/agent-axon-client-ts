@@ -62,6 +62,8 @@ type ControlRequestOfSubtype<S extends ControlRequestInner["subtype"]> = Extract
  *   };
  * });
  * ```
+ *
+ * @category Configuration
  */
 export type ControlRequestHandler<S extends ControlRequestInner["subtype"]> = (
   request: SDKControlRequest & { request: ControlRequestOfSubtype<S> },
@@ -85,6 +87,7 @@ interface PendingControlRequest {
 // Client options
 // ---------------------------------------------------------------------------
 
+/** @category Configuration */
 export interface ClaudeAxonConnectionOptions {
   /** If true, emit verbose logs to stderr. */
   verbose?: boolean;
@@ -100,6 +103,7 @@ export interface ClaudeAxonConnectionOptions {
 // ClaudeAxonConnection
 // ---------------------------------------------------------------------------
 
+/** @category Connection */
 export class ClaudeAxonConnection {
   private transport: Transport;
   private devbox?: Devbox;

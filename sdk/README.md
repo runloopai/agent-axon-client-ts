@@ -43,7 +43,11 @@ import { acp, claude } from "@runloop/agent-axon-client";
 ### ACP Agent
 
 ```typescript
-import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
+import {
+  ACPAxonConnection,
+  isAgentMessageChunk,
+  PROTOCOL_VERSION,
+} from "@runloop/agent-axon-client/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -60,28 +64,26 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection({
-  axon,
-  devboxId: devbox.id,
-  shutdown: async () => {
-    await devbox.shutdown();
-  },
-});
+const agent = new ACPAxonConnection({ axon, devboxId: devbox.id });
 
 await agent.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "my-app", version: "1.0.0" },
 });
 
-agent.onSessionUpdate((sessionId, update) => console.log(sessionId, update));
+// Session updates (message chunks, tool calls, etc.) arrive asynchronously
+// after prompt() resolves. This is an ACP protocol limitation
+agent.onSessionUpdate((sessionId, update) => {
+  if (isAgentMessageChunk(update)) {
+    process.stdout.write(update.message);
+  }
+});
 
 const session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
 await agent.prompt({
   sessionId: session.sessionId,
   prompt: [{ type: "text", text: "Hello!" }],
 });
-
-await agent.shutdown();
 ```
 
 ### Claude Code Agent

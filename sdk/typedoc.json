@@ -6,5 +6,18 @@
   "readme": "README.md",
   "excludeInternal": true,
   "excludePrivate": true,
-  "githubPages": true
+  "githubPages": true,
+  "defaultCategory": "ACP Protocol",
+  "categoryOrder": [
+    "Connection",
+    "Configuration",
+    "Session Updates",
+    "Transport",
+    "ACP Protocol",
+    "*"
+  ],
+  "navigation": {
+    "includeCategories": true
+  },
+  "categorizeByGroup": false
 }
