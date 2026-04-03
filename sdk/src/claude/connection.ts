@@ -804,8 +804,8 @@ export class ClaudeAxonConnection {
    * Only one handler can be registered per subtype. Calling this method again
    * with the same subtype replaces the previous handler.
    *
-   * @param subtype  The control request subtype to handle (e.g. "can_use_tool").
-   * @param handler  Async function that processes the request and returns a full SDKControlResponse.
+   * @param subtype - The control request subtype to handle (e.g. "can_use_tool").
+   * @param handler - Async function that processes the request and returns a full SDKControlResponse.
    *
    * @example
    * ```ts

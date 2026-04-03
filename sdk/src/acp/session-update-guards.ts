@@ -1,11 +1,7 @@
 import type { SessionUpdate } from "@agentclientprotocol/sdk";
 
-/**
- * Named types for each {@link SessionUpdate} variant, extracted from the
- * discriminated union via the `sessionUpdate` field.
- *
- * @category Session Updates
- */
+/** Streamed chunk of a user-originated message.
+ * @category Session Updates */
 export type UserMessageChunkUpdate = Extract<
   SessionUpdate,
   { sessionUpdate: "user_message_chunk" }
