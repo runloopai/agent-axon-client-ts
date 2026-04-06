@@ -70,6 +70,7 @@ export class ACPAxonConnection {
   private abortController: AbortController;
   private sessionUpdateListeners = new Set<SessionUpdateListener>();
   private axonEventListeners = new Set<AxonEventListener>();
+  private verbose: boolean;
   private handleError: (error: unknown) => void;
   private handlePermission:
     | ((params: RequestPermissionRequest) => Promise<RequestPermissionResponse>)
@@ -80,6 +81,7 @@ export class ACPAxonConnection {
     this.axonId = axon.id;
     this.devboxId = devbox.id;
     this.abortController = new AbortController();
+    this.verbose = options?.verbose ?? false;
     this.handleError = options?.onError ?? defaultOnError;
     this.handlePermission = options?.requestPermission;
     this.disconnectFn = options?.onDisconnect;
@@ -90,9 +92,17 @@ export class ACPAxonConnection {
       onAxonEvent: (ev) => this.emitAxonEvent(ev),
       onError: this.handleError,
       onStreamInterrupted: options?.onStreamInterrupted,
+      log: this.verbose ? (tag, ...args) => this.log(tag, ...args) : undefined,
     });
 
     this.protocol = new ClientSideConnection((_agent: Agent) => this.createClient(), stream);
+    this.log("constructor", `axon=${axon.id} devbox=${this.devboxId}`);
+  }
+
+  private log(tag: string, ...args: unknown[]): void {
+    if (!this.verbose) return;
+    const ts = new Date().toISOString().slice(11, 23);
+    console.error(`[${ts}] [acp-sdk:${tag}]`, ...args);
   }
 
   // ---------------------------------------------------------------------------

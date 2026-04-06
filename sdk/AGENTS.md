@@ -158,7 +158,7 @@ await conn.disconnect();
 
 - **No auto-reconnect.** If an SSE stream drops, create a new connection.
 - **ACP permissions default to auto-approve** (`allow_always` > `allow_once` > first option). Pass `requestPermission` to customize.
-- **Claude permissions also auto-approve** all tool use. Not yet configurable.
+- **Claude permissions also auto-approve** all tool use. Register a `"can_use_tool"` handler via `onControlRequest()` to customize.
 - **Eager SSE** (ACP): The constructor opens an SSE subscription immediately. Connection errors surface on the first awaited method call.
 - **Node >= 22** required.
 - **`@runloop/api-client`** is a peer dep — you must install it yourself.

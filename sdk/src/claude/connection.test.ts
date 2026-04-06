@@ -86,6 +86,7 @@ async function createConnectedClient(
     onDisconnect?: () => void | Promise<void>;
     model?: string;
     onError?: (error: unknown) => void;
+    onStreamInterrupted?: () => void;
   },
 ) {
   const axon = createMockAxon();
@@ -93,6 +94,7 @@ async function createConnectedClient(
     onDisconnect: options?.onDisconnect,
     model: options?.model,
     onError: options?.onError,
+    onStreamInterrupted: options?.onStreamInterrupted,
   });
 
   // Replace internal transport with mock
@@ -170,6 +172,13 @@ describe("ClaudeAxonConnection", () => {
       await conn.disconnect();
 
       await expect(conn.connect()).rejects.toThrow("already been disconnected");
+    });
+  });
+
+  describe("axonId", () => {
+    it("exposes the Axon channel ID from the constructor", async () => {
+      const conn = await createConnectedClient(transport);
+      expect(conn.axonId).toBe("test-axon");
     });
   });
 
@@ -483,6 +492,31 @@ describe("ClaudeAxonConnection", () => {
       const conn = await createConnectedClient(transport, { onDisconnect });
       conn.abortStream();
       expect(onDisconnect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("onStreamInterrupted", () => {
+    it("fires when the transport stream ends unexpectedly", async () => {
+      const onStreamInterrupted = vi.fn();
+      await createConnectedClient(transport, { onStreamInterrupted });
+
+      transport._end();
+
+      await vi.waitFor(() => {
+        expect(onStreamInterrupted).toHaveBeenCalledOnce();
+      });
+    });
+
+    it("does not fire when disconnect() is called", async () => {
+      const onStreamInterrupted = vi.fn();
+      const conn = await createConnectedClient(transport, { onStreamInterrupted });
+
+      await conn.disconnect();
+
+      // Give the read loop time to finalize
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(onStreamInterrupted).not.toHaveBeenCalled();
     });
   });
 

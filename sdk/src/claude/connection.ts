@@ -152,6 +152,13 @@ export interface ClaudeAxonConnectionOptions {
   onError?: (error: unknown) => void;
 
   /**
+   * Called when the SSE stream is interrupted (either cleanly or due to
+   * error). Not called when the stream ends due to an explicit
+   * {@link ClaudeAxonConnection.disconnect | disconnect()} call.
+   */
+  onStreamInterrupted?: () => void;
+
+  /**
    * Teardown callback invoked at the end of
    * {@link ClaudeAxonConnection.disconnect | disconnect()}, after the
    * transport is closed and all listeners are cleared. Commonly used
@@ -180,6 +187,9 @@ function defaultOnError(error: unknown): void {
 
 /** @category Connection */
 export class ClaudeAxonConnection {
+  /** The Axon channel ID this connection is bound to. */
+  readonly axonId: string;
+
   /** The Runloop devbox ID. */
   readonly devboxId: string;
 
@@ -187,6 +197,7 @@ export class ClaudeAxonConnection {
   private options: ClaudeAxonConnectionOptions;
   private handleError: (error: unknown) => void;
   private disconnectFn: (() => void | Promise<void>) | undefined;
+  private streamInterruptedFn: (() => void) | undefined;
 
   // Message routing
   private messageQueue: SDKMessage[] = [];
@@ -206,9 +217,11 @@ export class ClaudeAxonConnection {
   private axonEventListeners = new Set<AxonEventListener>();
 
   constructor(axon: Axon, devbox: Devbox, options?: ClaudeAxonConnectionOptions) {
+    this.axonId = axon.id;
     this.devboxId = devbox.id;
     this.options = options ?? {};
     this.handleError = options?.onError ?? defaultOnError;
+    this.streamInterruptedFn = options?.onStreamInterrupted;
     this.disconnectFn = options?.onDisconnect;
     this.transport = new AxonTransport(axon, {
       verbose: this.options.verbose,
@@ -343,6 +356,9 @@ export class ClaudeAxonConnection {
           waiter(null);
         }
         this.messageWaiters.length = 0;
+        if (!this.closed) {
+          this.streamInterruptedFn?.();
+        }
       }
     })();
   }
