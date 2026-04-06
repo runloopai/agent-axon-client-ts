@@ -87,6 +87,8 @@ async function createConnectedClient(
     model?: string;
     onError?: (error: unknown) => void;
     onStreamInterrupted?: () => void;
+    systemPrompt?: string;
+    appendSystemPrompt?: string;
   },
 ) {
   const axon = createMockAxon();
@@ -95,6 +97,8 @@ async function createConnectedClient(
     model: options?.model,
     onError: options?.onError,
     onStreamInterrupted: options?.onStreamInterrupted,
+    systemPrompt: options?.systemPrompt,
+    appendSystemPrompt: options?.appendSystemPrompt,
   });
 
   // Replace internal transport with mock
@@ -925,6 +929,61 @@ describe("ClaudeAxonConnection", () => {
       await conn.disconnect();
 
       expect(onError).toHaveBeenCalledWith(disconnectError);
+    });
+  });
+
+  describe("systemPrompt / appendSystemPrompt options", () => {
+    it("includes systemPrompt in the initialize control request", async () => {
+      await createConnectedClient(transport, { systemPrompt: "You are a pirate." });
+
+      const initCall = transport._written.find((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(initCall).toBeDefined();
+      const parsed = JSON.parse(initCall as string);
+      expect(parsed.request.systemPrompt).toBe("You are a pirate.");
+    });
+
+    it("includes appendSystemPrompt in the initialize control request", async () => {
+      await createConnectedClient(transport, { appendSystemPrompt: "Always be concise." });
+
+      const initCall = transport._written.find((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(initCall).toBeDefined();
+      const parsed = JSON.parse(initCall as string);
+      expect(parsed.request.appendSystemPrompt).toBe("Always be concise.");
+    });
+
+    it("includes both systemPrompt and appendSystemPrompt together", async () => {
+      await createConnectedClient(transport, {
+        systemPrompt: "You are helpful.",
+        appendSystemPrompt: "Be brief.",
+      });
+
+      const initCall = transport._written.find((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(initCall).toBeDefined();
+      const parsed = JSON.parse(initCall as string);
+      expect(parsed.request.systemPrompt).toBe("You are helpful.");
+      expect(parsed.request.appendSystemPrompt).toBe("Be brief.");
+    });
+
+    it("omits systemPrompt from initialize when not provided", async () => {
+      await createConnectedClient(transport);
+
+      const initCall = transport._written.find((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(initCall).toBeDefined();
+      const parsed = JSON.parse(initCall as string);
+      expect(parsed.request.systemPrompt).toBeUndefined();
+      expect(parsed.request.appendSystemPrompt).toBeUndefined();
     });
   });
 });

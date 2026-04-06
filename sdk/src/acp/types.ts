@@ -72,12 +72,21 @@ export interface ACPAxonConnectionOptions {
 
 /**
  * Callback invoked on each `session/update` notification from the agent.
+ *
+ * @param sessionId - The session that emitted the update, or `null` if
+ *   the notification did not include a session ID.
+ * @param update    - The session update payload (message chunk, tool call, usage, etc.).
+ *
  * @category Configuration
  */
 export type SessionUpdateListener = (sessionId: string | null, update: SessionUpdate) => void;
 
 /**
  * Callback invoked for every Axon event before JSON-RPC translation.
+ *
+ * @param event - The raw {@link AxonEventView} from the Axon SSE feed,
+ *   including events from all origins (agent, user, system).
+ *
  * @category Configuration
  */
 export type AxonEventListener = (event: AxonEventView) => void;

@@ -1,108 +1,14 @@
 import { CLIENT_METHODS } from "@agentclientprotocol/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  createControllableStream,
+  createMockAxon,
+  drain,
+  makeAgentEvent,
+  makeUserEvent,
+  type PublishCall,
+} from "../__test-utils__/mock-axon.js";
 import { axonStream } from "./axon-stream.js";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-interface MockAxonEvent {
-  event_type: string;
-  payload: string;
-  origin: string;
-}
-
-function makeAgentEvent(eventType: string, payload: unknown): MockAxonEvent {
-  return {
-    event_type: eventType,
-    payload: JSON.stringify(payload),
-    origin: "AGENT_EVENT",
-  };
-}
-
-function makeUserEvent(eventType: string, payload: unknown): MockAxonEvent {
-  return {
-    event_type: eventType,
-    payload: JSON.stringify(payload),
-    origin: "USER_EVENT",
-  };
-}
-
-/**
- * Creates an async-iterable SSE stream that can be driven imperatively.
- * Call `push(event)` to enqueue, `end()` to signal stream completion.
- */
-function createControllableStream() {
-  const buffer: MockAxonEvent[] = [];
-  let waiter: ((v: IteratorResult<MockAxonEvent>) => void) | null = null;
-  let done = false;
-
-  function flush() {
-    if (waiter && buffer.length > 0) {
-      const resolve = waiter;
-      waiter = null;
-      resolve({ value: buffer.shift() as MockAxonEvent, done: false });
-    }
-  }
-
-  return {
-    stream: {
-      [Symbol.asyncIterator](): AsyncIterator<MockAxonEvent> {
-        return {
-          next(): Promise<IteratorResult<MockAxonEvent>> {
-            if (buffer.length > 0) {
-              return Promise.resolve({ value: buffer.shift() as MockAxonEvent, done: false });
-            }
-            if (done) {
-              return Promise.resolve({ value: undefined as never, done: true });
-            }
-            return new Promise((resolve) => {
-              waiter = resolve;
-            });
-          },
-        };
-      },
-    },
-    push(event: MockAxonEvent) {
-      buffer.push(event);
-      flush();
-    },
-    end() {
-      done = true;
-      if (waiter) {
-        const resolve = waiter;
-        waiter = null;
-        resolve({ value: undefined as never, done: true });
-      }
-    },
-  };
-}
-
-type PublishCall = { event_type: string; origin: string; payload: string; source: string };
-
-function createMockAxon(sseStream: { [Symbol.asyncIterator](): AsyncIterator<MockAxonEvent> }) {
-  const published: PublishCall[] = [];
-  const axon = {
-    id: "test-axon",
-    subscribeSse: vi.fn().mockResolvedValue(sseStream),
-    publish: vi.fn().mockImplementation(async (data: PublishCall) => {
-      published.push(data);
-    }),
-  };
-  return { axon, published };
-}
-
-/** Collect all messages from a ReadableStream until it closes. */
-async function drain<T>(stream: ReadableStream<T>): Promise<T[]> {
-  const reader = stream.getReader();
-  const items: T[] = [];
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    items.push(value);
-  }
-  return items;
-}
 
 // ---------------------------------------------------------------------------
 // Tests

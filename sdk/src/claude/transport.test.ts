@@ -1,74 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type vi } from "vitest";
+import {
+  createControllableStream,
+  createMockAxon,
+  makeAgentEvent,
+  makeUserEvent,
+} from "../__test-utils__/mock-axon.js";
 import { AxonTransport, MESSAGE_TYPE_TO_EVENT_TYPE } from "./transport.js";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-interface MockAxonEvent {
-  event_type: string;
-  payload: string;
-  origin: string;
-}
-
-function makeAgentEvent(eventType: string, payload: unknown): MockAxonEvent {
-  return { event_type: eventType, payload: JSON.stringify(payload), origin: "AGENT_EVENT" };
-}
-
-function makeUserEvent(eventType: string, payload: unknown): MockAxonEvent {
-  return { event_type: eventType, payload: JSON.stringify(payload), origin: "USER_EVENT" };
-}
-
-function createControllableStream() {
-  const buffer: MockAxonEvent[] = [];
-  let waiter: ((v: IteratorResult<MockAxonEvent>) => void) | null = null;
-  let done = false;
-
-  return {
-    stream: {
-      controller: { abort: vi.fn() },
-      [Symbol.asyncIterator](): AsyncIterator<MockAxonEvent> {
-        return {
-          next(): Promise<IteratorResult<MockAxonEvent>> {
-            if (buffer.length > 0) {
-              return Promise.resolve({ value: buffer.shift() as MockAxonEvent, done: false });
-            }
-            if (done) {
-              return Promise.resolve({ value: undefined as never, done: true });
-            }
-            return new Promise((resolve) => {
-              waiter = resolve;
-            });
-          },
-        };
-      },
-    },
-    push(event: MockAxonEvent) {
-      buffer.push(event);
-      if (waiter) {
-        const resolve = waiter;
-        waiter = null;
-        resolve({ value: buffer.shift() as MockAxonEvent, done: false });
-      }
-    },
-    end() {
-      done = true;
-      if (waiter) {
-        const resolve = waiter;
-        waiter = null;
-        resolve({ value: undefined as never, done: true });
-      }
-    },
-  };
-}
-
-function createMockAxon(sseStream: ReturnType<typeof createControllableStream>["stream"]) {
-  return {
-    id: "test-axon",
-    subscribeSse: vi.fn().mockResolvedValue(sseStream),
-    publish: vi.fn().mockResolvedValue(undefined),
-  };
-}
 
 // ---------------------------------------------------------------------------
 // MESSAGE_TYPE_TO_EVENT_TYPE constant tests (preserved from original)
@@ -103,12 +40,13 @@ describe("MESSAGE_TYPE_TO_EVENT_TYPE", () => {
 
 describe("AxonTransport", () => {
   let ctrl: ReturnType<typeof createControllableStream>;
-  let axon: ReturnType<typeof createMockAxon>;
+  let axon: ReturnType<typeof createMockAxon>["axon"];
   let transport: AxonTransport;
 
   beforeEach(() => {
-    ctrl = createControllableStream();
-    axon = createMockAxon(ctrl.stream);
+    ctrl = createControllableStream(true);
+    const mock = createMockAxon(ctrl);
+    axon = mock.axon;
     transport = new AxonTransport(axon as never);
   });
 
@@ -266,7 +204,10 @@ describe("AxonTransport", () => {
       await transport.connect();
       await transport.close();
 
-      expect(ctrl.stream.controller.abort).toHaveBeenCalledOnce();
+      const controller = (ctrl.stream as Record<string, unknown>).controller as {
+        abort: ReturnType<typeof vi.fn>;
+      };
+      expect(controller.abort).toHaveBeenCalledOnce();
     });
 
     it("is idempotent — second close is a no-op", async () => {
@@ -274,7 +215,10 @@ describe("AxonTransport", () => {
       await transport.close();
       await transport.close();
 
-      expect(ctrl.stream.controller.abort).toHaveBeenCalledOnce();
+      const controller = (ctrl.stream as Record<string, unknown>).controller as {
+        abort: ReturnType<typeof vi.fn>;
+      };
+      expect(controller.abort).toHaveBeenCalledOnce();
     });
   });
 
