@@ -27,9 +27,10 @@
  * @module
  */
 
-// Full upstream type surface for consumers who need additional ACP protocol
-// types beyond what this library's API explicitly re-exports above.
+/** @category ACP Protocol */
 export type * from "@agentclientprotocol/sdk";
+
+/** @category ACP Protocol */
 export type {
   AuthenticateRequest,
   AuthenticateResponse,
@@ -54,6 +55,8 @@ export type {
   SetSessionModeResponse,
   Stream,
 } from "@agentclientprotocol/sdk";
+
+/** @category ACP Protocol */
 export {
   CLIENT_METHODS,
   ClientSideConnection,

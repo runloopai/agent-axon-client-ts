@@ -27,8 +27,7 @@
  * @module
  */
 
-// Full upstream type surface for consumers who need additional Claude SDK
-// types beyond what this library's API explicitly re-exports below.
+/** @category Claude SDK */
 export type * from "@anthropic-ai/claude-agent-sdk";
 
 /** @category Claude SDK */
