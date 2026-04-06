@@ -39,7 +39,7 @@ const NOTIFICATION_TYPES = new Set<string>([CLIENT_METHODS.session_update]);
  * @category Connection
  */
 export function axonStream(options: AxonStreamOptions): Stream {
-  const { axon, signal, onAxonEvent, onStreamInterrupted } = options;
+  const { axon, signal, onAxonEvent, log } = options;
   const onError = options.onError ?? defaultOnError;
 
   // Maps outbound JSON-RPC request method -> id so we can correlate
@@ -60,10 +60,10 @@ export function axonStream(options: AxonStreamOptions): Stream {
     onAxonEvent,
     () => nextAgentRequestId++,
     onError,
-    onStreamInterrupted,
+    log,
   );
 
-  const writable = createWritable(axon, pendingRequests, pendingClientRequests);
+  const writable = createWritable(axon, pendingRequests, pendingClientRequests, log);
 
   return { readable, writable };
 }
@@ -88,8 +88,6 @@ export function axonStream(options: AxonStreamOptions): Stream {
  * @param nextId               - Factory that produces the next synthetic JSON-RPC ID for
  *   agent-to-client requests.
  * @param onError              - Error sink for unparseable payloads.
- * @param onStreamInterrupted  - Called when the SSE stream ends unexpectedly
- *   (not via abort signal).
  * @returns A `ReadableStream` of JSON-RPC messages.
  */
 function createReadable(
@@ -100,38 +98,68 @@ function createReadable(
   onAxonEvent: ((event: AxonEventView) => void) | undefined,
   nextId: () => number,
   onError: (error: unknown) => void,
-  onStreamInterrupted: (() => void) | undefined,
+  log: ((tag: string, ...args: unknown[]) => void) | undefined,
 ): ReadableStream<AnyMessage> {
   return new ReadableStream<AnyMessage>({
     async start(controller) {
-      try {
-        const sseStream = await axon.subscribeSse();
-        for await (const axonEvent of sseStream) {
+      let totalEvents = 0;
+      let attempt = 0;
+
+      while (!signal?.aborted) {
+        attempt++;
+        let eventCount = 0;
+        try {
+          log?.("read", `opening SSE stream (attempt ${attempt})`);
+          const sseStream = await axon.subscribeSse();
+          log?.("read", "SSE connected");
+          for await (const axonEvent of sseStream) {
+            if (signal?.aborted) break;
+            eventCount++;
+            totalEvents++;
+
+            onAxonEvent?.(axonEvent);
+
+            if (axonEvent.origin !== "AGENT_EVENT") {
+              log?.("read", `#${totalEvents} SKIP ${axonEvent.origin} ${axonEvent.event_type}`);
+              continue;
+            }
+
+            log?.("read", `#${totalEvents} ${axonEvent.event_type}`);
+            const msg = axonEventToJsonRpc(
+              axonEvent,
+              pendingRequests,
+              pendingClientRequests,
+              nextId,
+              onError,
+            );
+            if (msg) controller.enqueue(msg);
+          }
+        } catch (err) {
           if (signal?.aborted) break;
-
-          onAxonEvent?.(axonEvent);
-
-          if (axonEvent.origin !== "AGENT_EVENT") continue;
-
-          const msg = axonEventToJsonRpc(
-            axonEvent,
-            pendingRequests,
-            pendingClientRequests,
-            nextId,
-            onError,
-          );
-          if (msg) controller.enqueue(msg);
-        }
-      } catch (err) {
-        if (!signal?.aborted) {
-          onStreamInterrupted?.();
+          if (attempt === 1) {
+            console.warn(
+              `[axonStream] SSE stream error after ${eventCount} events, re-subscribing...`,
+              err,
+            );
+            continue;
+          }
+          log?.("read", `error on reconnect attempt after ${eventCount} events: ${err}`);
           controller.error(err);
           return;
         }
+
+        if (signal?.aborted) break;
+
+        if (attempt === 1) {
+          console.warn(
+            `[axonStream] SSE stream ended after ${eventCount} events, re-subscribing...`,
+          );
+          continue;
+        }
+        break;
       }
-      if (!signal?.aborted) {
-        onStreamInterrupted?.();
-      }
+
+      log?.("read", `SSE ended after ${totalEvents} total events`);
       controller.close();
     },
   });
@@ -236,10 +264,12 @@ function createWritable(
   axon: Axon,
   pendingRequests: Map<string, string | number | null>,
   pendingClientRequests: Map<string | number, string>,
+  log: ((tag: string, ...args: unknown[]) => void) | undefined,
 ): WritableStream<AnyMessage> {
   return new WritableStream<AnyMessage>({
     async write(message) {
       const { eventType, payload } = jsonRpcToAxon(message, pendingRequests, pendingClientRequests);
+      log?.("write", `event_type=${eventType}`);
       await axon.publish({
         event_type: eventType,
         origin: "USER_EVENT",
@@ -273,6 +303,12 @@ function jsonRpcToAxon(
 ): { eventType: string; payload: string } {
   // Request: { jsonrpc, id, method, params }
   if ("method" in message && "id" in message && message.id != null) {
+    if (pendingRequests.has(message.method)) {
+      console.warn(
+        `[axonStream] Duplicate in-flight request for method "${message.method}". ` +
+          "Only one outstanding request per method is supported; the previous request's response will be lost.",
+      );
+    }
     pendingRequests.set(message.method, message.id);
     return {
       eventType: message.method,

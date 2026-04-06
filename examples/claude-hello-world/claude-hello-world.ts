@@ -84,7 +84,7 @@ const client = new ClaudeAxonConnection(axon, devbox, {
 });
 
 console.log("Connecting to Claude...");
-await client.connect();
+await client.initialize();
 console.log("Connected.\n");
 
 // ---------------------------------------------------------------------------

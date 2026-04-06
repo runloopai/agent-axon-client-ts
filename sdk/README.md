@@ -105,7 +105,7 @@ const devbox = await sdk.devbox.create({
 });
 
 const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
-await conn.connect();
+await conn.initialize();
 
 await conn.send("What files are in this directory?");
 
@@ -135,10 +135,10 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `verbose` | `boolean` | Emit verbose logs to stderr |
 | `requestPermission` | `(params) => Promise<Response>` | Custom permission handler (defaults to auto-approve) |
-| `onError` | `(error: unknown) => void` | Error callback |
-| `onStreamInterrupted` | `() => void` | Called when the SSE stream is interrupted |
-| `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `shutdown()` (e.g. devbox shutdown) |
+| `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
+| `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
 
 **ACP Methods** (proxied from `ClientSideConnection`):
 
@@ -192,7 +192,7 @@ const devbox = await sdk.devbox.create({
   ],
 });
 
-const conn = new ACPAxonConnection(axon, devbox.id, {
+const conn = new ACPAxonConnection(axon, devbox, {
   onDisconnect: async () => {
     await devbox.shutdown();
   },
@@ -225,7 +225,6 @@ Low-level function that creates an ACP-compatible duplex stream backed by an `Ax
 | `signal` | `AbortSignal` | No | Cancellation signal |
 | `onAxonEvent` | `(event: AxonEventView) => void` | No | Callback for every Axon event |
 | `onError` | `(error: unknown) => void` | No | Callback for swallowed parse errors |
-| `onStreamInterrupted` | `() => void` | No | Called when the SSE stream is interrupted |
 
 **Returns**: `{ readable: ReadableStream<AnyMessage>; writable: WritableStream<AnyMessage> }`
 
@@ -292,13 +291,16 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 | `systemPrompt` | `string` | Override the system prompt |
 | `appendSystemPrompt` | `string` | Append to the default system prompt |
 | `model` | `string` | Model ID (e.g. `"claude-sonnet-4-5"`) — set after initialization |
+| `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
 
-**Lifecycle**:
+**Listeners & Lifecycle**:
 
-| Method | Description |
-|--------|-------------|
-| `connect()` | Connect to Claude Code, initialize the control protocol, and set model if configured |
+| Property / Method | Description |
+|---|---|
+| `axonId: string` | The Axon channel ID |
+| `devboxId: string` | The Runloop devbox ID |
+| `initialize()` | Connect to Claude Code, initialize the control protocol, and set model if configured |
 | `disconnect()` | Close the transport, fail pending requests, and run `onDisconnect` if provided |
 
 **Messaging**:
@@ -322,6 +324,7 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 | Method | Description |
 |--------|-------------|
 | `onAxonEvent(listener)` | Register an Axon event listener. Returns unsubscribe function. |
+| `onControlRequest(subtype, handler)` | Register a handler for incoming control requests (e.g. `"can_use_tool"`) |
 
 ### `AxonTransport`
 
@@ -349,6 +352,8 @@ await transport.close();
 | `connect()` | Open the underlying connection |
 | `write(data: string)` | Send a JSON message string |
 | `readMessages()` | Async iterable of parsed inbound messages |
+| `abortStream()` | Abort the SSE stream without closing the transport |
+| `reconnect()` | Abort the current SSE stream and re-subscribe |
 | `close()` | Close the transport |
 | `isReady()` | Whether the transport is connected and not closed |
 
@@ -412,8 +417,8 @@ type WireData = Record<string, any>;
 ## Known Limitations
 
 - **Eager SSE connection** (ACP): The `ACPAxonConnection` constructor immediately opens an SSE subscription via `axon.subscribeSse()`. Connection errors surface on the first awaited method call, not at construction time.
-- **No automatic reconnection**: If an SSE stream drops, the connection is dead. Create a new instance to reconnect.
-- **Permission handling** (Claude): The `ClaudeAxonConnection` auto-approves all tool use by default. Override via incoming control request handling is not yet exposed as a configuration option.
+- **Automatic reconnection (single retry)**: If an SSE stream drops unexpectedly, the SDK re-subscribes once and logs a `console.warn`. If the retry also fails, the connection is terminal — create a new instance.
+- **Permission handling** (Claude): The `ClaudeAxonConnection` auto-approves all tool use by default. Register a `"can_use_tool"` handler via `onControlRequest()` to customize.
 
 ### ACP: `prompt()` resolves before all session updates arrive
 

@@ -64,7 +64,14 @@ describe("AxonTransport", () => {
   });
 
   describe("write()", () => {
+    it("throws when transport is not ready", async () => {
+      await expect(transport.write(JSON.stringify({ type: "user" }))).rejects.toThrow(
+        "Transport is not ready",
+      );
+    });
+
     it("resolves event_type from message JSON type field", async () => {
+      await transport.connect();
       await transport.write(
         JSON.stringify({ type: "user", message: { role: "user", content: "hi" } }),
       );
@@ -78,24 +85,28 @@ describe("AxonTransport", () => {
     });
 
     it("uses the type value itself when not in mapping table", async () => {
+      await transport.connect();
       await transport.write(JSON.stringify({ type: "custom_type" }));
 
       expect(axon.publish.mock.calls[0][0].event_type).toBe("custom_type");
     });
 
     it("falls back to 'query' for messages without a type field", async () => {
+      await transport.connect();
       await transport.write(JSON.stringify({ content: "no type" }));
 
       expect(axon.publish.mock.calls[0][0].event_type).toBe("query");
     });
 
     it("falls back to 'query' when data is not valid JSON", async () => {
+      await transport.connect();
       await transport.write("not json {{{");
 
       expect(axon.publish.mock.calls[0][0].event_type).toBe("query");
     });
 
     it("publishes the raw data string as payload", async () => {
+      await transport.connect();
       const data = JSON.stringify({ type: "user", message: "hello" });
       await transport.write(data);
 

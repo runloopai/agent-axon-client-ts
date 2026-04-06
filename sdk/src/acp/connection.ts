@@ -75,12 +75,14 @@ export class ACPAxonConnection {
 
   /** Controller whose signal is passed to the Axon stream; aborting it tears down the SSE subscription. */
   private abortController: AbortController;
+  private disconnected = false;
 
   /** Registered `session/update` notification listeners. */
   private sessionUpdateListeners = new Set<SessionUpdateListener>();
 
   /** Registered raw Axon event listeners (fired before JSON-RPC translation). */
   private axonEventListeners = new Set<AxonEventListener>();
+  private verbose: boolean;
 
   /** Error sink for listener exceptions and stream parse failures. */
   private handleError: (error: unknown) => void;
@@ -108,6 +110,7 @@ export class ACPAxonConnection {
     this.axonId = axon.id;
     this.devboxId = devbox.id;
     this.abortController = new AbortController();
+    this.verbose = options?.verbose ?? false;
     this.handleError = options?.onError ?? defaultOnError;
     this.handlePermission = options?.requestPermission;
     this.disconnectFn = options?.onDisconnect;
@@ -117,10 +120,17 @@ export class ACPAxonConnection {
       signal: this.abortController.signal,
       onAxonEvent: (ev) => this.emitAxonEvent(ev),
       onError: this.handleError,
-      onStreamInterrupted: options?.onStreamInterrupted,
+      log: this.verbose ? (tag, ...args) => this.log(tag, ...args) : undefined,
     });
 
     this.protocol = new ClientSideConnection((_agent: Agent) => this.createClient(), stream);
+    this.log("constructor", `axon=${axon.id} devbox=${this.devboxId}`);
+  }
+
+  private log(tag: string, ...args: unknown[]): void {
+    if (!this.verbose) return;
+    const ts = new Date().toISOString().slice(11, 23);
+    console.error(`[${ts}] [acp-sdk:${tag}]`, ...args);
   }
 
   // ---------------------------------------------------------------------------
@@ -319,10 +329,20 @@ export class ACPAxonConnection {
    * @returns Resolves once the `onDisconnect` callback (if any) completes.
    */
   async disconnect(): Promise<void> {
+    if (this.disconnected) return;
+    this.disconnected = true;
+    this.log("disconnect", "disconnecting");
     this.abortStream();
     this.sessionUpdateListeners.clear();
     this.axonEventListeners.clear();
-    await this.disconnectFn?.();
+    if (this.disconnectFn) {
+      try {
+        await this.disconnectFn();
+        this.log("disconnect", "onDisconnect callback completed");
+      } catch (err) {
+        this.log("disconnect", `onDisconnect callback error: ${err}`);
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -365,7 +385,7 @@ export class ACPAxonConnection {
       sessionUpdate: async (params: SessionNotification): Promise<void> => {
         const sessionId = params.sessionId ?? null;
         const update = params.update;
-        for (const listener of this.sessionUpdateListeners) {
+        for (const listener of [...this.sessionUpdateListeners]) {
           try {
             listener(sessionId, update);
           } catch (err) {
@@ -384,7 +404,7 @@ export class ACPAxonConnection {
    * @param event - The raw Axon event to broadcast.
    */
   private emitAxonEvent(event: AxonEventView): void {
-    for (const listener of this.axonEventListeners) {
+    for (const listener of [...this.axonEventListeners]) {
       try {
         listener(event);
       } catch (err) {

@@ -24,11 +24,8 @@ export interface AxonStreamOptions {
    * Defaults to `console.error`.
    */
   onError?: (error: unknown) => void;
-  /**
-   * Called when the SSE stream is interrupted (either cleanly or due to error).
-   * Not called when the stream is intentionally aborted via `signal`.
-   */
-  onStreamInterrupted?: () => void;
+  /** Diagnostic log callback. When provided, the stream emits verbose logs. */
+  log?: (tag: string, ...args: unknown[]) => void;
 }
 
 /**
@@ -36,6 +33,14 @@ export interface AxonStreamOptions {
  * @category Configuration
  */
 export interface ACPAxonConnectionOptions {
+  /**
+   * When `true`, emit timestamped diagnostic logs to `stderr` for every
+   * transport read/write, JSON-RPC translation, and lifecycle event.
+   * Useful during development; too noisy for production.
+   *
+   * @defaultValue `false`
+   */
+  verbose?: boolean;
   /**
    * Custom handler for agent permission requests. Receives the permission
    * options and must return the selected outcome.
@@ -49,11 +54,6 @@ export interface ACPAxonConnectionOptions {
    * listener exception). Defaults to `console.error`.
    */
   onError?: (error: unknown) => void;
-  /**
-   * Called when the SSE stream is interrupted (either cleanly or due to error).
-   * Not called when the stream is intentionally aborted via `signal`.
-   */
-  onStreamInterrupted?: () => void;
   /**
    * Async teardown callback invoked by `disconnect()` (e.g. devbox shutdown).
    */

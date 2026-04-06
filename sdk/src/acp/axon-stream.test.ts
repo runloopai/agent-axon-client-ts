@@ -199,58 +199,132 @@ describe("axonStream", () => {
       const second = await reader.read();
       expect(second.done).toBe(true);
     });
+  });
 
-    it("calls onStreamInterrupted when SSE stream ends naturally", async () => {
-      const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+  describe("auto-reconnect", () => {
+    it("re-subscribes once when the SSE stream ends unexpectedly", async () => {
+      const ctrl1 = createControllableStream();
+      const ctrl2 = createControllableStream();
+      const published: PublishCall[] = [];
+      const axon = {
+        id: "test-axon",
+        subscribeSse: vi
+          .fn()
+          .mockResolvedValueOnce(ctrl1.stream)
+          .mockResolvedValueOnce(ctrl2.stream),
+        publish: vi.fn().mockImplementation(async (data: PublishCall) => {
+          published.push(data);
+        }),
+      };
 
-      const onStreamInterrupted = vi.fn();
-      ctrl.end();
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      const { readable } = axonStream({ axon: axon as never, onStreamInterrupted });
-      await drain(readable);
+      const { readable } = axonStream({ axon: axon as never });
 
-      expect(onStreamInterrupted).toHaveBeenCalledOnce();
+      ctrl1.push(makeAgentEvent("session/update", { msg: "first" }));
+      ctrl1.end();
+
+      ctrl2.push(makeAgentEvent("session/update", { msg: "second" }));
+      ctrl2.end();
+
+      const messages = await drain(readable);
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({ params: { msg: "first" } });
+      expect(messages[1]).toMatchObject({ params: { msg: "second" } });
+      expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("SSE stream ended"));
+
+      warnSpy.mockRestore();
     });
 
-    it("calls onStreamInterrupted on SSE stream error (non-aborted)", async () => {
-      const errorStream = {
-        [Symbol.asyncIterator]() {
-          return {
-            next() {
-              return Promise.reject(new Error("SSE connection lost"));
-            },
-          };
-        },
+    it("re-subscribes once on SSE stream error and continues", async () => {
+      const ctrl2 = createControllableStream();
+      let callCount = 0;
+      const axon = {
+        id: "test-axon",
+        subscribeSse: vi.fn().mockImplementation(async () => {
+          callCount++;
+          if (callCount === 1) {
+            return {
+              [Symbol.asyncIterator]() {
+                return {
+                  next() {
+                    return Promise.reject(new Error("connection lost"));
+                  },
+                };
+              },
+            };
+          }
+          return ctrl2.stream;
+        }),
+        publish: vi.fn(),
       };
-      const { axon } = createMockAxon(errorStream);
 
-      const onStreamInterrupted = vi.fn();
-      const { readable } = axonStream({ axon: axon as never, onStreamInterrupted });
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const { readable } = axonStream({ axon: axon as never });
+
+      ctrl2.push(makeAgentEvent("session/update", { msg: "recovered" }));
+      ctrl2.end();
+
+      const messages = await drain(readable);
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ params: { msg: "recovered" } });
+      expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("SSE stream error"),
+        expect.any(Error),
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    it("closes the stream if the second subscription also fails", async () => {
+      const axon = {
+        id: "test-axon",
+        subscribeSse: vi.fn().mockImplementation(async () => ({
+          [Symbol.asyncIterator]() {
+            return {
+              next() {
+                return Promise.reject(new Error("permanent failure"));
+              },
+            };
+          },
+        })),
+        publish: vi.fn(),
+      };
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const { readable } = axonStream({ axon: axon as never });
 
       const reader = readable.getReader();
-      await expect(reader.read()).rejects.toThrow("SSE connection lost");
-      expect(onStreamInterrupted).toHaveBeenCalledOnce();
+      await expect(reader.read()).rejects.toThrow("permanent failure");
+      expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
+
+      warnSpy.mockRestore();
     });
 
-    it("does NOT call onStreamInterrupted when signal is aborted", async () => {
+    it("does NOT re-subscribe when signal is aborted", async () => {
       const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      const axon = {
+        id: "test-axon",
+        subscribeSse: vi.fn().mockResolvedValue(ctrl.stream),
+        publish: vi.fn(),
+      };
 
       const abortController = new AbortController();
-      const onStreamInterrupted = vi.fn();
 
       const { readable } = axonStream({
         axon: axon as never,
         signal: abortController.signal,
-        onStreamInterrupted,
       });
 
       abortController.abort();
       ctrl.end();
 
       await drain(readable);
-      expect(onStreamInterrupted).not.toHaveBeenCalled();
+      expect(axon.subscribeSse).toHaveBeenCalledTimes(1);
     });
   });
 

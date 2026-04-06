@@ -2,7 +2,7 @@
  * ClaudeAxonConnection — bidirectional, interactive client for Claude Code via Axon.
  *
  * Provides:
- * - connect() / disconnect() lifecycle
+ * - initialize() / disconnect() lifecycle
  * - send() to send user messages
  * - receiveMessages() / receiveResponse() async iterators
  * - Control protocol: interrupt, setPermissionMode, setModel
@@ -149,7 +149,7 @@ export interface ClaudeAxonConnectionOptions {
    * Anthropic model identifier to select after initialization
    * (e.g. `"claude-haiku-4-5"`, `"claude-sonnet-4-5"`).
    *
-   * When provided, {@link ClaudeAxonConnection.connect | connect()} sends
+   * When provided, {@link ClaudeAxonConnection.initialize | initialize()} sends
    * a `set_model` control request immediately after the `initialize`
    * handshake completes.
    */
@@ -221,6 +221,9 @@ function defaultOnError(error: unknown): void {
  * @category Connection
  */
 export class ClaudeAxonConnection {
+  /** The Axon channel ID this connection is bound to. */
+  readonly axonId: string;
+
   /** The Runloop devbox ID. */
   readonly devboxId: string;
 
@@ -256,6 +259,7 @@ export class ClaudeAxonConnection {
 
   /** Whether {@link disconnect} has been called. */
   private closed = false;
+  private streamAborted = false;
 
   /** User-registered handlers for incoming control requests, keyed by subtype. */
   // biome-ignore lint/suspicious/noExplicitAny: handlers are typed at registration via onControlRequest()
@@ -275,6 +279,7 @@ export class ClaudeAxonConnection {
    *   model selection, error handling, and lifecycle hooks.
    */
   constructor(axon: Axon, devbox: Devbox, options?: ClaudeAxonConnectionOptions) {
+    this.axonId = axon.id;
     this.devboxId = devbox.id;
     this.options = options ?? {};
     this.handleError = options?.onError ?? defaultOnError;
@@ -308,19 +313,20 @@ export class ClaudeAxonConnection {
    * @throws If this instance has already been disconnected (connections
    *   are single-use — create a new instance instead).
    */
-  async connect(): Promise<void> {
+  async initialize(): Promise<void> {
     if (this.closed) {
       throw new Error(
         "This ClaudeAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
       );
     }
+    if (this.readLoopRunning) {
+      throw new Error("Already initialized. Call disconnect() before reinitializing.");
+    }
     await this.transport.connect();
     this.startReadLoop();
 
-    // Initialize the control protocol
-    await this.initialize();
+    await this.sendInitialize();
 
-    // Set model if provided
     if (this.options.model) {
       await this.setModel(this.options.model);
     }
@@ -335,6 +341,7 @@ export class ClaudeAxonConnection {
    * remain registered so they can fire again if a new stream is established.
    */
   abortStream(): void {
+    this.streamAborted = true;
     this.transport.abortStream();
   }
 
@@ -371,6 +378,7 @@ export class ClaudeAxonConnection {
         this.log("disconnect", "onDisconnect callback completed");
       } catch (err) {
         this.log("disconnect", `onDisconnect callback error: ${err}`);
+        this.handleError(err);
       }
     }
   }
@@ -402,7 +410,7 @@ export class ClaudeAxonConnection {
    * @param event - The raw Axon event to broadcast.
    */
   private emitAxonEvent(event: AxonEventView): void {
-    for (const listener of this.axonEventListeners) {
+    for (const listener of [...this.axonEventListeners]) {
       try {
         listener(event);
       } catch (err) {
@@ -426,26 +434,53 @@ export class ClaudeAxonConnection {
     this.readLoopRunning = true;
 
     (async () => {
-      try {
-        for await (const message of this.transport.readMessages()) {
-          if (this.closed) break;
-          this.routeMessage(message);
+      let reconnected = false;
+
+      const consumeStream = async (): Promise<"ended" | "error"> => {
+        try {
+          for await (const message of this.transport.readMessages()) {
+            if (this.closed) return "ended";
+            this.routeMessage(message);
+          }
+          return "ended";
+        } catch (err) {
+          this.log("readLoop", `error: ${err}`);
+          for (const [, pending] of this.pendingControlRequests) {
+            pending.reject(err instanceof Error ? err : new Error(String(err)));
+          }
+          this.pendingControlRequests.clear();
+          return "error";
         }
-      } catch (err) {
-        this.log("readLoop", `error: ${err}`);
-        // Fail all pending control requests
-        for (const [, pending] of this.pendingControlRequests) {
-          pending.reject(err instanceof Error ? err : new Error(String(err)));
+      };
+
+      const outcome = await consumeStream();
+
+      if (!this.closed && !this.streamAborted && !reconnected) {
+        const label = outcome === "error" ? "error" : "ended unexpectedly";
+        console.warn(`[ClaudeAxonConnection] SSE stream ${label}, reconnecting...`);
+        reconnected = true;
+        try {
+          await this.transport.reconnect();
+
+          const reInitialize = async () => {
+            await this.sendInitialize();
+            if (this.options.model) {
+              await this.setModel(this.options.model);
+            }
+            console.warn("[ClaudeAxonConnection] Reconnected successfully");
+          };
+
+          await Promise.all([consumeStream(), reInitialize()]);
+        } catch (reconnectErr) {
+          this.log("readLoop", `reconnect failed: ${reconnectErr}`);
         }
-        this.pendingControlRequests.clear();
-      } finally {
-        this.readLoopDone = true;
-        // Signal end to any message waiters
-        for (const waiter of this.messageWaiters) {
-          waiter(null);
-        }
-        this.messageWaiters.length = 0;
       }
+
+      this.readLoopDone = true;
+      for (const waiter of this.messageWaiters) {
+        waiter(null);
+      }
+      this.messageWaiters.length = 0;
     })();
   }
 
@@ -460,6 +495,7 @@ export class ClaudeAxonConnection {
    * @param message - The parsed wire-level message from the transport.
    */
   private routeMessage(message: WireData): void {
+    if (this.closed) return;
     const msgType = message.type;
 
     // Control response — resolve pending request
@@ -483,6 +519,7 @@ export class ClaudeAxonConnection {
     if (msgType === "control_request") {
       this.handleIncomingControlRequest(message as SDKControlRequest).catch((err) => {
         this.log("control", `handler error: ${err}`);
+        this.handleError(err);
       });
       return;
     }
@@ -582,7 +619,7 @@ export class ClaudeAxonConnection {
    * @returns The CLI's initialization response payload.
    * @throws On timeout or if the CLI rejects initialization.
    */
-  private async initialize(): Promise<WireData> {
+  private async sendInitialize(): Promise<WireData> {
     this.log("init", "sending initialize request");
     const response = await this.sendControlRequest(
       {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClaudeAxonConnection } from "./connection.js";
 import type { Transport } from "./transport.js";
 import type { WireData } from "./types.js";
@@ -15,6 +15,7 @@ interface MockTransport extends Transport {
   _push(msg: WireData): void;
   _end(): void;
   abortStream: ReturnType<typeof vi.fn>;
+  reconnect: ReturnType<typeof vi.fn>;
 }
 
 function createMockTransport(): MockTransport {
@@ -30,6 +31,9 @@ function createMockTransport(): MockTransport {
     }),
     close: vi.fn().mockResolvedValue(undefined),
     abortStream: vi.fn(),
+    reconnect: vi.fn().mockImplementation(async () => {
+      transport._done = false;
+    }),
     isReady: vi.fn().mockReturnValue(true),
 
     async *readMessages() {
@@ -102,8 +106,8 @@ async function createConnectedClient(
   // Replace internal transport with mock
   (conn as unknown as { transport: Transport }).transport = transport;
 
-  // Queue up the initialize control response so connect() succeeds.
-  // The connect() method sends an initialize control_request and waits for
+  // Queue up the initialize control response so initialize() succeeds.
+  // The initialize() method sends an initialize control_request and waits for
   // control_response. We intercept the write and respond.
   const _originalWrite = transport.write;
   (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
@@ -131,7 +135,7 @@ async function createConnectedClient(
     }
   });
 
-  await conn.connect();
+  await conn.initialize();
   return conn;
 }
 
@@ -141,12 +145,18 @@ async function createConnectedClient(
 
 describe("ClaudeAxonConnection", () => {
   let transport: MockTransport;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     transport = createMockTransport();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
   });
 
-  describe("connect()", () => {
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  describe("initialize()", () => {
     it("connects the transport and sends initialize control request", async () => {
       await createConnectedClient(transport);
 
@@ -173,7 +183,14 @@ describe("ClaudeAxonConnection", () => {
       const conn = await createConnectedClient(transport);
       await conn.disconnect();
 
-      await expect(conn.connect()).rejects.toThrow("already been disconnected");
+      await expect(conn.initialize()).rejects.toThrow("already been disconnected");
+    });
+  });
+
+  describe("axonId", () => {
+    it("exposes the Axon channel ID from the constructor", async () => {
+      const conn = await createConnectedClient(transport);
+      expect(conn.axonId).toBe("test-axon");
     });
   });
 
@@ -218,6 +235,7 @@ describe("ClaudeAxonConnection", () => {
 
       transport._push({ type: "assistant", content: "Hi" });
       transport._push({ type: "result", cost: 0.01 });
+      conn.abortStream();
       transport._end();
 
       const messages: WireData[] = [];
@@ -238,6 +256,7 @@ describe("ClaudeAxonConnection", () => {
         response: { subtype: "success", request_id: "orphan", response: {} },
       });
       transport._push({ type: "assistant", content: "Hello" });
+      conn.abortStream();
       transport._end();
 
       const messages: WireData[] = [];
@@ -254,6 +273,7 @@ describe("ClaudeAxonConnection", () => {
 
       transport._push({ type: "control_cancel_request" });
       transport._push({ type: "assistant", content: "Hello" });
+      conn.abortStream();
       transport._end();
 
       const messages: WireData[] = [];
@@ -617,23 +637,31 @@ describe("ClaudeAxonConnection", () => {
     });
   });
 
+  describe("initialize() double-initialize guard", () => {
+    it("throws if initialize() is called while already initialized", async () => {
+      const conn = await createConnectedClient(transport);
+      await expect(conn.initialize()).rejects.toThrow("Already initialized");
+    });
+  });
+
   describe("onControlRequest()", () => {
-    it("custom handler overrides the default can_use_tool behavior", async () => {
+    it("calls a registered handler instead of the built-in default", async () => {
       const conn = await createConnectedClient(transport);
 
       const handler = vi.fn().mockResolvedValue({
         type: "control_response",
         response: {
           subtype: "success",
-          request_id: "req_custom_001",
+          request_id: "req_custom",
           response: { behavior: "deny" },
         },
       });
+
       conn.onControlRequest("can_use_tool", handler);
 
       transport._push({
         type: "control_request",
-        request_id: "req_custom_001",
+        request_id: "req_custom",
         request: {
           subtype: "can_use_tool",
           tool_name: "bash",
@@ -642,79 +670,67 @@ describe("ClaudeAxonConnection", () => {
       });
 
       await vi.waitFor(() => {
+        expect(handler).toHaveBeenCalledOnce();
+      });
+
+      await vi.waitFor(() => {
         const resp = transport._written.find((w) => {
           const p = JSON.parse(w);
-          return p.type === "control_response" && p.response?.request_id === "req_custom_001";
+          return p.type === "control_response" && p.response?.request_id === "req_custom";
         });
         expect(resp).toBeDefined();
         const parsed = JSON.parse(resp as string);
         expect(parsed.response.response.behavior).toBe("deny");
       });
-
-      expect(handler).toHaveBeenCalledOnce();
     });
 
-    it("passes the full SDKControlRequest to the handler", async () => {
+    it("replaces a previous handler for the same subtype", async () => {
       const conn = await createConnectedClient(transport);
 
-      const handler = vi.fn().mockResolvedValue({
+      const handler1 = vi.fn();
+      const handler2 = vi.fn().mockResolvedValue({
         type: "control_response",
-        response: { subtype: "success", request_id: "req_typed", response: {} },
-      });
-      conn.onControlRequest("can_use_tool", handler);
-
-      transport._push({
-        type: "control_request",
-        request_id: "req_typed",
-        request: {
-          subtype: "can_use_tool",
-          tool_name: "write",
-          input: { path: "/tmp/x" },
+        response: {
+          subtype: "success",
+          request_id: "req_replace",
+          response: {},
         },
       });
 
-      await vi.waitFor(() => expect(handler).toHaveBeenCalledOnce());
-
-      const received = handler.mock.calls[0][0];
-      expect(received.type).toBe("control_request");
-      expect(received.request_id).toBe("req_typed");
-      expect(received.request.subtype).toBe("can_use_tool");
-      expect(received.request.tool_name).toBe("write");
-    });
-
-    it("second handler for the same subtype replaces the first", async () => {
-      const conn = await createConnectedClient(transport);
-
-      const firstHandler = vi.fn();
-      const secondHandler = vi.fn().mockResolvedValue({
-        type: "control_response",
-        response: { subtype: "success", request_id: "req_replace", response: { from: "second" } },
-      });
-
-      conn.onControlRequest("can_use_tool", firstHandler);
-      conn.onControlRequest("can_use_tool", secondHandler);
+      conn.onControlRequest("can_use_tool", handler1);
+      conn.onControlRequest("can_use_tool", handler2);
 
       transport._push({
         type: "control_request",
         request_id: "req_replace",
-        request: { subtype: "can_use_tool", tool_name: "bash", input: {} },
+        request: {
+          subtype: "can_use_tool",
+          tool_name: "bash",
+          input: {},
+        },
       });
 
-      await vi.waitFor(() => expect(secondHandler).toHaveBeenCalledOnce());
-      expect(firstHandler).not.toHaveBeenCalled();
+      await vi.waitFor(() => {
+        expect(handler2).toHaveBeenCalledOnce();
+      });
+      expect(handler1).not.toHaveBeenCalled();
     });
 
-    it("handler error produces an error control response", async () => {
+    it("sends an error response when the handler throws", async () => {
       const conn = await createConnectedClient(transport);
 
       conn.onControlRequest("can_use_tool", async () => {
-        throw new Error("handler crashed");
+        throw new Error("handler boom");
       });
 
       transport._push({
         type: "control_request",
         request_id: "req_err",
-        request: { subtype: "can_use_tool", tool_name: "bash", input: {} },
+        request: {
+          subtype: "can_use_tool",
+          tool_name: "bash",
+          input: {},
+        },
       });
 
       await vi.waitFor(() => {
@@ -725,40 +741,255 @@ describe("ClaudeAxonConnection", () => {
         expect(resp).toBeDefined();
         const parsed = JSON.parse(resp as string);
         expect(parsed.response.subtype).toBe("error");
-        expect(parsed.response.error).toContain("handler crashed");
+        expect(parsed.response.error).toContain("handler boom");
       });
     });
 
-    it("handler for non-default subtype is called", async () => {
+    it("routes to onError when the error response write also fails", async () => {
+      const onError = vi.fn();
       const conn = await createConnectedClient(transport);
+      // Re-create with onError so handleError routes there
+      (conn as unknown as { handleError: (e: unknown) => void }).handleError = onError;
 
-      const handler = vi.fn().mockResolvedValue({
-        type: "control_response",
-        response: {
-          subtype: "success",
-          request_id: "req_hook",
-          response: { custom: true },
-        },
+      conn.onControlRequest("can_use_tool", async () => {
+        throw new Error("handler boom");
       });
-      conn.onControlRequest("hook_callback", handler);
+
+      // Make write fail so the error response can't be sent
+      (transport.write as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("write failed"));
 
       transport._push({
         type: "control_request",
-        request_id: "req_hook",
-        request: { subtype: "hook_callback", hook_name: "pre_tool" },
+        request_id: "req_err2",
+        request: {
+          subtype: "can_use_tool",
+          tool_name: "bash",
+          input: {},
+        },
       });
 
       await vi.waitFor(() => {
-        const resp = transport._written.find((w) => {
-          const p = JSON.parse(w);
-          return p.type === "control_response" && p.response?.request_id === "req_hook";
-        });
-        expect(resp).toBeDefined();
-        const parsed = JSON.parse(resp as string);
-        expect(parsed.response.response.custom).toBe(true);
+        expect(onError).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("systemPrompt / appendSystemPrompt", () => {
+    it("includes systemPrompt in the initialize control request", async () => {
+      const axon = createMockAxon();
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        systemPrompt: "You are a helpful bot.",
+      });
+      (conn as unknown as { transport: Transport }).transport = transport;
+
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+        const parsed = JSON.parse(data);
+        if (parsed.type === "control_request" && parsed.request?.subtype === "initialize") {
+          transport._push({
+            type: "control_response",
+            response: {
+              subtype: "success",
+              request_id: parsed.request_id,
+              response: { initialized: true },
+            },
+          });
+        }
       });
 
-      expect(handler).toHaveBeenCalledOnce();
+      await conn.initialize();
+
+      const initCall = transport._written.find((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(initCall).toBeDefined();
+      const parsed = JSON.parse(initCall as string);
+      expect(parsed.request.systemPrompt).toBe("You are a helpful bot.");
+    });
+
+    it("includes appendSystemPrompt in the initialize control request", async () => {
+      const axon = createMockAxon();
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        appendSystemPrompt: "Always respond in JSON.",
+      });
+      (conn as unknown as { transport: Transport }).transport = transport;
+
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+        const parsed = JSON.parse(data);
+        if (parsed.type === "control_request" && parsed.request?.subtype === "initialize") {
+          transport._push({
+            type: "control_response",
+            response: {
+              subtype: "success",
+              request_id: parsed.request_id,
+              response: { initialized: true },
+            },
+          });
+        }
+      });
+
+      await conn.initialize();
+
+      const initCall = transport._written.find((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(initCall).toBeDefined();
+      const parsed = JSON.parse(initCall as string);
+      expect(parsed.request.appendSystemPrompt).toBe("Always respond in JSON.");
+    });
+  });
+
+  describe("control request timeout", () => {
+    it("rejects when a control request times out", async () => {
+      const conn = await createConnectedClient(transport);
+
+      // Override write to never respond to the control request
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+      });
+
+      // Use the internal sendControlRequest with a very short timeout
+      const sendControlRequest = (
+        conn as unknown as {
+          sendControlRequest: (req: Record<string, unknown>, timeout?: number) => Promise<unknown>;
+        }
+      ).sendControlRequest.bind(conn);
+
+      await expect(sendControlRequest({ subtype: "test_timeout" }, 50)).rejects.toThrow(
+        "Control request timeout",
+      );
+    });
+  });
+
+  describe("read loop error handling", () => {
+    it("fails pending control requests when the read loop encounters an error", async () => {
+      const conn = await createConnectedClient(transport);
+
+      // Override write to not respond to control requests
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+      });
+
+      const interruptPromise = conn.interrupt();
+
+      // Simulate a transport error by making the mock throw in readMessages
+      // The read loop is already running, so we simulate by rejecting the waiter
+      if (transport._waiter) {
+        // Force an error through the async iterator
+        transport._waiter({ value: undefined as never, done: true });
+      }
+
+      // The pending request should eventually fail via disconnect or timeout
+      // Let's use disconnect to trigger the failure path
+      await conn.disconnect();
+      await expect(interruptPromise).rejects.toThrow("Client disconnected");
+    });
+  });
+
+  describe("disconnect() error routing", () => {
+    it("routes onDisconnect errors to the onError handler", async () => {
+      const onError = vi.fn();
+      const disconnectError = new Error("devbox shutdown failed");
+      const conn = await createConnectedClient(transport, {
+        onDisconnect: () => {
+          throw disconnectError;
+        },
+        onError,
+      });
+
+      await conn.disconnect();
+
+      expect(onError).toHaveBeenCalledWith(disconnectError);
+    });
+  });
+
+  describe("auto-reconnect", () => {
+    it("re-subscribes and re-initializes when the stream ends unexpectedly", async () => {
+      await createConnectedClient(transport);
+
+      transport._end();
+
+      await vi.waitFor(() => {
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("SSE stream ended unexpectedly"),
+        );
+      });
+
+      await vi.waitFor(() => {
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
+      });
+
+      expect(transport.reconnect).toHaveBeenCalledOnce();
+
+      const reconnectInitCalls = transport._written.filter((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(reconnectInitCalls.length).toBe(2);
+    });
+
+    it("re-sends set_model after reconnect when model option was provided", async () => {
+      await createConnectedClient(transport, { model: "claude-sonnet-4-5" });
+
+      transport._end();
+
+      await vi.waitFor(() => {
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
+      });
+
+      const modelCalls = transport._written.filter((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "set_model";
+      });
+      expect(modelCalls.length).toBe(2);
+    });
+
+    it("does not reconnect when disconnect() was called", async () => {
+      const conn = await createConnectedClient(transport);
+
+      await conn.disconnect();
+      transport._end();
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(transport.reconnect).not.toHaveBeenCalled();
+    });
+
+    it("does not reconnect when abortStream() was called", async () => {
+      const conn = await createConnectedClient(transport);
+
+      conn.abortStream();
+      transport._end();
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(transport.reconnect).not.toHaveBeenCalled();
+    });
+
+    it("delivers messages from the reconnected stream", async () => {
+      const conn = await createConnectedClient(transport);
+
+      transport._end();
+
+      await vi.waitFor(() => {
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
+      });
+
+      transport._push({ type: "assistant", content: "after-reconnect" });
+      transport._push({ type: "result", cost: 0.01 });
+      conn.abortStream();
+      transport._end();
+
+      const messages: WireData[] = [];
+      for await (const msg of conn.receiveMessages()) {
+        messages.push(msg as unknown as WireData);
+      }
+
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({ type: "assistant", content: "after-reconnect" });
     });
   });
 
