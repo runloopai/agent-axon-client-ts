@@ -51,6 +51,58 @@ describe("axonStream", () => {
       expect(messages[0]).toEqual(jsonRpcMsg);
     });
 
+    it("clears pendingRequests when response arrives as a pre-wrapped JSON-RPC envelope", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl.stream);
+
+      const { readable, writable } = axonStream({ axon: axon as never });
+
+      const writer = writable.getWriter();
+
+      // First request registers "session/prompt" in pendingRequests
+      await writer.write({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "session/prompt",
+        params: { sessionId: "s1", prompt: [{ type: "text", text: "hello" }] },
+      } as never);
+
+      // Agent responds with a full JSON-RPC envelope (hits isJsonRpcMessage path)
+      ctrl.push(
+        makeAgentEvent("session/prompt", {
+          jsonrpc: "2.0",
+          id: 1,
+          result: { stopReason: "end_turn" },
+        }),
+      );
+
+      const reader = readable.getReader();
+      const { value: response } = await reader.read();
+      reader.releaseLock();
+
+      expect(response).toMatchObject({ jsonrpc: "2.0", id: 1, result: { stopReason: "end_turn" } });
+
+      // Second request with the same method should NOT throw "Duplicate in-flight"
+      await writer.write({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "session/prompt",
+        params: { sessionId: "s1", prompt: [{ type: "text", text: "world" }] },
+      } as never);
+
+      ctrl.push(makeAgentEvent("session/prompt", { stopReason: "end_turn" }));
+      ctrl.end();
+      writer.releaseLock();
+
+      const messages = await drain(readable);
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({
+        jsonrpc: "2.0",
+        id: 2,
+        result: { stopReason: "end_turn" },
+      });
+    });
+
     it("wraps notification event_types (session/update) as JSON-RPC notifications", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl.stream);

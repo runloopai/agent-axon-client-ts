@@ -197,7 +197,17 @@ function axonEventToJsonRpc(
   }
 
   // If the payload is already a full JSON-RPC message, pass it through.
+  // For responses (result/error), we still need to clear the pending request
+  // entry so subsequent calls to the same method aren't rejected as duplicates.
   if (isJsonRpcMessage(parsed)) {
+    if ("result" in parsed || "error" in parsed) {
+      for (const [method, id] of pendingRequests) {
+        if (id === (parsed as Record<string, unknown>).id) {
+          pendingRequests.delete(method);
+          break;
+        }
+      }
+    }
     return parsed;
   }
 
