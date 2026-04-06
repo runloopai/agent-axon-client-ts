@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@runloop/agent-axon-client": "workspace:*",
-    "@runloop/api-client": "^1.16.2",
+    "@runloop/api-client": "^1.17.0",
     "diff": "^8.0.4",
     "express": "^5.2.1",
     "react": "^19.2.4",
