@@ -31,10 +31,10 @@ import { AxonTransport, type Transport } from "./transport.js";
 import type { WireData } from "./types.js";
 
 /** The inner request payload — discriminated by `subtype`. */
-type ControlRequestInner = SDKControlRequest["request"];
+export type ControlRequestInner = SDKControlRequest["request"];
 
 /** Extract a specific control request subtype. */
-type ControlRequestOfSubtype<S extends ControlRequestInner["subtype"]> = Extract<
+export type ControlRequestOfSubtype<S extends ControlRequestInner["subtype"]> = Extract<
   ControlRequestInner,
   { subtype: S }
 >;
@@ -148,7 +148,7 @@ export interface ClaudeAxonConnectionOptions extends BaseConnectionOptions {
  * Bidirectional, interactive client for Claude Code via Axon.
  *
  * Provides:
- * - {@link connect} / {@link disconnect} lifecycle
+ * - {@link initialize} / {@link disconnect} lifecycle
  * - {@link send} to send user messages
  * - {@link receiveMessages} / {@link receiveResponse} async iterators
  * - Control protocol: {@link interrupt}, {@link setPermissionMode}, {@link setModel}
@@ -231,7 +231,7 @@ export class ClaudeAxonConnection {
   /**
    * Creates a new Claude connection over the given Axon channel and devbox.
    *
-   * Unlike ACP, the transport is not opened until {@link connect} is called.
+   * Unlike ACP, the transport is not opened until {@link initialize} is called.
    *
    * @param axon    - The Axon channel to communicate over (from `@runloop/api-client`).
    * @param devbox  - The Runloop devbox hosting the Claude Code agent.

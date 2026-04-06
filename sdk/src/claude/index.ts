@@ -47,6 +47,8 @@ export {
   ClaudeAxonConnection,
   type ClaudeAxonConnectionOptions,
   type ControlRequestHandler,
+  type ControlRequestInner,
+  type ControlRequestOfSubtype,
 } from "./connection.js";
 export {
   AxonTransport,
