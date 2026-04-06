@@ -54,6 +54,8 @@ import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
 
+// Create an Axon channel and a devbox with an ACP broker mount.
+// The broker launches the agent binary (e.g. OpenCode) inside the devbox.
 const axon = await sdk.axon.create({ name: "acp-transport" });
 const devbox = await sdk.devbox.create({
   mounts: [
@@ -67,18 +69,22 @@ const devbox = await sdk.devbox.create({
   ],
 });
 
+// Wrap the Axon channel in a high-level ACP connection and negotiate capabilities
 const conn = new ACPAxonConnection(axon, devbox);
 await conn.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "my-app", version: "1.0.0" },
 });
 
+// Stream agent responses as they arrive — use type guards to narrow update variants
 conn.onSessionUpdate((sessionId, update) => {
   if (isAgentMessageChunk(update)) {
     process.stdout.write(update.message);
   }
 });
 
+// Start a session and send a prompt (prompt() resolves when the turn ends,
+// but onSessionUpdate may still receive trailing content — see Known Limitations)
 const session = await conn.newSession({ cwd: "/home/user", mcpServers: [] });
 await conn.prompt({
   sessionId: session.sessionId,
@@ -96,6 +102,8 @@ import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
 
+// Create an Axon channel and a devbox with a Claude broker mount.
+// Uses "claude_json" protocol for native Claude SDK wire format.
 const axon = await sdk.axon.create({ name: "claude-transport" });
 const devbox = await sdk.devbox.create({
   mounts: [{
@@ -106,9 +114,11 @@ const devbox = await sdk.devbox.create({
   }],
 });
 
+// Connect to Claude Code and set the model
 const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
 await conn.initialize();
 
+// Send a prompt and iterate over response messages until a "result" message arrives
 await conn.send("What files are in this directory?");
 for await (const msg of conn.receiveResponse()) {
   console.log(msg.type, msg);
@@ -193,6 +203,8 @@ const devbox = await sdk.devbox.create({
   ],
 });
 
+// Configure connection with lifecycle hooks and a custom permission handler.
+// By default, permissions are auto-approved — override requestPermission to prompt the user.
 const conn = new ACPAxonConnection(axon, devbox, {
   onDisconnect: async () => {
     await devbox.shutdown();
@@ -204,6 +216,7 @@ const conn = new ACPAxonConnection(axon, devbox, {
   onError: (err) => console.warn("transport error:", err),
 });
 
+// Register listeners before initialize() so no events are missed
 conn.onSessionUpdate((sessionId, update) => {
   console.log(sessionId, update);
 });
@@ -244,6 +257,7 @@ import {
   // ...
 } from "@runloop/agent-axon-client/acp";
 
+// SessionUpdate is a union type — use type guards to narrow and handle each variant
 conn.onSessionUpdate((sessionId, update) => {
   if (isAgentMessageChunk(update)) {
     process.stdout.write(update.message);
@@ -357,9 +371,12 @@ Lower-level transport that implements the `Transport` interface using Runloop Ax
 ```typescript
 import { AxonTransport, type Transport } from "@runloop/agent-axon-client/claude";
 
+// AxonTransport gives direct access to the Claude wire protocol over Axon —
+// use this if you need custom message handling beyond what ClaudeAxonConnection provides
 const transport = new AxonTransport(axon, { verbose: true });
 await transport.connect();
 
+// Messages are raw Claude SDK JSON — you manage serialization yourself
 await transport.write(JSON.stringify({ type: "user", message: { role: "user", content: "Hello" } }));
 
 for await (const msg of transport.readMessages()) {
@@ -477,6 +494,8 @@ This means **`await conn.prompt(...)` returns before the agent's response text h
 - **Use `onAxonEvent` to watch for `turn.started` / `turn.completed` system events** (recommended). These bracket all content for a turn:
 
   ```typescript
+  // onAxonEvent receives every raw Axon event — filter by origin/type
+  // to bracket turns and know when all session updates have been flushed
   conn.onAxonEvent((event) => {
     if (event.origin !== "SYSTEM_EVENT") return;
     if (event.event_type === "turn.started") {
