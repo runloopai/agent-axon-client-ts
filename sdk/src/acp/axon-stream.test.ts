@@ -360,7 +360,7 @@ describe("axonStream", () => {
       expect(published[0].event_type).toBe("session/initialize");
       expect(JSON.parse(published[0].payload)).toEqual({ protocolVersion: 1 });
       expect(published[0].origin).toBe("USER_EVENT");
-      expect(published[0].source).toBe("broker-transport");
+      expect(published[0].source).toBe("acp-sdk-client");
     });
 
     it("publishes JSON-RPC notifications with method as event_type", async () => {
