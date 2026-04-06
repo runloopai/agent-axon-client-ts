@@ -63,7 +63,7 @@ export function axonStream(options: AxonStreamOptions): Stream {
     log,
   );
 
-  const writable = createWritable(axon, pendingRequests, pendingClientRequests, log);
+  const writable = createWritable(axon, pendingRequests, pendingClientRequests, onError, log);
 
   return { readable, writable };
 }
@@ -159,6 +159,8 @@ function createReadable(
         break;
       }
 
+      pendingRequests.clear();
+      pendingClientRequests.clear();
       log?.("read", `SSE ended after ${totalEvents} total events`);
       controller.close();
     },
@@ -204,7 +206,7 @@ function axonEventToJsonRpc(
 
   // If the payload is already a full JSON-RPC message, pass it through.
   if (isJsonRpcMessage(parsed)) {
-    return parsed as AnyMessage;
+    return parsed;
   }
 
   // Notification: session/update -> JSON-RPC notification
@@ -264,18 +266,24 @@ function createWritable(
   axon: Axon,
   pendingRequests: Map<string, string | number | null>,
   pendingClientRequests: Map<string | number, string>,
+  onError: (error: unknown) => void,
   log: ((tag: string, ...args: unknown[]) => void) | undefined,
 ): WritableStream<AnyMessage> {
   return new WritableStream<AnyMessage>({
     async write(message) {
       const { eventType, payload } = jsonRpcToAxon(message, pendingRequests, pendingClientRequests);
       log?.("write", `event_type=${eventType}`);
-      await axon.publish({
-        event_type: eventType,
-        origin: "USER_EVENT",
-        payload,
-        source: "broker-transport",
-      });
+      try {
+        await axon.publish({
+          event_type: eventType,
+          origin: "USER_EVENT",
+          payload,
+          source: "broker-transport",
+        });
+      } catch (err) {
+        onError(err);
+        throw err;
+      }
     },
   });
 }
@@ -304,9 +312,10 @@ function jsonRpcToAxon(
   // Request: { jsonrpc, id, method, params }
   if ("method" in message && "id" in message && message.id != null) {
     if (pendingRequests.has(message.method)) {
-      console.warn(
+      throw new Error(
         `[axonStream] Duplicate in-flight request for method "${message.method}". ` +
-          "Only one outstanding request per method is supported; the previous request's response will be lost.",
+          "Only one outstanding request per method is supported; " +
+          "await the first call before sending another.",
       );
     }
     pendingRequests.set(message.method, message.id);
@@ -367,8 +376,10 @@ function isClientMethod(eventType: string): boolean {
  * @param obj - The parsed payload to inspect.
  * @returns `true` if `obj` looks like a JSON-RPC 2.0 message.
  */
-function isJsonRpcMessage(obj: unknown): boolean {
+function isJsonRpcMessage(obj: unknown): obj is AnyMessage {
+  if (typeof obj !== "object" || obj === null) return false;
+  const record = obj as Record<string, unknown>;
   return (
-    typeof obj === "object" && obj !== null && (obj as Record<string, unknown>).jsonrpc === "2.0"
+    record.jsonrpc === "2.0" && ("method" in record || "result" in record || "error" in record)
   );
 }

@@ -75,7 +75,9 @@ await agent.initialize({
 // after prompt() resolves. This is an ACP protocol limitation
 agent.onSessionUpdate((sessionId, update) => {
   if (isAgentMessageChunk(update)) {
-    process.stdout.write(update.message);
+    if (update.content.type === "text") {
+      process.stdout.write(update.content.text);
+    }
   }
 });
 
