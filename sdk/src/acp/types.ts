@@ -7,9 +7,6 @@ import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
 import type { BaseConnectionOptions } from "../shared/types.js";
 
-export type { AxonEventView } from "@runloop/api-client/resources/axons";
-export type { AxonEventListener } from "../shared/types.js";
-
 /**
  * Configuration for creating a low-level Axon stream via {@link axonStream}.
  * @category Configuration

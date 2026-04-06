@@ -4,14 +4,15 @@
 
 TypeScript client for connecting to coding agents running inside [Runloop](https://runloop.ai) devboxes via the Axon event bus.
 
-This package provides two independent modules:
+This package provides two protocol modules and a shared utilities module:
 
 | Module | Import path | Protocol | Use case |
 |--------|-------------|----------|----------|
 | **ACP** | `@runloop/agent-axon-client/acp` | [Agent Client Protocol](https://agentclientprotocol.com) (JSON-RPC 2.0) | Any ACP-compatible agent (OpenCode, Claude via ACP, etc.) |
 | **Claude** | `@runloop/agent-axon-client/claude` | Claude Code SDK wire format | Claude Code with native SDK message types |
+| **Shared** | `@runloop/agent-axon-client/shared` | — | Common types (`BaseConnectionOptions`, `AxonEventView`, `AxonEventListener`) and utilities |
 
-Both modules communicate over Runloop Axon channels. Pick the one that matches your agent's protocol.
+Both protocol modules communicate over Runloop Axon channels. Pick the one that matches your agent's protocol. Shared types are also re-exported from each protocol module for convenience.
 
 ## Installation
 
@@ -33,9 +34,10 @@ npm install @anthropic-ai/claude-agent-sdk
 // Subpath imports (recommended — tree-shakable)
 import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
+import type { BaseConnectionOptions, AxonEventView } from "@runloop/agent-axon-client/shared";
 
-// Namespaced root import (both modules at once)
-import { acp, claude } from "@runloop/agent-axon-client";
+// Namespaced root import (all modules at once)
+import { acp, claude, shared } from "@runloop/agent-axon-client";
 ```
 
 ## Getting Started
@@ -64,28 +66,26 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection(axon, devbox);
 
-await agent.initialize({
+const conn = new ACPAxonConnection(axon, devbox);
+await conn.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "my-app", version: "1.0.0" },
 });
 
-// Session updates (message chunks, tool calls, etc.) arrive asynchronously
-// after prompt() resolves. This is an ACP protocol limitation
-agent.onSessionUpdate((sessionId, update) => {
+conn.onSessionUpdate((sessionId, update) => {
   if (isAgentMessageChunk(update)) {
-    if (update.content.type === "text") {
-      process.stdout.write(update.content.text);
-    }
+    process.stdout.write(update.message);
   }
 });
 
-const session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
-await agent.prompt({
+const session = await conn.newSession({ cwd: "/home/user", mcpServers: [] });
+await conn.prompt({
   sessionId: session.sessionId,
   prompt: [{ type: "text", text: "Hello!" }],
 });
+
+await conn.disconnect();
 ```
 
 ### Claude Code Agent
@@ -110,7 +110,6 @@ const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5"
 await conn.initialize();
 
 await conn.send("What files are in this directory?");
-
 for await (const msg of conn.receiveResponse()) {
   console.log(msg.type, msg);
 }
@@ -245,7 +244,7 @@ import {
   // ...
 } from "@runloop/agent-axon-client/acp";
 
-agent.onSessionUpdate((sessionId, update) => {
+conn.onSessionUpdate((sessionId, update) => {
   if (isAgentMessageChunk(update)) {
     process.stdout.write(update.message);
   } else if (isToolCall(update)) {
@@ -273,6 +272,29 @@ import type {
 ---
 
 ## Claude Module
+
+### Re-exported Claude SDK Types
+
+All types from `@anthropic-ai/claude-agent-sdk` are re-exported. The most commonly used message types are explicitly named for discoverability:
+
+```typescript
+import type {
+  SDKMessage,
+  SDKAssistantMessage,
+  SDKPartialAssistantMessage,
+  SDKResultMessage,
+  SDKResultSuccess,
+  SDKResultError,
+  SDKSystemMessage,
+  SDKStatusMessage,
+  SDKUserMessage,
+  SDKControlRequest,
+  SDKControlResponse,
+  SDKToolProgressMessage,
+  PermissionMode,
+  // ... etc.
+} from "@runloop/agent-axon-client/claude";
+```
 
 ### `ClaudeAxonConnection`
 
@@ -390,11 +412,23 @@ ACP Module                                    Claude Module
 | Agent protocol | `@agentclientprotocol/sdk` | `@anthropic-ai/claude-agent-sdk` |
 | ID tracking | Synthetic (transport maps IDs) | Native (SDK handles correlation) |
 
-## Types
+## Shared Types
 
-### `AxonEventView` (ACP module)
+Shared types are available from `@runloop/agent-axon-client/shared` or re-exported from each protocol module.
 
-Raw event from the Axon event bus:
+### `BaseConnectionOptions`
+
+Common options accepted by both `ACPAxonConnection` and `ClaudeAxonConnection`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `verbose` | `boolean` | Emit verbose logs to stderr |
+| `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
+| `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` |
+
+### `AxonEventView`
+
+Raw event from the Axon event bus (re-exported from `@runloop/api-client`):
 
 ```typescript
 interface AxonEventView {
@@ -406,6 +440,14 @@ interface AxonEventView {
   source: string;
   timestamp_ms: number;
 }
+```
+
+### `AxonEventListener`
+
+Callback type for raw Axon event listeners:
+
+```typescript
+type AxonEventListener = (event: AxonEventView) => void;
 ```
 
 ### `WireData` (Claude module)
@@ -430,12 +472,12 @@ The Axon broker delivers events in this order for a given turn:
 2. `turn.completed` system event
 3. `session/update` notifications — thought chunks, message chunks, etc.
 
-This means **`await agent.prompt(...)` returns before the agent's response text has been delivered via `onSessionUpdate`**. If you need to know when all content for a turn has arrived, use one of these strategies:
+This means **`await conn.prompt(...)` returns before the agent's response text has been delivered via `onSessionUpdate`**. If you need to know when all content for a turn has arrived, use one of these strategies:
 
 - **Use `onAxonEvent` to watch for `turn.started` / `turn.completed` system events** (recommended). These bracket all content for a turn:
 
   ```typescript
-  agent.onAxonEvent((event) => {
+  conn.onAxonEvent((event) => {
     if (event.origin !== "SYSTEM_EVENT") return;
     if (event.event_type === "turn.started") {
       // Agent turn began — disable input, show cancel button

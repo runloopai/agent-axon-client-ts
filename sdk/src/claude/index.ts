@@ -13,7 +13,7 @@
  * The main connection class for interacting with Claude Code.
  *
  * @categoryDescription Configuration
- * Options and handler types used when creating and configuring a connection.
+ * Options, callbacks, and listener types used when creating a connection.
  *
  * @categoryDescription Transport
  * Low-level transport layer that bridges Axon SSE streams and the Claude
@@ -34,15 +34,37 @@ export type * from "@anthropic-ai/claude-agent-sdk";
 /** @category Claude SDK */
 export type {
   PermissionMode,
+  SDKAPIRetryMessage,
   SDKAssistantMessage,
+  SDKAuthStatusMessage,
+  SDKCompactBoundaryMessage,
   SDKControlRequest,
   SDKControlResponse,
+  SDKElicitationCompleteMessage,
+  SDKFilesPersistedEvent,
+  SDKHookProgressMessage,
+  SDKHookResponseMessage,
+  SDKHookStartedMessage,
+  SDKLocalCommandOutputMessage,
   SDKMessage,
+  SDKPartialAssistantMessage,
+  SDKPromptSuggestionMessage,
+  SDKRateLimitEvent,
+  SDKResultError,
   SDKResultMessage,
+  SDKResultSuccess,
+  SDKSessionStateChangedMessage,
+  SDKStatusMessage,
+  SDKSystemMessage,
+  SDKTaskNotificationMessage,
+  SDKTaskProgressMessage,
+  SDKTaskStartedMessage,
+  SDKToolProgressMessage,
+  SDKToolUseSummaryMessage,
   SDKUserMessage,
+  SDKUserMessageReplay,
 } from "@anthropic-ai/claude-agent-sdk";
-export type { AxonEventView } from "@runloop/api-client/resources/axons";
-export type { AxonEventListener } from "../shared/types.js";
+export type { AxonEventListener, AxonEventView, BaseConnectionOptions } from "../shared/types.js";
 export {
   ClaudeAxonConnection,
   type ClaudeAxonConnectionOptions,

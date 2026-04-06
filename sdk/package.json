@@ -39,6 +39,11 @@
       "types": "./dist/claude/index.d.ts",
       "import": "./dist/claude/index.js",
       "default": "./dist/claude/index.js"
+    },
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "import": "./dist/shared/index.js",
+      "default": "./dist/shared/index.js"
     }
   },
   "files": [

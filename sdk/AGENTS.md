@@ -5,8 +5,7 @@
 ## What this package does
 
 Connects to coding agents (Claude Code, OpenCode, etc.) running inside Runloop
-devboxes via the Axon event bus. Two independent modules — pick one based on the
-agent protocol.
+devboxes via the Axon event bus. Two protocol modules plus shared utilities.
 
 ## Choose your module
 
@@ -14,6 +13,7 @@ agent protocol.
 |--------|--------|-------------|
 | **ACP** | `@runloop/agent-axon-client/acp` | Any ACP-compatible agent (OpenCode, Claude via ACP) |
 | **Claude** | `@runloop/agent-axon-client/claude` | Claude Code with native SDK message types |
+| **Shared** | `@runloop/agent-axon-client/shared` | Common types (`BaseConnectionOptions`, `AxonEventView`, `AxonEventListener`) and utilities |
 
 ## Required dependencies
 
@@ -46,32 +46,32 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-const agent = new ACPAxonConnection(axon, devbox, {
+const conn = new ACPAxonConnection(axon, devbox, {
   onDisconnect: async () => {
     await devbox.shutdown();
   },
 });
 
 // 2. Initialize
-await agent.initialize({
+await conn.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "my-app", version: "1.0.0" },
 });
 
 // 3. Listen for updates
-agent.onSessionUpdate((sessionId, update) => {
+conn.onSessionUpdate((sessionId, update) => {
   console.log(sessionId, update);
 });
 
 // 4. Create session and prompt
-const session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
-await agent.prompt({
+const session = await conn.newSession({ cwd: "/home/user", mcpServers: [] });
+await conn.prompt({
   sessionId: session.sessionId,
   prompt: [{ type: "text", text: "Hello!" }],
 });
 
 // 5. Clean up
-await agent.disconnect();
+await conn.disconnect();
 ```
 
 ### ACP — narrowing session updates
@@ -83,7 +83,7 @@ import {
   isUsageUpdate,
 } from "@runloop/agent-axon-client/acp";
 
-agent.onSessionUpdate((sessionId, update) => {
+conn.onSessionUpdate((sessionId, update) => {
   if (isAgentMessageChunk(update)) process.stdout.write(update.message);
   else if (isToolCall(update)) console.log(`Tool: ${update.toolName}`);
   else if (isUsageUpdate(update)) console.log("Tokens:", update);

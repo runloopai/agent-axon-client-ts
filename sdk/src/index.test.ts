@@ -28,4 +28,13 @@ describe("root exports", () => {
   it("claude namespace contains AxonTransport", () => {
     expect(SDK.claude.AxonTransport).toBeDefined();
   });
+
+  it("exports a shared namespace", () => {
+    expect(SDK.shared).toBeDefined();
+    expect(typeof SDK.shared).toBe("object");
+  });
+
+  it("shared namespace contains ListenerSet", () => {
+    expect(SDK.shared.ListenerSet).toBeDefined();
+  });
 });

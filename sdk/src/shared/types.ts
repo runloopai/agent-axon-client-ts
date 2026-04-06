@@ -2,6 +2,8 @@
  * Shared types used by both the ACP and Claude connection modules.
  */
 
+export type { AxonEventView } from "@runloop/api-client/resources/axons";
+
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 
 /**
