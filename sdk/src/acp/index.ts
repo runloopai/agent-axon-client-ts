@@ -59,6 +59,7 @@ export {
   ClientSideConnection,
   PROTOCOL_VERSION,
 } from "@agentclientprotocol/sdk";
+export type { AxonEventListener } from "../shared/types.js";
 export { axonStream } from "./axon-stream.js";
 export { ACPAxonConnection } from "./connection.js";
 export type {
@@ -89,7 +90,6 @@ export {
 } from "./session-update-guards.js";
 export type {
   ACPAxonConnectionOptions,
-  AxonEventListener,
   AxonEventView,
   AxonStreamOptions,
   SessionUpdateListener,

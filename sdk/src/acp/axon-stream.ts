@@ -2,16 +2,8 @@ import type { AnyMessage, Stream } from "@agentclientprotocol/sdk";
 import { CLIENT_METHODS } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
+import { makeDefaultOnError } from "../shared/logging.js";
 import type { AxonStreamOptions } from "./types.js";
-
-/**
- * Fallback error handler used when no `onError` option is provided.
- *
- * @param error - The value that was thrown or failed to parse.
- */
-function defaultOnError(error: unknown): void {
-  console.error("[axonStream]", error);
-}
 
 /**
  * Set of event_types that are notifications (no request ID correlation).
@@ -40,7 +32,7 @@ const NOTIFICATION_TYPES = new Set<string>([CLIENT_METHODS.session_update]);
  */
 export function axonStream(options: AxonStreamOptions): Stream {
   const { axon, signal, onAxonEvent, log } = options;
-  const onError = options.onError ?? defaultOnError;
+  const onError = options.onError ?? makeDefaultOnError("axonStream");
 
   // Maps outbound JSON-RPC request method -> id so we can correlate
   // the broker's response (which only carries event_type, not an id).

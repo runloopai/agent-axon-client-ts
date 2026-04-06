@@ -23,24 +23,13 @@ import {
   type SetSessionModeRequest,
   type SetSessionModeResponse,
 } from "@agentclientprotocol/sdk";
-import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
+import { runDisconnectHook } from "../shared/lifecycle.js";
+import { ListenerSet } from "../shared/listener-set.js";
+import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
+import type { AxonEventListener } from "../shared/types.js";
 import { axonStream } from "./axon-stream.js";
-import type {
-  ACPAxonConnectionOptions,
-  AxonEventListener,
-  SessionUpdateListener,
-} from "./types.js";
-
-/**
- * Fallback error handler used when no `onError` option is provided.
- * Writes the error to stderr so it is always visible.
- *
- * @param error - The value that was thrown or rejected.
- */
-function defaultOnError(error: unknown): void {
-  console.error("[ACPAxonConnection]", error);
-}
+import type { ACPAxonConnectionOptions, SessionUpdateListener } from "./types.js";
 
 /**
  * High-level ACP connection backed by an Axon transport.
@@ -81,8 +70,7 @@ export class ACPAxonConnection {
   private sessionUpdateListeners = new Set<SessionUpdateListener>();
 
   /** Registered raw Axon event listeners (fired before JSON-RPC translation). */
-  private axonEventListeners = new Set<AxonEventListener>();
-  private verbose: boolean;
+  private axonEventListeners: ListenerSet<AxonEventListener>;
 
   /** Error sink for listener exceptions and stream parse failures. */
   private handleError: (error: unknown) => void;
@@ -94,6 +82,8 @@ export class ACPAxonConnection {
 
   /** Optional teardown callback invoked by {@link disconnect}. */
   private disconnectFn: (() => void | Promise<void>) | undefined;
+
+  private log: (tag: string, ...args: unknown[]) => void;
 
   /**
    * Creates a new ACP connection over the given Axon channel and devbox.
@@ -110,27 +100,23 @@ export class ACPAxonConnection {
     this.axonId = axon.id;
     this.devboxId = devbox.id;
     this.abortController = new AbortController();
-    this.verbose = options?.verbose ?? false;
-    this.handleError = options?.onError ?? defaultOnError;
+    this.log = makeLogger("acp-sdk", options?.verbose ?? false);
+    this.handleError = options?.onError ?? makeDefaultOnError("ACPAxonConnection");
     this.handlePermission = options?.requestPermission;
     this.disconnectFn = options?.onDisconnect;
+    this.axonEventListeners = new ListenerSet<AxonEventListener>(this.handleError);
 
+    const verbose = options?.verbose ?? false;
     const stream = axonStream({
       axon,
       signal: this.abortController.signal,
-      onAxonEvent: (ev) => this.emitAxonEvent(ev),
+      onAxonEvent: (ev) => this.axonEventListeners.emit(ev),
       onError: this.handleError,
-      log: this.verbose ? (tag, ...args) => this.log(tag, ...args) : undefined,
+      log: verbose ? (tag, ...args) => this.log(tag, ...args) : undefined,
     });
 
     this.protocol = new ClientSideConnection((_agent: Agent) => this.createClient(), stream);
     this.log("constructor", `axon=${axon.id} devbox=${this.devboxId}`);
-  }
-
-  private log(tag: string, ...args: unknown[]): void {
-    if (!this.verbose) return;
-    const ts = new Date().toISOString().slice(11, 23);
-    console.error(`[${ts}] [acp-sdk:${tag}]`, ...args);
   }
 
   private ensureConnected(): void {
@@ -293,10 +279,7 @@ export class ACPAxonConnection {
    * @returns An unsubscribe function that removes the listener.
    */
   onAxonEvent(listener: AxonEventListener): () => void {
-    this.axonEventListeners.add(listener);
-    return () => {
-      this.axonEventListeners.delete(listener);
-    };
+    return this.axonEventListeners.add(listener);
   }
 
   // ---------------------------------------------------------------------------
@@ -345,15 +328,7 @@ export class ACPAxonConnection {
     this.abortStream();
     this.sessionUpdateListeners.clear();
     this.axonEventListeners.clear();
-    if (this.disconnectFn) {
-      try {
-        await this.disconnectFn();
-        this.log("disconnect", "onDisconnect callback completed");
-      } catch (err) {
-        this.log("disconnect", `onDisconnect callback error: ${err}`);
-        this.handleError(err);
-      }
-    }
+    await runDisconnectHook(this.disconnectFn, this.log, this.handleError);
   }
 
   // ---------------------------------------------------------------------------
@@ -405,22 +380,5 @@ export class ACPAxonConnection {
         }
       },
     };
-  }
-
-  /**
-   * Fans out a raw Axon event to all registered {@link onAxonEvent} listeners.
-   * Listener exceptions are caught and routed to {@link handleError} so one
-   * faulty listener cannot prevent subsequent listeners from being called.
-   *
-   * @param event - The raw Axon event to broadcast.
-   */
-  private emitAxonEvent(event: AxonEventView): void {
-    for (const listener of [...this.axonEventListeners]) {
-      try {
-        listener(event);
-      } catch (err) {
-        this.handleError(err);
-      }
-    }
   }
 }

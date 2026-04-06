@@ -349,7 +349,7 @@ describe("ACPAxonConnection", () => {
 
       conn.abortStream();
 
-      const listenerCount = (conn as unknown as { axonEventListeners: Set<unknown> })
+      const listenerCount = (conn as unknown as { axonEventListeners: { size: number } })
         .axonEventListeners.size;
       expect(listenerCount).toBe(1);
 

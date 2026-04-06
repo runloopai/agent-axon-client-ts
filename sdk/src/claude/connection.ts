@@ -22,12 +22,15 @@ import type {
   SDKMessage,
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
+import { runDisconnectHook } from "../shared/lifecycle.js";
+import { ListenerSet } from "../shared/listener-set.js";
+import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
+import type { AxonEventListener, BaseConnectionOptions } from "../shared/types.js";
 import { AxonTransport, type Transport } from "./transport.js";
-import type { AxonEventListener, WireData } from "./types.js";
+import type { WireData } from "./types.js";
 
-export type { AxonEventListener } from "./types.js";
+export type { AxonEventListener } from "../shared/types.js";
 
 /** The inner request payload — discriminated by `subtype`. */
 type ControlRequestInner = SDKControlRequest["request"];
@@ -108,16 +111,7 @@ interface PendingControlRequest {
 // ---------------------------------------------------------------------------
 
 /** @category Configuration */
-export interface ClaudeAxonConnectionOptions {
-  /**
-   * When `true`, emit timestamped diagnostic logs to `stderr` for every
-   * transport read/write, control-protocol exchange, and lifecycle event.
-   * Useful during development; too noisy for production.
-   *
-   * @defaultValue `false`
-   */
-  verbose?: boolean;
-
+export interface ClaudeAxonConnectionOptions extends BaseConnectionOptions {
   /**
    * Replaces the default system prompt sent to Claude Code during the
    * `initialize` control handshake. When set, the agent uses *only* this
@@ -146,56 +140,11 @@ export interface ClaudeAxonConnectionOptions {
    * handshake completes.
    */
   model?: string;
-
-  /**
-   * Error handler invoked when a listener registered via
-   * {@link ClaudeAxonConnection.onAxonEvent | onAxonEvent()} throws
-   * during event dispatch. The thrown value is passed as `error`.
-   *
-   * The connection catches the exception so that one faulty listener
-   * cannot prevent subsequent listeners from being called or crash the
-   * internal event loop. This callback is your only notification that a
-   * listener failed.
-   *
-   * @defaultValue `console.error`
-   *
-   * @param error - The value thrown by the listener (typically an `Error`
-   *   instance, but may be any thrown value).
-   */
-  onError?: (error: unknown) => void;
-
-  /**
-   * Teardown callback invoked at the end of
-   * {@link ClaudeAxonConnection.disconnect | disconnect()}, after the
-   * transport is closed and all listeners are cleared. Commonly used
-   * to shut down the backing devbox.
-   *
-   * May be synchronous or asynchronous — `disconnect()` awaits its
-   * return value either way.
-   *
-   * @example
-   * ```ts
-   * const conn = new ClaudeAxonConnection(axon, devbox, {
-   *   onDisconnect: () => devbox.shutdown(),
-   * });
-   * ```
-   */
-  onDisconnect?: () => void | Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
 // ClaudeAxonConnection
 // ---------------------------------------------------------------------------
-
-/**
- * Fallback error handler used when no `onError` option is provided.
- * Writes the error to stderr so it is always visible.
- *
- * @param error - The value that was thrown or rejected.
- */
-function defaultOnError(error: unknown): void {
-  console.error("[ClaudeAxonConnection]", error);
-}
 
 /**
  * Bidirectional, interactive client for Claude Code via Axon.
@@ -277,7 +226,9 @@ export class ClaudeAxonConnection {
   private controlRequestHandlers = new Map<string, ControlRequestHandler<any>>();
 
   /** Registered raw Axon event listeners. */
-  private axonEventListeners = new Set<AxonEventListener>();
+  private axonEventListeners: ListenerSet<AxonEventListener>;
+
+  private log: (tag: string, ...args: unknown[]) => void;
 
   /**
    * Creates a new Claude connection over the given Axon channel and devbox.
@@ -293,24 +244,14 @@ export class ClaudeAxonConnection {
     this.axonId = axon.id;
     this.devboxId = devbox.id;
     this.options = options ?? {};
-    this.handleError = options?.onError ?? defaultOnError;
+    this.handleError = options?.onError ?? makeDefaultOnError("ClaudeAxonConnection");
     this.disconnectFn = options?.onDisconnect;
+    this.log = makeLogger("claude-sdk", options?.verbose ?? false);
+    this.axonEventListeners = new ListenerSet<AxonEventListener>(this.handleError);
     this.transport = new AxonTransport(axon, {
       verbose: this.options.verbose,
-      onAxonEvent: (ev) => this.emitAxonEvent(ev),
+      onAxonEvent: (ev) => this.axonEventListeners.emit(ev),
     });
-  }
-
-  /**
-   * Writes a timestamped diagnostic line to stderr when verbose mode is on.
-   *
-   * @param tag  - Short label identifying the subsystem (e.g. "init", "readLoop").
-   * @param args - Values to log after the tag.
-   */
-  private log(tag: string, ...args: unknown[]): void {
-    if (!this.options.verbose) return;
-    const ts = new Date().toISOString().slice(11, 23);
-    console.error(`[${ts}] [claude-sdk:${tag}]`, ...args);
   }
 
   // -----------------------------------------------------------------------
@@ -384,16 +325,7 @@ export class ClaudeAxonConnection {
     this.controlRequestHandlers.clear();
 
     await this.transport.close();
-
-    if (this.disconnectFn) {
-      try {
-        await this.disconnectFn();
-        this.log("disconnect", "onDisconnect callback completed");
-      } catch (err) {
-        this.log("disconnect", `onDisconnect callback error: ${err}`);
-        this.handleError(err);
-      }
-    }
+    await runDisconnectHook(this.disconnectFn, this.log, this.handleError);
   }
 
   // -----------------------------------------------------------------------
@@ -409,27 +341,7 @@ export class ClaudeAxonConnection {
    * @returns An unsubscribe function that removes the listener.
    */
   onAxonEvent(listener: AxonEventListener): () => void {
-    this.axonEventListeners.add(listener);
-    return () => {
-      this.axonEventListeners.delete(listener);
-    };
-  }
-
-  /**
-   * Fans out a raw Axon event to all registered {@link onAxonEvent} listeners.
-   * Listener exceptions are caught and routed to {@link handleError} so one
-   * faulty listener cannot prevent subsequent listeners from being called.
-   *
-   * @param event - The raw Axon event to broadcast.
-   */
-  private emitAxonEvent(event: AxonEventView): void {
-    for (const listener of [...this.axonEventListeners]) {
-      try {
-        listener(event);
-      } catch (err) {
-        this.handleError(err);
-      }
-    }
+    return this.axonEventListeners.add(listener);
   }
 
   // -----------------------------------------------------------------------

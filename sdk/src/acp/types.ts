@@ -5,8 +5,10 @@ import type {
 } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
+import type { BaseConnectionOptions } from "../shared/types.js";
 
 export type { AxonEventView } from "@runloop/api-client/resources/axons";
+export type { AxonEventListener } from "../shared/types.js";
 
 /**
  * Configuration for creating a low-level Axon stream via {@link axonStream}.
@@ -32,15 +34,7 @@ export interface AxonStreamOptions {
  * Options for creating an {@link ACPAxonConnection}.
  * @category Configuration
  */
-export interface ACPAxonConnectionOptions {
-  /**
-   * When `true`, emit timestamped diagnostic logs to `stderr` for every
-   * transport read/write, JSON-RPC translation, and lifecycle event.
-   * Useful during development; too noisy for production.
-   *
-   * @defaultValue `false`
-   */
-  verbose?: boolean;
+export interface ACPAxonConnectionOptions extends BaseConnectionOptions {
   /**
    * Custom handler for agent permission requests. Receives the permission
    * options and must return the selected outcome.
@@ -49,15 +43,6 @@ export interface ACPAxonConnectionOptions {
    * `allow_always` > `allow_once` > first option.
    */
   requestPermission?: (params: RequestPermissionRequest) => Promise<RequestPermissionResponse>;
-  /**
-   * Called when a non-critical error occurs (e.g. unparseable event,
-   * listener exception). Defaults to `console.error`.
-   */
-  onError?: (error: unknown) => void;
-  /**
-   * Async teardown callback invoked by `disconnect()` (e.g. devbox shutdown).
-   */
-  onDisconnect?: () => void | Promise<void>;
 }
 
 /**
@@ -70,13 +55,3 @@ export interface ACPAxonConnectionOptions {
  * @category Configuration
  */
 export type SessionUpdateListener = (sessionId: string | null, update: SessionUpdate) => void;
-
-/**
- * Callback invoked for every Axon event before JSON-RPC translation.
- *
- * @param event - The raw {@link AxonEventView} from the Axon SSE feed,
- *   including events from all origins (agent, user, system).
- *
- * @category Configuration
- */
-export type AxonEventListener = (event: AxonEventView) => void;

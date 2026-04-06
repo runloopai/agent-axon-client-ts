@@ -495,10 +495,9 @@ describe("ClaudeAxonConnection", () => {
 
       conn.abortStream();
 
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
-      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
+      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
       expect(listener).toHaveBeenCalledOnce();
     });
 
@@ -517,13 +516,10 @@ describe("ClaudeAxonConnection", () => {
       const listener = vi.fn();
       conn.onAxonEvent(listener);
 
-      // Since we replaced the transport in createConnectedClient,
-      // call emitAxonEvent directly to trigger the listeners.
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
       const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
-      emitAxonEvent(fakeEvent);
+      listeners.emit(fakeEvent);
 
       expect(listener).toHaveBeenCalledOnce();
       expect(listener).toHaveBeenCalledWith(fakeEvent);
@@ -535,17 +531,16 @@ describe("ClaudeAxonConnection", () => {
       const listener = vi.fn();
       const unsub = conn.onAxonEvent(listener);
 
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
       const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
 
-      emitAxonEvent(fakeEvent);
+      listeners.emit(fakeEvent);
       expect(listener).toHaveBeenCalledOnce();
 
       unsub();
 
-      emitAxonEvent(fakeEvent);
+      listeners.emit(fakeEvent);
       expect(listener).toHaveBeenCalledOnce();
     });
 
@@ -562,10 +557,9 @@ describe("ClaudeAxonConnection", () => {
       conn.onAxonEvent(throwingListener);
       conn.onAxonEvent(normalListener);
 
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
-      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
+      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
 
       expect(throwingListener).toHaveBeenCalledOnce();
       expect(normalListener).toHaveBeenCalledOnce();
@@ -581,10 +575,9 @@ describe("ClaudeAxonConnection", () => {
         throw listenerError;
       });
 
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
-      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
+      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
 
       expect(spy).toHaveBeenCalledWith("[ClaudeAxonConnection]", listenerError);
       spy.mockRestore();
@@ -598,10 +591,9 @@ describe("ClaudeAxonConnection", () => {
 
       await conn.disconnect();
 
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
-      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
+      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
 
       expect(listener).not.toHaveBeenCalled();
     });
