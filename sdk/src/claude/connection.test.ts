@@ -104,7 +104,7 @@ async function createConnectedClient(
   });
 
   // Replace internal transport with mock
-  (conn as unknown as { transport: Transport }).transport = transport;
+  (conn as unknown as { transport: MockTransport }).transport = transport;
 
   // Queue up the initialize control response so initialize() succeeds.
   // The initialize() method sends an initialize control_request and waits for
@@ -772,7 +772,7 @@ describe("ClaudeAxonConnection", () => {
       const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
         systemPrompt: "You are a helpful bot.",
       });
-      (conn as unknown as { transport: Transport }).transport = transport;
+      (conn as unknown as { transport: MockTransport }).transport = transport;
 
       (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
         transport._written.push(data);
@@ -805,7 +805,7 @@ describe("ClaudeAxonConnection", () => {
       const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
         appendSystemPrompt: "Always respond in JSON.",
       });
-      (conn as unknown as { transport: Transport }).transport = transport;
+      (conn as unknown as { transport: MockTransport }).transport = transport;
 
       (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
         transport._written.push(data);
