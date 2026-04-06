@@ -44,7 +44,12 @@ export type ClientEvent =
     }
   | { type: "terminal_kill"; terminalId: string }
   | { type: "terminal_release"; terminalId: string }
-  | { type: "permission"; title: string; outcome: string }
+  | {
+      type: "permission_request";
+      requestId: string;
+      request: RequestPermissionRequest;
+    }
+  | { type: "permission_dismissed" }
   | {
       type: "elicitation_request";
       requestId: string;
@@ -60,6 +65,15 @@ export type ClientEvent =
 export class NodeACPClient implements Client {
   private terminalManager = new TerminalManager();
   private listeners = new Set<ClientEventListener>();
+  autoApprovePermissions = true;
+  private pendingPermissions = new Map<
+    string,
+    {
+      resolve: (resp: RequestPermissionResponse) => void;
+      reject: (err: Error) => void;
+    }
+  >();
+  private permissionCounter = 0;
   private pendingElicitations = new Map<
     string,
     {
@@ -86,6 +100,14 @@ export class NodeACPClient implements Client {
     }
   }
 
+  resolvePermission(requestId: string, response: RequestPermissionResponse): void {
+    const pending = this.pendingPermissions.get(requestId);
+    if (pending) {
+      pending.resolve(response);
+      this.pendingPermissions.delete(requestId);
+    }
+  }
+
   resolveElicitation(requestId: string, response: ElicitationResponse): void {
     const pending = this.pendingElicitations.get(requestId);
     if (pending) {
@@ -97,22 +119,30 @@ export class NodeACPClient implements Client {
   async requestPermission(
     params: RequestPermissionRequest,
   ): Promise<RequestPermissionResponse> {
-    const option =
-      params.options.find((o) => o.kind === "allow_always") ??
-      params.options.find((o) => o.kind === "allow_once") ??
-      params.options[0];
+    if (this.autoApprovePermissions) {
+      const option =
+        params.options.find((o) => o.kind === "allow_always") ??
+        params.options.find((o) => o.kind === "allow_once") ??
+        params.options[0];
 
-    const outcome = option
-      ? { outcome: "selected" as const, optionId: option.optionId }
-      : { outcome: "cancelled" as const };
+      return {
+        outcome: option
+          ? { outcome: "selected", optionId: option.optionId }
+          : { outcome: "cancelled" },
+      };
+    }
 
-    this.emit({
-      type: "permission",
-      title: params.toolCall?.title ?? "unknown",
-      outcome: outcome.outcome,
-    });
+    const requestId = `perm-${++this.permissionCounter}`;
 
-    return { outcome };
+    this.emit({ type: "permission_request", requestId, request: params });
+
+    const response = await new Promise<RequestPermissionResponse>(
+      (resolve, reject) => {
+        this.pendingPermissions.set(requestId, { resolve, reject });
+      },
+    );
+
+    return response;
   }
 
   async sessionUpdate(params: SessionNotification): Promise<void> {
@@ -277,6 +307,10 @@ export class NodeACPClient implements Client {
 
   shutdown(): void {
     this.terminalManager.releaseAll();
+    for (const pending of this.pendingPermissions.values()) {
+      pending.reject(new Error("Client shutting down"));
+    }
+    this.pendingPermissions.clear();
     for (const pending of this.pendingElicitations.values()) {
       pending.reject(new Error("Client shutting down"));
     }

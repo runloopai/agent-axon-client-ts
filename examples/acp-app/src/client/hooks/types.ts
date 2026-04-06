@@ -16,6 +16,9 @@ import type {
   AuthMethod,
   ElicitationAction,
   ElicitationContentValue,
+  PermissionOption,
+  PermissionOptionKind,
+  ToolCallUpdate,
 } from "@runloop/agent-axon-client/acp";
 
 export type {
@@ -32,6 +35,9 @@ export type {
   AuthMethod,
   ElicitationAction,
   ElicitationContentValue,
+  PermissionOption,
+  PermissionOptionKind,
+  ToolCallUpdate,
 };
 
 export type DiffContent = Diff;
@@ -197,6 +203,15 @@ export interface ElicitationFieldSchema {
   items?: { enum?: string[]; oneOf?: Array<{ const: string; title: string }> } | null;
 }
 
+export interface PendingPermission {
+  requestId: string;
+  toolTitle: string;
+  toolKind: string;
+  toolCallId: string;
+  rawInput?: unknown;
+  options: PermissionOption[];
+}
+
 export interface PendingElicitation {
   requestId: string;
   message: string;
@@ -265,6 +280,8 @@ export interface UseNodeAgentReturn {
   configOptions: SessionConfigOption[];
   availableModels: ModelInfo[];
   currentModelId: string | null;
+  pendingPermission: PendingPermission | null;
+  autoApprovePermissions: boolean;
   pendingElicitation: PendingElicitation | null;
   devboxId: string | null;
   axonId: string | null;
@@ -287,6 +304,9 @@ export interface UseNodeAgentReturn {
   setConfigOption: (optionId: string, valueId: string) => Promise<void>;
   authenticate: (methodId: string) => Promise<void>;
   dismissAuth: () => void;
+  respondToPermission: (requestId: string, optionId: string) => Promise<void>;
+  cancelPermission: (requestId: string) => Promise<void>;
+  setAutoApprovePermissions: (enabled: boolean) => Promise<void>;
   respondToElicitation: (requestId: string, action: ElicitationAction) => Promise<void>;
   shutdown: () => Promise<void>;
   createNewSession: () => Promise<void>;
