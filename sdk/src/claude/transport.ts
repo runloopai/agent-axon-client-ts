@@ -204,8 +204,16 @@ export class AxonTransport implements Transport {
 
       if (event.origin === "AGENT_EVENT") {
         this.log("read", `#${eventCount} ${event.event_type}`);
+        if (event.payload == null) {
+          this.log("read", `#${eventCount} skipping null/undefined payload`);
+          continue;
+        }
         try {
           const parsed = JSON.parse(event.payload);
+          if (parsed == null || typeof parsed !== "object") {
+            this.log("read", `#${eventCount} skipping non-object payload`);
+            continue;
+          }
           yield parsed;
         } catch {
           this.log("read", `#${eventCount} failed to parse payload`);

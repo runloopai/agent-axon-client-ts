@@ -25,17 +25,9 @@ import type {
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { AxonTransport, type Transport } from "./transport.js";
-import type { WireData } from "./types.js";
+import type { AxonEventListener, WireData } from "./types.js";
 
-/**
- * Callback invoked for every Axon event (before origin filtering).
- *
- * @param event - The raw {@link AxonEventView} from the Axon SSE feed,
- *   including events from all origins (agent, user, system).
- *
- * @category Configuration
- */
-export type AxonEventListener = (event: AxonEventView) => void;
+export type { AxonEventListener } from "./types.js";
 
 /** The inner request payload — discriminated by `subtype`. */
 type ControlRequestInner = SDKControlRequest["request"];
@@ -227,6 +219,22 @@ export class ClaudeAxonConnection {
   /** The Runloop devbox ID. */
   readonly devboxId: string;
 
+  /**
+   * Whether the connection has been initialized and the read loop is active.
+   * Returns `false` before {@link initialize} is called or after the read loop ends.
+   */
+  get isInitialized(): boolean {
+    return this.readLoopRunning && !this.closed;
+  }
+
+  /**
+   * Whether the connection has been disconnected.
+   * Returns `true` after {@link disconnect} has been called.
+   */
+  get isDisconnected(): boolean {
+    return this.closed;
+  }
+
   /** Low-level transport that reads/writes messages over the Axon channel. */
   private transport: Transport;
 
@@ -239,8 +247,11 @@ export class ClaudeAxonConnection {
   /** Optional teardown callback invoked by {@link disconnect}. */
   private disconnectFn: (() => void | Promise<void>) | undefined;
 
+  private static readonly MESSAGE_QUEUE_HIGH_WATER_MARK = 1000;
+
   /** Buffer of SDK messages that arrived before a consumer called {@link nextMessage}. */
   private messageQueue: SDKMessage[] = [];
+  private messageQueueWarned = false;
 
   /** Promise resolvers waiting for the next SDK message. */
   private messageWaiters: Array<(msg: SDKMessage | null) => void> = [];
@@ -336,9 +347,9 @@ export class ClaudeAxonConnection {
    * Aborts the underlying SSE stream without clearing registered listeners
    * or running the `onDisconnect` callback.
    *
-   * Useful for simulating a transport-level disconnection in tests, or as a
-   * building block for reconnect logic. Unlike {@link disconnect}, listeners
-   * remain registered so they can fire again if a new stream is established.
+   * Unlike {@link disconnect}, listeners remain registered. Note that after
+   * calling this method, the connection cannot be reused — create a new
+   * `ClaudeAxonConnection` instance to reconnect.
    */
   abortStream(): void {
     this.streamAborted = true;
@@ -357,11 +368,12 @@ export class ClaudeAxonConnection {
     if (this.closed) return;
     this.closed = true;
 
-    // Unblock any waiters
+    // Unblock any waiters and clear buffered messages
     for (const waiter of this.messageWaiters) {
       waiter(null);
     }
     this.messageWaiters.length = 0;
+    this.messageQueue.length = 0;
 
     // Fail pending control requests
     for (const [, pending] of this.pendingControlRequests) {
@@ -369,6 +381,7 @@ export class ClaudeAxonConnection {
     }
     this.pendingControlRequests.clear();
     this.axonEventListeners.clear();
+    this.controlRequestHandlers.clear();
 
     await this.transport.close();
 
@@ -477,6 +490,8 @@ export class ClaudeAxonConnection {
       }
 
       this.readLoopDone = true;
+      this.readLoopRunning = false;
+      this.streamAborted = false;
       for (const waiter of this.messageWaiters) {
         waiter(null);
       }
@@ -515,8 +530,16 @@ export class ClaudeAxonConnection {
       return;
     }
 
-    // Control request from CLI — handle incoming control requests
+    // Control request from CLI — validate shape before handling
     if (msgType === "control_request") {
+      if (
+        typeof message.request_id !== "string" ||
+        typeof message.request !== "object" ||
+        message.request === null
+      ) {
+        this.log("routeMessage", "malformed control_request — missing request_id or request");
+        return;
+      }
       this.handleIncomingControlRequest(message as SDKControlRequest).catch((err) => {
         this.log("control", `handler error: ${err}`);
         this.handleError(err);
@@ -529,7 +552,11 @@ export class ClaudeAxonConnection {
       return;
     }
 
-    // Regular SDK message — cast and deliver
+    // Regular SDK message — validate it has a string type before casting
+    if (typeof msgType !== "string") {
+      this.log("routeMessage", "dropping message with non-string type");
+      return;
+    }
     const sdkMessage = message as SDKMessage;
     if (this.messageWaiters.length > 0) {
       // biome-ignore lint/style/noNonNullAssertion: guarded by .length > 0 check above
@@ -537,6 +564,16 @@ export class ClaudeAxonConnection {
       waiter(sdkMessage);
     } else {
       this.messageQueue.push(sdkMessage);
+      if (
+        !this.messageQueueWarned &&
+        this.messageQueue.length >= ClaudeAxonConnection.MESSAGE_QUEUE_HIGH_WATER_MARK
+      ) {
+        this.messageQueueWarned = true;
+        console.warn(
+          `[ClaudeAxonConnection] Message queue has ${this.messageQueue.length} buffered messages. ` +
+            "Ensure you are consuming messages via receiveMessages() or receiveResponse().",
+        );
+      }
     }
   }
 
@@ -653,6 +690,7 @@ export class ClaudeAxonConnection {
    * @param message - The incoming `SDKControlRequest` from the CLI.
    */
   private async handleIncomingControlRequest(message: SDKControlRequest): Promise<void> {
+    if (this.closed) return;
     const requestId = message.request_id;
     const request = message.request;
 
@@ -699,8 +737,11 @@ export class ClaudeAxonConnection {
         };
       }
 
-      await this.transport.write(JSON.stringify(controlResponse));
+      if (!this.closed) {
+        await this.transport.write(JSON.stringify(controlResponse));
+      }
     } catch (err) {
+      if (this.closed) return;
       const errorResponse: SDKControlResponse = {
         type: "control_response",
         response: {
@@ -732,6 +773,12 @@ export class ClaudeAxonConnection {
    * ```
    */
   async send(prompt: string | SDKUserMessage): Promise<void> {
+    if (this.closed) {
+      throw new Error("Connection is disconnected. Cannot send messages.");
+    }
+    if (!this.readLoopRunning) {
+      throw new Error("Connection is not initialized. Call initialize() first.");
+    }
     const message: SDKUserMessage =
       typeof prompt === "string"
         ? {
@@ -861,7 +908,12 @@ export class ClaudeAxonConnection {
   onControlRequest<S extends ControlRequestInner["subtype"]>(
     subtype: S,
     handler: ControlRequestHandler<S>,
-  ): void {
+  ): () => void {
     this.controlRequestHandlers.set(subtype, handler);
+    return () => {
+      if (this.controlRequestHandlers.get(subtype) === handler) {
+        this.controlRequestHandlers.delete(subtype);
+      }
+    };
   }
 }

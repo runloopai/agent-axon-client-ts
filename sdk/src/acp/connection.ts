@@ -133,6 +133,12 @@ export class ACPAxonConnection {
     console.error(`[${ts}] [acp-sdk:${tag}]`, ...args);
   }
 
+  private ensureConnected(): void {
+    if (this.disconnected) {
+      throw new Error("Connection is disconnected. Create a new instance.");
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Proxied Agent methods
   // ---------------------------------------------------------------------------
@@ -145,6 +151,7 @@ export class ACPAxonConnection {
    * @returns The agent's supported capabilities and protocol version.
    */
   initialize(params: InitializeRequest): Promise<InitializeResponse> {
+    this.ensureConnected();
     return this.protocol.initialize(params);
   }
 
@@ -155,6 +162,7 @@ export class ACPAxonConnection {
    * @returns The newly created session ID and metadata.
    */
   newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
+    this.ensureConnected();
     return this.protocol.newSession(params);
   }
 
@@ -190,6 +198,7 @@ export class ACPAxonConnection {
    * @returns The agent's prompt acknowledgement.
    */
   prompt(params: PromptRequest): Promise<PromptResponse> {
+    this.ensureConnected();
     return this.protocol.prompt(params);
   }
 
@@ -199,6 +208,7 @@ export class ACPAxonConnection {
    * @param params - Identifies the session whose turn should be cancelled.
    */
   cancel(params: CancelNotification): Promise<void> {
+    this.ensureConnected();
     return this.protocol.cancel(params);
   }
 
@@ -314,9 +324,9 @@ export class ACPAxonConnection {
   /**
    * Aborts the underlying SSE stream without clearing registered listeners.
    *
-   * Useful for simulating a transport-level disconnection in tests, or as a
-   * building block for reconnect logic. Unlike {@link disconnect}, listeners
-   * remain registered so they can fire again if a new stream is established.
+   * Unlike {@link disconnect}, listeners remain registered. Note that after
+   * calling this method, the connection cannot be reused — create a new
+   * `ACPAxonConnection` instance to reconnect.
    */
   abortStream(): void {
     this.abortController.abort();
@@ -341,6 +351,7 @@ export class ACPAxonConnection {
         this.log("disconnect", "onDisconnect callback completed");
       } catch (err) {
         this.log("disconnect", `onDisconnect callback error: ${err}`);
+        this.handleError(err);
       }
     }
   }
