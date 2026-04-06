@@ -31,7 +31,7 @@ const NOTIFICATION_TYPES = new Set<string>([CLIENT_METHODS.session_update]);
  * @category Connection
  */
 export function axonStream(options: AxonStreamOptions): Stream {
-  const { axon, signal, onAxonEvent, onStreamInterrupted } = options;
+  const { axon, signal, onAxonEvent, onStreamInterrupted, log } = options;
   const onError = options.onError ?? defaultOnError;
 
   // Maps outbound JSON-RPC request method -> id so we can correlate
@@ -53,9 +53,10 @@ export function axonStream(options: AxonStreamOptions): Stream {
     () => nextAgentRequestId++,
     onError,
     onStreamInterrupted,
+    log,
   );
 
-  const writable = createWritable(axon, pendingRequests, pendingClientRequests);
+  const writable = createWritable(axon, pendingRequests, pendingClientRequests, log);
 
   return { readable, writable };
 }
@@ -73,18 +74,27 @@ function createReadable(
   nextId: () => number,
   onError: (error: unknown) => void,
   onStreamInterrupted: (() => void) | undefined,
+  log: ((tag: string, ...args: unknown[]) => void) | undefined,
 ): ReadableStream<AnyMessage> {
   return new ReadableStream<AnyMessage>({
     async start(controller) {
+      let eventCount = 0;
       try {
+        log?.("read", "opening SSE stream");
         const sseStream = await axon.subscribeSse();
+        log?.("read", "SSE connected");
         for await (const axonEvent of sseStream) {
           if (signal?.aborted) break;
+          eventCount++;
 
           onAxonEvent?.(axonEvent);
 
-          if (axonEvent.origin !== "AGENT_EVENT") continue;
+          if (axonEvent.origin !== "AGENT_EVENT") {
+            log?.("read", `#${eventCount} SKIP ${axonEvent.origin} ${axonEvent.event_type}`);
+            continue;
+          }
 
+          log?.("read", `#${eventCount} ${axonEvent.event_type}`);
           const msg = axonEventToJsonRpc(
             axonEvent,
             pendingRequests,
@@ -96,11 +106,13 @@ function createReadable(
         }
       } catch (err) {
         if (!signal?.aborted) {
+          log?.("read", `error after ${eventCount} events: ${err}`);
           onStreamInterrupted?.();
           controller.error(err);
           return;
         }
       }
+      log?.("read", `SSE ended after ${eventCount} events`);
       if (!signal?.aborted) {
         onStreamInterrupted?.();
       }
@@ -179,10 +191,12 @@ function createWritable(
   axon: Axon,
   pendingRequests: Map<string, string | number | null>,
   pendingClientRequests: Map<string | number, string>,
+  log: ((tag: string, ...args: unknown[]) => void) | undefined,
 ): WritableStream<AnyMessage> {
   return new WritableStream<AnyMessage>({
     async write(message) {
       const { eventType, payload } = jsonRpcToAxon(message, pendingRequests, pendingClientRequests);
+      log?.("write", `event_type=${eventType}`);
       await axon.publish({
         event_type: eventType,
         origin: "USER_EVENT",

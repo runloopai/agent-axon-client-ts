@@ -135,10 +135,11 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `verbose` | `boolean` | Emit verbose logs to stderr |
 | `requestPermission` | `(params) => Promise<Response>` | Custom permission handler (defaults to auto-approve) |
-| `onError` | `(error: unknown) => void` | Error callback |
+| `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onStreamInterrupted` | `() => void` | Called when the SSE stream is interrupted |
-| `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `shutdown()` (e.g. devbox shutdown) |
+| `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
 
 **ACP Methods** (proxied from `ClientSideConnection`):
 

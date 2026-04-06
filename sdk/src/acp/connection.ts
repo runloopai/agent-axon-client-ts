@@ -223,10 +223,18 @@ export class ACPAxonConnection {
    * `onDisconnect` callback (e.g. devbox teardown) if one was provided.
    */
   async disconnect(): Promise<void> {
+    this.log("disconnect", "disconnecting");
     this.abortStream();
     this.sessionUpdateListeners.clear();
     this.axonEventListeners.clear();
-    await this.disconnectFn?.();
+    if (this.disconnectFn) {
+      try {
+        await this.disconnectFn();
+        this.log("disconnect", "onDisconnect callback completed");
+      } catch (err) {
+        this.log("disconnect", `onDisconnect callback error: ${err}`);
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
