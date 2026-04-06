@@ -68,6 +68,7 @@ export class ACPAxonConnection {
   readonly protocol: ClientSideConnection;
 
   private abortController: AbortController;
+  private disconnected = false;
   private sessionUpdateListeners = new Set<SessionUpdateListener>();
   private axonEventListeners = new Set<AxonEventListener>();
   private verbose: boolean;
@@ -223,6 +224,8 @@ export class ACPAxonConnection {
    * `onDisconnect` callback (e.g. devbox teardown) if one was provided.
    */
   async disconnect(): Promise<void> {
+    if (this.disconnected) return;
+    this.disconnected = true;
     this.log("disconnect", "disconnecting");
     this.abortStream();
     this.sessionUpdateListeners.clear();
@@ -266,7 +269,7 @@ export class ACPAxonConnection {
       sessionUpdate: async (params: SessionNotification): Promise<void> => {
         const sessionId = params.sessionId ?? null;
         const update = params.update;
-        for (const listener of this.sessionUpdateListeners) {
+        for (const listener of [...this.sessionUpdateListeners]) {
           try {
             listener(sessionId, update);
           } catch (err) {
@@ -278,7 +281,7 @@ export class ACPAxonConnection {
   }
 
   private emitAxonEvent(event: AxonEventView): void {
-    for (const listener of this.axonEventListeners) {
+    for (const listener of [...this.axonEventListeners]) {
       try {
         listener(event);
       } catch (err) {

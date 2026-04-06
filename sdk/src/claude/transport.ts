@@ -98,6 +98,9 @@ export class AxonTransport implements Transport {
 
   /** Write a JSON message string to the Axon channel. */
   async write(data: string): Promise<void> {
+    if (!this.isReady()) {
+      throw new Error("Transport is not ready. Call connect() first or check isReady().");
+    }
     const eventType = this.resolveEventType(data);
     this.log("write", `event_type=${eventType}`);
     await this.axon.publish({

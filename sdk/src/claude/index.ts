@@ -4,7 +4,7 @@
  *
  * **Getting started:** Create a {@link ClaudeAxonConnection} with an
  * Axon channel and devbox ID, call
- * {@link ClaudeAxonConnection.connect | connect()}, then use
+ * {@link ClaudeAxonConnection.initialize | initialize()}, then use
  * {@link ClaudeAxonConnection.send | send()} and
  * {@link ClaudeAxonConnection.receiveResponse | receiveResponse()} to
  * interact with Claude Code.

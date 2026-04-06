@@ -127,9 +127,9 @@ const devbox = await sdk.devbox.create({
   }],
 });
 
-// 2. Connect
+// 2. Initialize
 const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
-await conn.connect();
+await conn.initialize();
 
 // 3. Send and receive
 await conn.send("What files are in this directory?");
@@ -145,7 +145,7 @@ await conn.disconnect();
 
 | Method | Purpose |
 |--------|---------|
-| `connect()` | Open transport and initialize protocol |
+| `initialize()` | Open transport and initialize protocol |
 | `send(prompt)` | Send a user message (`string` or `SDKUserMessage`) |
 | `receiveResponse()` | Async iterator yielding messages until `result` |
 | `receiveMessages()` | Async iterator yielding all messages indefinitely |

@@ -149,7 +149,7 @@ app.post("/api/start", async (req, res) => {
       });
     });
 
-    await conn.connect();
+    await conn.initialize();
 
     // Start the background read loop
     runReadLoop(conn).catch((err) => {

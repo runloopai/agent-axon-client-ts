@@ -105,7 +105,7 @@ const devbox = await sdk.devbox.create({
 });
 
 const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
-await conn.connect();
+await conn.initialize();
 
 await conn.send("What files are in this directory?");
 
@@ -193,7 +193,7 @@ const devbox = await sdk.devbox.create({
   ],
 });
 
-const conn = new ACPAxonConnection(axon, devbox.id, {
+const conn = new ACPAxonConnection(axon, devbox, {
   onDisconnect: async () => {
     await devbox.shutdown();
   },
@@ -303,7 +303,7 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 |---|---|
 | `axonId: string` | The Axon channel ID |
 | `devboxId: string` | The Runloop devbox ID |
-| `connect()` | Connect to Claude Code, initialize the control protocol, and set model if configured |
+| `initialize()` | Connect to Claude Code, initialize the control protocol, and set model if configured |
 | `disconnect()` | Close the transport, fail pending requests, and run `onDisconnect` if provided |
 
 **Messaging**:

@@ -438,5 +438,157 @@ describe("ACPAxonConnection", () => {
       const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
       await conn.disconnect();
     });
+
+    it("disconnect() is idempotent — second call is a no-op", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+
+      const onDisconnect = vi.fn().mockResolvedValue(undefined);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        onDisconnect,
+      });
+
+      await conn.disconnect();
+      await conn.disconnect();
+
+      expect(onDisconnect).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("proxied agent methods", () => {
+    it("initialize() delegates to protocol.initialize()", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const mockResult = { protocolVersion: "1.0", serverInfo: { name: "test" } };
+      conn.protocol.initialize = vi.fn().mockResolvedValue(mockResult);
+
+      const result = await conn.initialize({
+        protocolVersion: "2025-07-01",
+        clientInfo: { name: "test", version: "1.0" },
+      });
+
+      expect(conn.protocol.initialize).toHaveBeenCalledOnce();
+      expect(result).toBe(mockResult);
+      conn.disconnect();
+    });
+
+    it("newSession() delegates to protocol.newSession()", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const mockResult = { sessionId: "s-1" };
+      conn.protocol.newSession = vi.fn().mockResolvedValue(mockResult);
+
+      const result = await conn.newSession({ cwd: "/home/user", mcpServers: [] } as never);
+
+      expect(conn.protocol.newSession).toHaveBeenCalledOnce();
+      expect(result).toBe(mockResult);
+      conn.disconnect();
+    });
+
+    it("prompt() delegates to protocol.prompt()", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const mockResult = { stopReason: "end_turn" };
+      conn.protocol.prompt = vi.fn().mockResolvedValue(mockResult);
+
+      const result = await conn.prompt({
+        sessionId: "s-1",
+        prompt: [{ type: "text", text: "Hello" }],
+      } as never);
+
+      expect(conn.protocol.prompt).toHaveBeenCalledOnce();
+      expect(result).toBe(mockResult);
+      conn.disconnect();
+    });
+
+    it("cancel() delegates to protocol.cancel()", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      conn.protocol.cancel = vi.fn().mockResolvedValue(undefined);
+
+      await conn.cancel({ sessionId: "s-1" } as never);
+
+      expect(conn.protocol.cancel).toHaveBeenCalledOnce();
+      conn.disconnect();
+    });
+
+    it("listSessions() delegates to protocol.listSessions()", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const mockResult = { sessions: [] };
+      conn.protocol.listSessions = vi.fn().mockResolvedValue(mockResult);
+
+      const result = await conn.listSessions({} as never);
+
+      expect(conn.protocol.listSessions).toHaveBeenCalledOnce();
+      expect(result).toBe(mockResult);
+      conn.disconnect();
+    });
+
+    it("loadSession() delegates to protocol.loadSession()", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const mockResult = { sessionId: "s-1" };
+      conn.protocol.loadSession = vi.fn().mockResolvedValue(mockResult);
+
+      const result = await conn.loadSession({ sessionId: "s-1" } as never);
+
+      expect(conn.protocol.loadSession).toHaveBeenCalledOnce();
+      expect(result).toBe(mockResult);
+      conn.disconnect();
+    });
+
+    it("setSessionMode() delegates to protocol.setSessionMode()", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      conn.protocol.setSessionMode = vi.fn().mockResolvedValue({});
+
+      await conn.setSessionMode({ sessionId: "s-1", mode: "code" } as never);
+
+      expect(conn.protocol.setSessionMode).toHaveBeenCalledOnce();
+      conn.disconnect();
+    });
+
+    it("extMethod() delegates to protocol.extMethod()", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const mockResult = { data: "custom" };
+      conn.protocol.extMethod = vi.fn().mockResolvedValue(mockResult);
+
+      const result = await conn.extMethod("custom/method", { key: "value" });
+
+      expect(conn.protocol.extMethod).toHaveBeenCalledWith("custom/method", { key: "value" });
+      expect(result).toBe(mockResult);
+      conn.disconnect();
+    });
+
+    it("extNotification() delegates to protocol.extNotification()", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      conn.protocol.extNotification = vi.fn().mockResolvedValue(undefined);
+
+      await conn.extNotification("custom/notify", { data: true });
+
+      expect(conn.protocol.extNotification).toHaveBeenCalledWith("custom/notify", { data: true });
+      conn.disconnect();
+    });
   });
 });

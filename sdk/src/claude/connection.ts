@@ -2,7 +2,7 @@
  * ClaudeAxonConnection — bidirectional, interactive client for Claude Code via Axon.
  *
  * Provides:
- * - connect() / disconnect() lifecycle
+ * - initialize() / disconnect() lifecycle
  * - send() to send user messages
  * - receiveMessages() / receiveResponse() async iterators
  * - Control protocol: interrupt, setPermissionMode, setModel
@@ -128,7 +128,7 @@ export interface ClaudeAxonConnectionOptions {
    * Anthropic model identifier to select after initialization
    * (e.g. `"claude-haiku-4-5"`, `"claude-sonnet-4-5"`).
    *
-   * When provided, {@link ClaudeAxonConnection.connect | connect()} sends
+   * When provided, {@link ClaudeAxonConnection.initialize | initialize()} sends
    * a `set_model` control request immediately after the `initialize`
    * handshake completes.
    */
@@ -209,6 +209,7 @@ export class ClaudeAxonConnection {
   private requestCounter = 0;
   private pendingControlRequests = new Map<string, PendingControlRequest>();
   private closed = false;
+  private streamAborted = false;
 
   // Registered handlers for incoming control requests (keyed by subtype)
   // biome-ignore lint/suspicious/noExplicitAny: handlers are typed at registration via onControlRequest()
@@ -240,21 +241,23 @@ export class ClaudeAxonConnection {
   // -----------------------------------------------------------------------
 
   /**
-   * Connect to the remote Claude Code instance.
+   * Connect to the remote Claude Code instance, initialize the control
+   * protocol, and optionally set the model.
    */
-  async connect(): Promise<void> {
+  async initialize(): Promise<void> {
     if (this.closed) {
       throw new Error(
         "This ClaudeAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
       );
     }
+    if (this.readLoopRunning) {
+      throw new Error("Already initialized. Call disconnect() before reinitializing.");
+    }
     await this.transport.connect();
     this.startReadLoop();
 
-    // Initialize the control protocol
-    await this.initialize();
+    await this.sendInitialize();
 
-    // Set model if provided
     if (this.options.model) {
       await this.setModel(this.options.model);
     }
@@ -269,6 +272,7 @@ export class ClaudeAxonConnection {
    * remain registered so they can fire again if a new stream is established.
    */
   abortStream(): void {
+    this.streamAborted = true;
     this.transport.abortStream();
   }
 
@@ -298,6 +302,7 @@ export class ClaudeAxonConnection {
         this.log("disconnect", "onDisconnect callback completed");
       } catch (err) {
         this.log("disconnect", `onDisconnect callback error: ${err}`);
+        this.handleError(err);
       }
     }
   }
@@ -319,7 +324,7 @@ export class ClaudeAxonConnection {
   }
 
   private emitAxonEvent(event: AxonEventView): void {
-    for (const listener of this.axonEventListeners) {
+    for (const listener of [...this.axonEventListeners]) {
       try {
         listener(event);
       } catch (err) {
@@ -356,7 +361,7 @@ export class ClaudeAxonConnection {
           waiter(null);
         }
         this.messageWaiters.length = 0;
-        if (!this.closed) {
+        if (!this.closed && !this.streamAborted) {
           this.streamInterruptedFn?.();
         }
       }
@@ -364,6 +369,7 @@ export class ClaudeAxonConnection {
   }
 
   private routeMessage(message: WireData): void {
+    if (this.closed) return;
     const msgType = message.type;
 
     // Control response — resolve pending request
@@ -387,6 +393,7 @@ export class ClaudeAxonConnection {
     if (msgType === "control_request") {
       this.handleIncomingControlRequest(message as SDKControlRequest).catch((err) => {
         this.log("control", `handler error: ${err}`);
+        this.handleError(err);
       });
       return;
     }
@@ -458,7 +465,7 @@ export class ClaudeAxonConnection {
     return promise;
   }
 
-  private async initialize(): Promise<WireData> {
+  private async sendInitialize(): Promise<WireData> {
     this.log("init", "sending initialize request");
     const response = await this.sendControlRequest(
       {

@@ -214,6 +214,12 @@ function jsonRpcToAxon(
 ): { eventType: string; payload: string } {
   // Request: { jsonrpc, id, method, params }
   if ("method" in message && "id" in message && message.id != null) {
+    if (pendingRequests.has(message.method)) {
+      console.warn(
+        `[axonStream] Duplicate in-flight request for method "${message.method}". ` +
+          "Only one outstanding request per method is supported; the previous request's response will be lost.",
+      );
+    }
     pendingRequests.set(message.method, message.id);
     return {
       eventType: message.method,

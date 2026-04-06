@@ -98,7 +98,7 @@ const client = new ClaudeAxonConnection(axon, devbox, {
 });
 
 console.log("Connecting to Claude...");
-await client.connect();
+await client.initialize();
 if (MODEL) {
   console.log(`Model set to: ${MODEL}`);
 }
