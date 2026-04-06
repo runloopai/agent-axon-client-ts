@@ -86,6 +86,8 @@ async function createConnectedClient(
     onDisconnect?: () => void | Promise<void>;
     model?: string;
     onError?: (error: unknown) => void;
+    systemPrompt?: string;
+    appendSystemPrompt?: string;
   },
 ) {
   const axon = createMockAxon();
@@ -93,6 +95,8 @@ async function createConnectedClient(
     onDisconnect: options?.onDisconnect,
     model: options?.model,
     onError: options?.onError,
+    systemPrompt: options?.systemPrompt,
+    appendSystemPrompt: options?.appendSystemPrompt,
   });
 
   // Replace internal transport with mock
@@ -610,6 +614,206 @@ describe("ClaudeAxonConnection", () => {
       });
       expect(modeCall).toBeDefined();
       expect(JSON.parse(modeCall as string).request.mode).toBe("acceptEdits");
+    });
+  });
+
+  describe("onControlRequest()", () => {
+    it("custom handler overrides the default can_use_tool behavior", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const handler = vi.fn().mockResolvedValue({
+        type: "control_response",
+        response: {
+          subtype: "success",
+          request_id: "req_custom_001",
+          response: { behavior: "deny" },
+        },
+      });
+      conn.onControlRequest("can_use_tool", handler);
+
+      transport._push({
+        type: "control_request",
+        request_id: "req_custom_001",
+        request: {
+          subtype: "can_use_tool",
+          tool_name: "bash",
+          input: { command: "rm -rf /" },
+        },
+      });
+
+      await vi.waitFor(() => {
+        const resp = transport._written.find((w) => {
+          const p = JSON.parse(w);
+          return p.type === "control_response" && p.response?.request_id === "req_custom_001";
+        });
+        expect(resp).toBeDefined();
+        const parsed = JSON.parse(resp as string);
+        expect(parsed.response.response.behavior).toBe("deny");
+      });
+
+      expect(handler).toHaveBeenCalledOnce();
+    });
+
+    it("passes the full SDKControlRequest to the handler", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const handler = vi.fn().mockResolvedValue({
+        type: "control_response",
+        response: { subtype: "success", request_id: "req_typed", response: {} },
+      });
+      conn.onControlRequest("can_use_tool", handler);
+
+      transport._push({
+        type: "control_request",
+        request_id: "req_typed",
+        request: {
+          subtype: "can_use_tool",
+          tool_name: "write",
+          input: { path: "/tmp/x" },
+        },
+      });
+
+      await vi.waitFor(() => expect(handler).toHaveBeenCalledOnce());
+
+      const received = handler.mock.calls[0][0];
+      expect(received.type).toBe("control_request");
+      expect(received.request_id).toBe("req_typed");
+      expect(received.request.subtype).toBe("can_use_tool");
+      expect(received.request.tool_name).toBe("write");
+    });
+
+    it("second handler for the same subtype replaces the first", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const firstHandler = vi.fn();
+      const secondHandler = vi.fn().mockResolvedValue({
+        type: "control_response",
+        response: { subtype: "success", request_id: "req_replace", response: { from: "second" } },
+      });
+
+      conn.onControlRequest("can_use_tool", firstHandler);
+      conn.onControlRequest("can_use_tool", secondHandler);
+
+      transport._push({
+        type: "control_request",
+        request_id: "req_replace",
+        request: { subtype: "can_use_tool", tool_name: "bash", input: {} },
+      });
+
+      await vi.waitFor(() => expect(secondHandler).toHaveBeenCalledOnce());
+      expect(firstHandler).not.toHaveBeenCalled();
+    });
+
+    it("handler error produces an error control response", async () => {
+      const conn = await createConnectedClient(transport);
+
+      conn.onControlRequest("can_use_tool", async () => {
+        throw new Error("handler crashed");
+      });
+
+      transport._push({
+        type: "control_request",
+        request_id: "req_err",
+        request: { subtype: "can_use_tool", tool_name: "bash", input: {} },
+      });
+
+      await vi.waitFor(() => {
+        const resp = transport._written.find((w) => {
+          const p = JSON.parse(w);
+          return p.type === "control_response" && p.response?.request_id === "req_err";
+        });
+        expect(resp).toBeDefined();
+        const parsed = JSON.parse(resp as string);
+        expect(parsed.response.subtype).toBe("error");
+        expect(parsed.response.error).toContain("handler crashed");
+      });
+    });
+
+    it("handler for non-default subtype is called", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const handler = vi.fn().mockResolvedValue({
+        type: "control_response",
+        response: {
+          subtype: "success",
+          request_id: "req_hook",
+          response: { custom: true },
+        },
+      });
+      conn.onControlRequest("hook_callback", handler);
+
+      transport._push({
+        type: "control_request",
+        request_id: "req_hook",
+        request: { subtype: "hook_callback", hook_name: "pre_tool" },
+      });
+
+      await vi.waitFor(() => {
+        const resp = transport._written.find((w) => {
+          const p = JSON.parse(w);
+          return p.type === "control_response" && p.response?.request_id === "req_hook";
+        });
+        expect(resp).toBeDefined();
+        const parsed = JSON.parse(resp as string);
+        expect(parsed.response.response.custom).toBe(true);
+      });
+
+      expect(handler).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("systemPrompt / appendSystemPrompt options", () => {
+    it("includes systemPrompt in the initialize control request", async () => {
+      await createConnectedClient(transport, { systemPrompt: "You are a pirate." });
+
+      const initCall = transport._written.find((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(initCall).toBeDefined();
+      const parsed = JSON.parse(initCall as string);
+      expect(parsed.request.systemPrompt).toBe("You are a pirate.");
+    });
+
+    it("includes appendSystemPrompt in the initialize control request", async () => {
+      await createConnectedClient(transport, { appendSystemPrompt: "Always be concise." });
+
+      const initCall = transport._written.find((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(initCall).toBeDefined();
+      const parsed = JSON.parse(initCall as string);
+      expect(parsed.request.appendSystemPrompt).toBe("Always be concise.");
+    });
+
+    it("includes both systemPrompt and appendSystemPrompt together", async () => {
+      await createConnectedClient(transport, {
+        systemPrompt: "You are helpful.",
+        appendSystemPrompt: "Be brief.",
+      });
+
+      const initCall = transport._written.find((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(initCall).toBeDefined();
+      const parsed = JSON.parse(initCall as string);
+      expect(parsed.request.systemPrompt).toBe("You are helpful.");
+      expect(parsed.request.appendSystemPrompt).toBe("Be brief.");
+    });
+
+    it("omits systemPrompt from initialize when not provided", async () => {
+      await createConnectedClient(transport);
+
+      const initCall = transport._written.find((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(initCall).toBeDefined();
+      const parsed = JSON.parse(initCall as string);
+      expect(parsed.request.systemPrompt).toBeUndefined();
+      expect(parsed.request.appendSystemPrompt).toBeUndefined();
     });
   });
 });
