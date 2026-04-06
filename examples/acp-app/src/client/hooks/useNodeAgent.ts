@@ -8,6 +8,7 @@ import type {
   ClientCapabilities,
   ConnectionDetails,
   ConnectionPhase,
+  PendingPermission,
   PendingElicitation,
   SessionListEntry,
   UsageState,
@@ -54,6 +55,7 @@ export type {
   TurnBlock,
   ChatMessage,
   ElicitationFieldSchema,
+  PendingPermission,
   PendingElicitation,
   ToolActivity,
   FileOp,
@@ -83,6 +85,10 @@ export function useNodeAgent(): UseNodeAgentReturn {
   const [authMethods, setAuthMethods] = useState<AuthMethod[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authDismissed, setAuthDismissed] = useState(false);
+
+  // --- Permission state ---
+  const [pendingPermission, setPendingPermission] = useState<PendingPermission | null>(null);
+  const [autoApprovePermissions, setAutoApprovePermissionsState] = useState(true);
 
   // --- Elicitation state ---
   const [pendingElicitation, setPendingElicitation] = useState<PendingElicitation | null>(null);
@@ -127,6 +133,25 @@ export function useNodeAgent(): UseNodeAgentReturn {
       turnBlocks.onEvent(data);
       activity.onEvent(data);
       sessionConfig.onEvent(data);
+
+      // Permission
+      if (data.type === "permission_request") {
+        const { requestId, request } = data;
+        setPendingPermission({
+          requestId,
+          toolTitle: request.toolCall?.title ?? "unknown",
+          toolKind: request.toolCall?.kind ?? "other",
+          toolCallId: request.toolCall?.toolCallId ?? "",
+          rawInput: request.toolCall?.rawInput,
+          options: request.options,
+        });
+        return;
+      }
+
+      if (data.type === "permission_dismissed") {
+        setPendingPermission(null);
+        return;
+      }
 
       // Elicitation
       if (data.type === "elicitation_request") {
@@ -283,6 +308,42 @@ export function useNodeAgent(): UseNodeAgentReturn {
     setAuthDismissed(true);
   }, []);
 
+  const respondToPermission = useCallback(async (
+    requestId: string,
+    optionId: string,
+  ) => {
+    setPendingPermission(null);
+    try {
+      await api("/api/permission-response", {
+        requestId,
+        outcome: { outcome: "selected", optionId },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const cancelPermission = useCallback(async (requestId: string) => {
+    setPendingPermission(null);
+    try {
+      await api("/api/permission-response", {
+        requestId,
+        outcome: { outcome: "cancelled" },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const setAutoApprovePermissions = useCallback(async (enabled: boolean) => {
+    setAutoApprovePermissionsState(enabled);
+    try {
+      await api("/api/set-auto-approve-permissions", { enabled });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
   const respondToElicitation = useCallback(async (
     requestId: string,
     action: ElicitationAction,
@@ -355,6 +416,8 @@ export function useNodeAgent(): UseNodeAgentReturn {
     setAuthMethods([]);
     setIsAuthenticated(false);
     setAuthDismissed(false);
+    setPendingPermission(null);
+    setAutoApprovePermissionsState(true);
     setAxonEvents([]);
     setUsage(null);
     turnBlocks.resetChat();
@@ -380,6 +443,8 @@ export function useNodeAgent(): UseNodeAgentReturn {
     configOptions: sessionConfig.configOptions,
     availableModels: sessionConfig.availableModels,
     currentModelId: sessionConfig.currentModelId,
+    pendingPermission,
+    autoApprovePermissions,
     pendingElicitation,
     devboxId,
     axonId,
@@ -402,6 +467,9 @@ export function useNodeAgent(): UseNodeAgentReturn {
     setConfigOption: sessionConfig.setConfigOption,
     authenticate,
     dismissAuth,
+    respondToPermission,
+    cancelPermission,
+    setAutoApprovePermissions,
     respondToElicitation,
     shutdown,
     createNewSession,

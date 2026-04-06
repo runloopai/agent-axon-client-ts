@@ -1,16 +1,18 @@
 import type { ModelInfo } from "../hooks/useNodeAgent.js";
 
 export function ControlsBar({
-  availableModes, currentMode, configOptions, availableModels, currentModelId, onSetMode, onSetModel, onSetConfigOption,
+  availableModes, currentMode, configOptions, availableModels, currentModelId, autoApprovePermissions, onSetMode, onSetModel, onSetConfigOption, onSetAutoApprovePermissions,
 }: {
   availableModes: Array<{ id: string; name?: string }>;
   currentMode: string | null;
   configOptions: Array<{ id: string; type: string; name: string; currentValue?: string; options?: Array<{ value?: string; name: string; options?: Array<{ value?: string; name: string }> }> }>;
   availableModels: ModelInfo[];
   currentModelId: string | null;
+  autoApprovePermissions: boolean;
   onSetMode: (modeId: string) => void;
   onSetModel: (modelId: string) => void;
   onSetConfigOption: (optionId: string, valueId: string) => void;
+  onSetAutoApprovePermissions: (enabled: boolean) => void;
 }) {
   return (
     <div className="controls-bar">
@@ -82,6 +84,14 @@ export function ControlsBar({
           </span>
         );
       })}
+      <label className="config-toggle">
+        <input
+          type="checkbox"
+          checked={autoApprovePermissions}
+          onChange={(e) => onSetAutoApprovePermissions(e.target.checked)}
+        />
+        <span className="config-toggle-label">Auto-approve permissions</span>
+      </label>
     </div>
   );
 }

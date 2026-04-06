@@ -16,6 +16,7 @@ import { ControlsBar } from "./components/ControlsBar.js";
 import { ConnectionInfoBanner } from "./components/Banners.js";
 import { AssistantTurn } from "./components/AssistantTurn.js";
 import { ElicitationForm } from "./components/ElicitationForm.js";
+import { PermissionDialog } from "./components/PermissionDialog.js";
 import { CommandPicker } from "./components/CommandPicker.js";
 import { UsageBar } from "./components/UsageBar.js";
 import { FileOpItem, TerminalCard } from "./components/ActivityPanel.js";
@@ -256,20 +257,18 @@ export default function App() {
       </div>
 
       <div className="main-area">
-        {(agent.availableModes.length > 0 ||
-          agent.configOptions.length > 0 ||
-          agent.availableModels.length > 0) && (
-          <ControlsBar
-            availableModes={agent.availableModes}
-            currentMode={agent.currentMode}
-            configOptions={agent.configOptions}
-            availableModels={agent.availableModels}
-            currentModelId={agent.currentModelId}
-            onSetMode={agent.setMode}
-            onSetModel={agent.setModel}
-            onSetConfigOption={agent.setConfigOption}
-          />
-        )}
+        <ControlsBar
+          availableModes={agent.availableModes}
+          currentMode={agent.currentMode}
+          configOptions={agent.configOptions}
+          availableModels={agent.availableModels}
+          currentModelId={agent.currentModelId}
+          autoApprovePermissions={agent.autoApprovePermissions}
+          onSetMode={agent.setMode}
+          onSetModel={agent.setModel}
+          onSetConfigOption={agent.setConfigOption}
+          onSetAutoApprovePermissions={agent.setAutoApprovePermissions}
+        />
 
         <div className="chat-area" ref={chatAreaRef}>
           {agent.agentInfo && (
@@ -321,6 +320,14 @@ export default function App() {
               onToggleBlock={toggleBlock}
               terminals={agent.terminals}
               isLive={agent.isAgentTurn}
+            />
+          )}
+
+          {agent.pendingPermission && (
+            <PermissionDialog
+              permission={agent.pendingPermission}
+              onAllow={agent.respondToPermission}
+              onCancel={agent.cancelPermission}
             />
           )}
 

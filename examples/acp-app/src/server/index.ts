@@ -120,6 +120,34 @@ app.post(
 );
 
 app.post(
+  "/api/permission-response",
+  asyncHandler(async (req, res) => {
+    const client = mgr.requireClient();
+    const { requestId, outcome } = req.body;
+    client.resolvePermission(requestId, { outcome });
+    res.json({ ok: true });
+  }),
+);
+
+app.post(
+  "/api/set-auto-approve-permissions",
+  asyncHandler(async (req, res) => {
+    const client = mgr.requireClient();
+    const { enabled } = req.body;
+    client.autoApprovePermissions = !!enabled;
+    res.json({ ok: true, autoApprovePermissions: client.autoApprovePermissions });
+  }),
+);
+
+app.get(
+  "/api/auto-approve-permissions",
+  asyncHandler(async (_req, res) => {
+    const client = mgr.requireClient();
+    res.json({ autoApprovePermissions: client.autoApprovePermissions });
+  }),
+);
+
+app.post(
   "/api/elicitation-response",
   asyncHandler(async (req, res) => {
     const client = mgr.requireClient();

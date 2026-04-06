@@ -2759,6 +2759,51 @@ html, body, #root {
   margin-top: 0;
 }
 
+/* ── Permission Dialog ────────────────────────── */
+
+.permission-raw-input {
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.permission-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.permission-btn {
+  flex: 1;
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.permission-btn-allow {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.permission-btn-allow:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.permission-btn-reject {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+.permission-btn-reject:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 /* ── Turn Blocks Inspector ──────────────────────────────── */
 
 .tbi-container {

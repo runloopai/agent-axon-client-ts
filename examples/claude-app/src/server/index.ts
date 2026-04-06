@@ -15,6 +15,7 @@ let connection: ClaudeAxonConnection | null = null;
 let abortController: AbortController | null = null;
 let axonEvents: AxonEventView[] = [];
 let initMessage: SDKMessage | null = null;
+let autoApprovePermissions = true;
 
 // Pending control requests awaiting a response from the frontend.
 // When a can_use_tool control request arrives, we broadcast it to WS clients
@@ -120,13 +121,25 @@ app.post("/api/start", async (req, res) => {
       ws.broadcast({ type: "axon_event", event: ev });
     });
 
-    // Intercept can_use_tool control requests: forward them to the frontend
-    // via WebSocket and wait for the user's response via /api/control-response.
+    // Intercept can_use_tool control requests: auto-approve or forward to the
+    // frontend via WebSocket and wait for the user's response.
     conn.onControlRequest("can_use_tool", async (message) => {
       const requestId = message.request_id;
+      const request = message.request;
       console.log(
-        `[control] can_use_tool request: tool=${message.request.tool_name} id=${requestId}`,
+        `[control] can_use_tool request: tool=${request.tool_name} id=${requestId} autoApprove=${autoApprovePermissions}`,
       );
+
+      if (autoApprovePermissions) {
+        return {
+          type: "control_response",
+          response: {
+            subtype: "success",
+            request_id: requestId,
+            response: { behavior: "allow", updatedInput: request.input },
+          },
+        };
+      }
 
       // Broadcast to connected browser clients
       ws.broadcast({ type: "control_request", controlRequest: message });
@@ -254,6 +267,12 @@ app.post("/api/control-response", async (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/set-auto-approve-permissions", (req, res) => {
+  const { enabled } = req.body;
+  autoApprovePermissions = !!enabled;
+  res.json({ ok: true, autoApprovePermissions });
+});
+
 // TODO: re-enable when getContextUsage / getMcpStatus are added to ClaudeAxonConnection
 // app.post("/api/get-context-usage", async (_req, res) => { ... });
 // app.post("/api/get-mcp-status", async (_req, res) => { ... });
@@ -272,6 +291,7 @@ app.post("/api/shutdown", async (_req, res) => {
     abortController = null;
     axonEvents = [];
     initMessage = null;
+    autoApprovePermissions = true;
     // Reject any pending control responses
     for (const [, pending] of pendingControlResponses) {
       pending.reject(new Error("Shutdown"));
