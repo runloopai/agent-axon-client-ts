@@ -173,13 +173,6 @@ export interface ClaudeAxonConnectionOptions {
   onError?: (error: unknown) => void;
 
   /**
-   * Called when the SSE stream is interrupted (either cleanly or due to
-   * error). Not called when the stream ends due to an explicit
-   * {@link ClaudeAxonConnection.disconnect | disconnect()} call.
-   */
-  onStreamInterrupted?: () => void;
-
-  /**
    * Teardown callback invoked at the end of
    * {@link ClaudeAxonConnection.disconnect | disconnect()}, after the
    * transport is closed and all listeners are cleared. Commonly used
@@ -245,7 +238,6 @@ export class ClaudeAxonConnection {
 
   /** Optional teardown callback invoked by {@link disconnect}. */
   private disconnectFn: (() => void | Promise<void>) | undefined;
-  private streamInterruptedFn: (() => void) | undefined;
 
   /** Buffer of SDK messages that arrived before a consumer called {@link nextMessage}. */
   private messageQueue: SDKMessage[] = [];
@@ -291,7 +283,6 @@ export class ClaudeAxonConnection {
     this.devboxId = devbox.id;
     this.options = options ?? {};
     this.handleError = options?.onError ?? defaultOnError;
-    this.streamInterruptedFn = options?.onStreamInterrupted;
     this.disconnectFn = options?.onDisconnect;
     this.transport = new AxonTransport(axon, {
       verbose: this.options.verbose,
@@ -443,29 +434,53 @@ export class ClaudeAxonConnection {
     this.readLoopRunning = true;
 
     (async () => {
-      try {
-        for await (const message of this.transport.readMessages()) {
-          if (this.closed) break;
-          this.routeMessage(message);
+      let reconnected = false;
+
+      const consumeStream = async (): Promise<"ended" | "error"> => {
+        try {
+          for await (const message of this.transport.readMessages()) {
+            if (this.closed) return "ended";
+            this.routeMessage(message);
+          }
+          return "ended";
+        } catch (err) {
+          this.log("readLoop", `error: ${err}`);
+          for (const [, pending] of this.pendingControlRequests) {
+            pending.reject(err instanceof Error ? err : new Error(String(err)));
+          }
+          this.pendingControlRequests.clear();
+          return "error";
         }
-      } catch (err) {
-        this.log("readLoop", `error: ${err}`);
-        // Fail all pending control requests
-        for (const [, pending] of this.pendingControlRequests) {
-          pending.reject(err instanceof Error ? err : new Error(String(err)));
-        }
-        this.pendingControlRequests.clear();
-      } finally {
-        this.readLoopDone = true;
-        // Signal end to any message waiters
-        for (const waiter of this.messageWaiters) {
-          waiter(null);
-        }
-        this.messageWaiters.length = 0;
-        if (!this.closed && !this.streamAborted) {
-          this.streamInterruptedFn?.();
+      };
+
+      const outcome = await consumeStream();
+
+      if (!this.closed && !this.streamAborted && !reconnected) {
+        const label = outcome === "error" ? "error" : "ended unexpectedly";
+        console.warn(`[ClaudeAxonConnection] SSE stream ${label}, reconnecting...`);
+        reconnected = true;
+        try {
+          await this.transport.reconnect();
+
+          const reInitialize = async () => {
+            await this.sendInitialize();
+            if (this.options.model) {
+              await this.setModel(this.options.model);
+            }
+            console.warn("[ClaudeAxonConnection] Reconnected successfully");
+          };
+
+          await Promise.all([consumeStream(), reInitialize()]);
+        } catch (reconnectErr) {
+          this.log("readLoop", `reconnect failed: ${reconnectErr}`);
         }
       }
+
+      this.readLoopDone = true;
+      for (const waiter of this.messageWaiters) {
+        waiter(null);
+      }
+      this.messageWaiters.length = 0;
     })();
   }
 

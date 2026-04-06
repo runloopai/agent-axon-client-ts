@@ -24,11 +24,6 @@ export interface AxonStreamOptions {
    * Defaults to `console.error`.
    */
   onError?: (error: unknown) => void;
-  /**
-   * Called when the SSE stream is interrupted (either cleanly or due to error).
-   * Not called when the stream is intentionally aborted via `signal`.
-   */
-  onStreamInterrupted?: () => void;
   /** Diagnostic log callback. When provided, the stream emits verbose logs. */
   log?: (tag: string, ...args: unknown[]) => void;
 }
@@ -59,11 +54,6 @@ export interface ACPAxonConnectionOptions {
    * listener exception). Defaults to `console.error`.
    */
   onError?: (error: unknown) => void;
-  /**
-   * Called when the SSE stream is interrupted (either cleanly or due to error).
-   * Not called when the stream is intentionally aborted via `signal`.
-   */
-  onStreamInterrupted?: () => void;
   /**
    * Async teardown callback invoked by `disconnect()` (e.g. devbox shutdown).
    */

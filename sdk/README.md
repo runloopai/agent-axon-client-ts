@@ -138,7 +138,6 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 | `verbose` | `boolean` | Emit verbose logs to stderr |
 | `requestPermission` | `(params) => Promise<Response>` | Custom permission handler (defaults to auto-approve) |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
-| `onStreamInterrupted` | `() => void` | Called when the SSE stream is interrupted |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
 
 **ACP Methods** (proxied from `ClientSideConnection`):
@@ -226,7 +225,6 @@ Low-level function that creates an ACP-compatible duplex stream backed by an `Ax
 | `signal` | `AbortSignal` | No | Cancellation signal |
 | `onAxonEvent` | `(event: AxonEventView) => void` | No | Callback for every Axon event |
 | `onError` | `(error: unknown) => void` | No | Callback for swallowed parse errors |
-| `onStreamInterrupted` | `() => void` | No | Called when the SSE stream is interrupted |
 
 **Returns**: `{ readable: ReadableStream<AnyMessage>; writable: WritableStream<AnyMessage> }`
 
@@ -294,7 +292,6 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 | `appendSystemPrompt` | `string` | Append to the default system prompt |
 | `model` | `string` | Model ID (e.g. `"claude-sonnet-4-5"`) — set after initialization |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
-| `onStreamInterrupted` | `() => void` | Called when the SSE stream is interrupted (not on explicit disconnect) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
 
 **Listeners & Lifecycle**:
@@ -356,6 +353,7 @@ await transport.close();
 | `write(data: string)` | Send a JSON message string |
 | `readMessages()` | Async iterable of parsed inbound messages |
 | `abortStream()` | Abort the SSE stream without closing the transport |
+| `reconnect()` | Abort the current SSE stream and re-subscribe |
 | `close()` | Close the transport |
 | `isReady()` | Whether the transport is connected and not closed |
 
@@ -419,7 +417,7 @@ type WireData = Record<string, any>;
 ## Known Limitations
 
 - **Eager SSE connection** (ACP): The `ACPAxonConnection` constructor immediately opens an SSE subscription via `axon.subscribeSse()`. Connection errors surface on the first awaited method call, not at construction time.
-- **No automatic reconnection**: If an SSE stream drops, the connection is dead. Create a new instance to reconnect.
+- **Automatic reconnection (single retry)**: If an SSE stream drops unexpectedly, the SDK re-subscribes once and logs a `console.warn`. If the retry also fails, the connection is terminal — create a new instance.
 - **Permission handling** (Claude): The `ClaudeAxonConnection` auto-approves all tool use by default. Register a `"can_use_tool"` handler via `onControlRequest()` to customize.
 
 ### ACP: `prompt()` resolves before all session updates arrive

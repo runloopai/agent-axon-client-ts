@@ -156,7 +156,7 @@ await conn.disconnect();
 
 ## Constraints and gotchas
 
-- **No auto-reconnect.** If an SSE stream drops, create a new connection.
+- **Auto-reconnect (single retry).** If an SSE stream drops unexpectedly, the SDK re-subscribes once and logs a `console.warn`. If the retry also fails, the connection is terminal — create a new instance.
 - **ACP permissions default to auto-approve** (`allow_always` > `allow_once` > first option). Pass `requestPermission` to customize.
 - **Claude permissions also auto-approve** all tool use. Register a `"can_use_tool"` handler via `onControlRequest()` to customize.
 - **Eager SSE** (ACP): The constructor opens an SSE subscription immediately. Connection errors surface on the first awaited method call.

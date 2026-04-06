@@ -61,6 +61,12 @@ export interface Transport {
   abortStream(): void;
 
   /**
+   * Aborts the current SSE stream and re-subscribes. The transport
+   * remains connected — only the read half is recycled.
+   */
+  reconnect(): Promise<void>;
+
+  /**
    * Returns whether the transport is connected and not closed.
    * @returns `true` if the transport can send and receive messages.
    */
@@ -222,6 +228,18 @@ export class AxonTransport implements Transport {
       this.sseStream.controller.abort();
       this.sseStream = null;
     }
+  }
+
+  /**
+   * Aborts the current SSE stream and re-subscribes without marking the
+   * transport as closed. The read loop exits, but a new `readMessages()`
+   * call will yield events from the fresh subscription.
+   */
+  async reconnect(): Promise<void> {
+    this.log("reconnect", "aborting old stream and re-subscribing");
+    this.abortStream();
+    this.sseStream = await this.axon.subscribeSse();
+    this.log("reconnect", "SSE reconnected");
   }
 
   /**

@@ -120,7 +120,6 @@ export class ACPAxonConnection {
       signal: this.abortController.signal,
       onAxonEvent: (ev) => this.emitAxonEvent(ev),
       onError: this.handleError,
-      onStreamInterrupted: options?.onStreamInterrupted,
       log: this.verbose ? (tag, ...args) => this.log(tag, ...args) : undefined,
     });
 

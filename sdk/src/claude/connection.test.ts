@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClaudeAxonConnection } from "./connection.js";
 import type { Transport } from "./transport.js";
 import type { WireData } from "./types.js";
@@ -15,6 +15,7 @@ interface MockTransport extends Transport {
   _push(msg: WireData): void;
   _end(): void;
   abortStream: ReturnType<typeof vi.fn>;
+  reconnect: ReturnType<typeof vi.fn>;
 }
 
 function createMockTransport(): MockTransport {
@@ -30,6 +31,9 @@ function createMockTransport(): MockTransport {
     }),
     close: vi.fn().mockResolvedValue(undefined),
     abortStream: vi.fn(),
+    reconnect: vi.fn().mockImplementation(async () => {
+      transport._done = false;
+    }),
     isReady: vi.fn().mockReturnValue(true),
 
     async *readMessages() {
@@ -86,7 +90,6 @@ async function createConnectedClient(
     onDisconnect?: () => void | Promise<void>;
     model?: string;
     onError?: (error: unknown) => void;
-    onStreamInterrupted?: () => void;
     systemPrompt?: string;
     appendSystemPrompt?: string;
   },
@@ -96,7 +99,6 @@ async function createConnectedClient(
     onDisconnect: options?.onDisconnect,
     model: options?.model,
     onError: options?.onError,
-    onStreamInterrupted: options?.onStreamInterrupted,
     systemPrompt: options?.systemPrompt,
     appendSystemPrompt: options?.appendSystemPrompt,
   });
@@ -143,9 +145,15 @@ async function createConnectedClient(
 
 describe("ClaudeAxonConnection", () => {
   let transport: MockTransport;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     transport = createMockTransport();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
   });
 
   describe("initialize()", () => {
@@ -227,6 +235,7 @@ describe("ClaudeAxonConnection", () => {
 
       transport._push({ type: "assistant", content: "Hi" });
       transport._push({ type: "result", cost: 0.01 });
+      conn.abortStream();
       transport._end();
 
       const messages: WireData[] = [];
@@ -247,6 +256,7 @@ describe("ClaudeAxonConnection", () => {
         response: { subtype: "success", request_id: "orphan", response: {} },
       });
       transport._push({ type: "assistant", content: "Hello" });
+      conn.abortStream();
       transport._end();
 
       const messages: WireData[] = [];
@@ -263,6 +273,7 @@ describe("ClaudeAxonConnection", () => {
 
       transport._push({ type: "control_cancel_request" });
       transport._push({ type: "assistant", content: "Hello" });
+      conn.abortStream();
       transport._end();
 
       const messages: WireData[] = [];
@@ -496,43 +507,6 @@ describe("ClaudeAxonConnection", () => {
       const conn = await createConnectedClient(transport, { onDisconnect });
       conn.abortStream();
       expect(onDisconnect).not.toHaveBeenCalled();
-    });
-
-    it("does not fire onStreamInterrupted", async () => {
-      const onStreamInterrupted = vi.fn();
-      const conn = await createConnectedClient(transport, { onStreamInterrupted });
-
-      conn.abortStream();
-      transport._end();
-
-      await new Promise((r) => setTimeout(r, 20));
-
-      expect(onStreamInterrupted).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("onStreamInterrupted", () => {
-    it("fires when the transport stream ends unexpectedly", async () => {
-      const onStreamInterrupted = vi.fn();
-      await createConnectedClient(transport, { onStreamInterrupted });
-
-      transport._end();
-
-      await vi.waitFor(() => {
-        expect(onStreamInterrupted).toHaveBeenCalledOnce();
-      });
-    });
-
-    it("does not fire when disconnect() is called", async () => {
-      const onStreamInterrupted = vi.fn();
-      const conn = await createConnectedClient(transport, { onStreamInterrupted });
-
-      await conn.disconnect();
-
-      // Give the read loop time to finalize
-      await new Promise((r) => setTimeout(r, 20));
-
-      expect(onStreamInterrupted).not.toHaveBeenCalled();
     });
   });
 
@@ -929,6 +903,93 @@ describe("ClaudeAxonConnection", () => {
       await conn.disconnect();
 
       expect(onError).toHaveBeenCalledWith(disconnectError);
+    });
+  });
+
+  describe("auto-reconnect", () => {
+    it("re-subscribes and re-initializes when the stream ends unexpectedly", async () => {
+      await createConnectedClient(transport);
+
+      transport._end();
+
+      await vi.waitFor(() => {
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("SSE stream ended unexpectedly"),
+        );
+      });
+
+      await vi.waitFor(() => {
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
+      });
+
+      expect(transport.reconnect).toHaveBeenCalledOnce();
+
+      const reconnectInitCalls = transport._written.filter((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "initialize";
+      });
+      expect(reconnectInitCalls.length).toBe(2);
+    });
+
+    it("re-sends set_model after reconnect when model option was provided", async () => {
+      await createConnectedClient(transport, { model: "claude-sonnet-4-5" });
+
+      transport._end();
+
+      await vi.waitFor(() => {
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
+      });
+
+      const modelCalls = transport._written.filter((w) => {
+        const p = JSON.parse(w);
+        return p.type === "control_request" && p.request?.subtype === "set_model";
+      });
+      expect(modelCalls.length).toBe(2);
+    });
+
+    it("does not reconnect when disconnect() was called", async () => {
+      const conn = await createConnectedClient(transport);
+
+      await conn.disconnect();
+      transport._end();
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(transport.reconnect).not.toHaveBeenCalled();
+    });
+
+    it("does not reconnect when abortStream() was called", async () => {
+      const conn = await createConnectedClient(transport);
+
+      conn.abortStream();
+      transport._end();
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(transport.reconnect).not.toHaveBeenCalled();
+    });
+
+    it("delivers messages from the reconnected stream", async () => {
+      const conn = await createConnectedClient(transport);
+
+      transport._end();
+
+      await vi.waitFor(() => {
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
+      });
+
+      transport._push({ type: "assistant", content: "after-reconnect" });
+      transport._push({ type: "result", cost: 0.01 });
+      conn.abortStream();
+      transport._end();
+
+      const messages: WireData[] = [];
+      for await (const msg of conn.receiveMessages()) {
+        messages.push(msg as unknown as WireData);
+      }
+
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({ type: "assistant", content: "after-reconnect" });
     });
   });
 

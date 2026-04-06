@@ -39,7 +39,7 @@ const NOTIFICATION_TYPES = new Set<string>([CLIENT_METHODS.session_update]);
  * @category Connection
  */
 export function axonStream(options: AxonStreamOptions): Stream {
-  const { axon, signal, onAxonEvent, onStreamInterrupted, log } = options;
+  const { axon, signal, onAxonEvent, log } = options;
   const onError = options.onError ?? defaultOnError;
 
   // Maps outbound JSON-RPC request method -> id so we can correlate
@@ -60,7 +60,6 @@ export function axonStream(options: AxonStreamOptions): Stream {
     onAxonEvent,
     () => nextAgentRequestId++,
     onError,
-    onStreamInterrupted,
     log,
   );
 
@@ -89,8 +88,6 @@ export function axonStream(options: AxonStreamOptions): Stream {
  * @param nextId               - Factory that produces the next synthetic JSON-RPC ID for
  *   agent-to-client requests.
  * @param onError              - Error sink for unparseable payloads.
- * @param onStreamInterrupted  - Called when the SSE stream ends unexpectedly
- *   (not via abort signal).
  * @returns A `ReadableStream` of JSON-RPC messages.
  */
 function createReadable(
@@ -101,49 +98,68 @@ function createReadable(
   onAxonEvent: ((event: AxonEventView) => void) | undefined,
   nextId: () => number,
   onError: (error: unknown) => void,
-  onStreamInterrupted: (() => void) | undefined,
   log: ((tag: string, ...args: unknown[]) => void) | undefined,
 ): ReadableStream<AnyMessage> {
   return new ReadableStream<AnyMessage>({
     async start(controller) {
-      let eventCount = 0;
-      try {
-        log?.("read", "opening SSE stream");
-        const sseStream = await axon.subscribeSse();
-        log?.("read", "SSE connected");
-        for await (const axonEvent of sseStream) {
+      let totalEvents = 0;
+      let attempt = 0;
+
+      while (!signal?.aborted) {
+        attempt++;
+        let eventCount = 0;
+        try {
+          log?.("read", `opening SSE stream (attempt ${attempt})`);
+          const sseStream = await axon.subscribeSse();
+          log?.("read", "SSE connected");
+          for await (const axonEvent of sseStream) {
+            if (signal?.aborted) break;
+            eventCount++;
+            totalEvents++;
+
+            onAxonEvent?.(axonEvent);
+
+            if (axonEvent.origin !== "AGENT_EVENT") {
+              log?.("read", `#${totalEvents} SKIP ${axonEvent.origin} ${axonEvent.event_type}`);
+              continue;
+            }
+
+            log?.("read", `#${totalEvents} ${axonEvent.event_type}`);
+            const msg = axonEventToJsonRpc(
+              axonEvent,
+              pendingRequests,
+              pendingClientRequests,
+              nextId,
+              onError,
+            );
+            if (msg) controller.enqueue(msg);
+          }
+        } catch (err) {
           if (signal?.aborted) break;
-          eventCount++;
-
-          onAxonEvent?.(axonEvent);
-
-          if (axonEvent.origin !== "AGENT_EVENT") {
-            log?.("read", `#${eventCount} SKIP ${axonEvent.origin} ${axonEvent.event_type}`);
+          if (attempt === 1) {
+            console.warn(
+              `[axonStream] SSE stream error after ${eventCount} events, re-subscribing...`,
+              err,
+            );
             continue;
           }
-
-          log?.("read", `#${eventCount} ${axonEvent.event_type}`);
-          const msg = axonEventToJsonRpc(
-            axonEvent,
-            pendingRequests,
-            pendingClientRequests,
-            nextId,
-            onError,
-          );
-          if (msg) controller.enqueue(msg);
-        }
-      } catch (err) {
-        if (!signal?.aborted) {
-          log?.("read", `error after ${eventCount} events: ${err}`);
-          onStreamInterrupted?.();
+          log?.("read", `error on reconnect attempt after ${eventCount} events: ${err}`);
           controller.error(err);
           return;
         }
+
+        if (signal?.aborted) break;
+
+        if (attempt === 1) {
+          console.warn(
+            `[axonStream] SSE stream ended after ${eventCount} events, re-subscribing...`,
+          );
+          continue;
+        }
+        break;
       }
-      log?.("read", `SSE ended after ${eventCount} events`);
-      if (!signal?.aborted) {
-        onStreamInterrupted?.();
-      }
+
+      log?.("read", `SSE ended after ${totalEvents} total events`);
       controller.close();
     },
   });
