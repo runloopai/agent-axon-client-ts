@@ -1,3 +1,4 @@
+import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
 import { describe, expect, it, vi } from "vitest";
 import {
   createControllableStream,
@@ -443,11 +444,11 @@ describe("ACPAxonConnection", () => {
       const { axon } = createMockAxon(ctrl);
       const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
 
-      const mockResult = { protocolVersion: "1.0", serverInfo: { name: "test" } };
+      const mockResult = { protocolVersion: PROTOCOL_VERSION, serverInfo: { name: "test" } };
       conn.protocol.initialize = vi.fn().mockResolvedValue(mockResult);
 
       const result = await conn.initialize({
-        protocolVersion: "2025-07-01",
+        protocolVersion: PROTOCOL_VERSION,
         clientInfo: { name: "test", version: "1.0" },
       });
 

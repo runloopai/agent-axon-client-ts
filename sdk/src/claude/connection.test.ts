@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { ClaudeAxonConnection } from "./connection.js";
 import type { Transport } from "./transport.js";
 import type { WireData } from "./types.js";
@@ -14,8 +14,8 @@ interface MockTransport extends Transport {
   _written: string[];
   _push(msg: WireData): void;
   _end(): void;
-  abortStream: ReturnType<typeof vi.fn>;
-  reconnect: ReturnType<typeof vi.fn>;
+  abortStream: Mock<() => void>;
+  reconnect: Mock<() => Promise<void>>;
 }
 
 function createMockTransport(): MockTransport {
