@@ -4,6 +4,11 @@ import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
 import type { AxonStreamOptions } from "./types.js";
 
+/**
+ * Fallback error handler used when no `onError` option is provided.
+ *
+ * @param error - The value that was thrown or failed to parse.
+ */
 function defaultOnError(error: unknown): void {
   console.error("[axonStream]", error);
 }
@@ -27,6 +32,9 @@ const NOTIFICATION_TYPES = new Set<string>([CLIENT_METHODS.session_update]);
  *   publish envelopes (`event_type` + `payload`).
  * - **Inbound**: Wrapping axon events back into JSON-RPC messages using
  *   a method -> request-ID correlation map.
+ *
+ * @param options - Axon channel, abort signal, and event/error callbacks.
+ * @returns A `Stream` (readable + writable pair) consumable by `ClientSideConnection`.
  *
  * @category Connection
  */
@@ -64,6 +72,26 @@ export function axonStream(options: AxonStreamOptions): Stream {
 // Readable: Axon SSE -> JSON-RPC AnyMessage
 // ---------------------------------------------------------------------------
 
+/**
+ * Builds the readable half of the stream: subscribes to the Axon SSE feed
+ * and converts each inbound event into a JSON-RPC `AnyMessage`.
+ *
+ * Events with `origin !== "AGENT_EVENT"` are skipped (they are our own
+ * publishes echoed back). The stream closes when the SSE feed ends or
+ * when the abort signal fires.
+ *
+ * @param axon                 - Axon channel to subscribe to.
+ * @param signal               - Optional abort signal to cancel the subscription.
+ * @param pendingRequests      - Shared map tracking outbound request method → JSON-RPC ID.
+ * @param pendingClientRequests - Shared map tracking agent-to-client request ID → method.
+ * @param onAxonEvent          - Optional callback fired for every raw Axon event.
+ * @param nextId               - Factory that produces the next synthetic JSON-RPC ID for
+ *   agent-to-client requests.
+ * @param onError              - Error sink for unparseable payloads.
+ * @param onStreamInterrupted  - Called when the SSE stream ends unexpectedly
+ *   (not via abort signal).
+ * @returns A `ReadableStream` of JSON-RPC messages.
+ */
 function createReadable(
   axon: Axon,
   signal: AbortSignal | undefined,
@@ -109,6 +137,26 @@ function createReadable(
   });
 }
 
+/**
+ * Converts a single inbound Axon event into a JSON-RPC message.
+ *
+ * Resolution order:
+ * 1. If the payload is already a full JSON-RPC envelope, pass through.
+ * 2. If `event_type` is a known notification (e.g. `session/update`),
+ *    wrap as a JSON-RPC notification.
+ * 3. If `event_type` matches a pending outbound request, wrap as a
+ *    JSON-RPC response and consume the pending entry.
+ * 4. If `event_type` is a known client method, wrap as an agent-to-client
+ *    JSON-RPC request with a synthetic ID.
+ * 5. Otherwise, treat as an unknown notification.
+ *
+ * @param event                - The raw Axon event from the SSE feed.
+ * @param pendingRequests      - Shared map tracking outbound request method → JSON-RPC ID.
+ * @param pendingClientRequests - Shared map tracking agent-to-client request ID → method.
+ * @param nextId               - Factory that produces the next synthetic JSON-RPC ID.
+ * @param onError              - Error sink for unparseable payloads.
+ * @returns The translated JSON-RPC message, or `null` if the payload could not be parsed.
+ */
 function axonEventToJsonRpc(
   event: AxonEventView,
   pendingRequests: Map<string, string | number | null>,
@@ -175,6 +223,15 @@ function axonEventToJsonRpc(
 // Writable: JSON-RPC AnyMessage -> Axon Publish
 // ---------------------------------------------------------------------------
 
+/**
+ * Builds the writable half of the stream: converts outbound JSON-RPC
+ * messages into Axon publish calls.
+ *
+ * @param axon                 - Axon channel to publish to.
+ * @param pendingRequests      - Shared map tracking outbound request method → JSON-RPC ID.
+ * @param pendingClientRequests - Shared map tracking agent-to-client request ID → method.
+ * @returns A `WritableStream` that accepts JSON-RPC messages.
+ */
 function createWritable(
   axon: Axon,
   pendingRequests: Map<string, string | number | null>,
@@ -193,6 +250,22 @@ function createWritable(
   });
 }
 
+/**
+ * Converts an outbound JSON-RPC message into an Axon publish envelope.
+ *
+ * - **Requests** (`id` + `method`): records the method → ID mapping in
+ *   `pendingRequests` for response correlation, then publishes with
+ *   `event_type = method`.
+ * - **Notifications** (`method`, no `id`): publishes directly with
+ *   `event_type = method`.
+ * - **Responses** (`id`, no `method`): looks up the originating method
+ *   from `pendingClientRequests` and publishes with that `event_type`.
+ *
+ * @param message              - The JSON-RPC message to convert.
+ * @param pendingRequests      - Shared map tracking outbound request method → JSON-RPC ID.
+ * @param pendingClientRequests - Shared map tracking agent-to-client request ID → method.
+ * @returns An `eventType` + serialized `payload` ready for `axon.publish()`.
+ */
 function jsonRpcToAxon(
   message: AnyMessage,
   pendingRequests: Map<string, string | number | null>,
@@ -236,12 +309,28 @@ function jsonRpcToAxon(
 // Utilities
 // ---------------------------------------------------------------------------
 
+/** Pre-computed set of all ACP client method names for O(1) lookup. */
 const CLIENT_METHOD_SET: Set<string> = new Set(Object.values(CLIENT_METHODS));
 
+/**
+ * Checks whether `eventType` is a known ACP client-side method
+ * (i.e. a method the agent can call on the client).
+ *
+ * @param eventType - The Axon `event_type` string to test.
+ * @returns `true` if the event type matches a known client method.
+ */
 function isClientMethod(eventType: string): boolean {
   return CLIENT_METHOD_SET.has(eventType);
 }
 
+/**
+ * Checks whether a parsed JSON value is a complete JSON-RPC 2.0 envelope
+ * (has `jsonrpc: "2.0"`). Used to detect pre-wrapped payloads that should
+ * be passed through without further translation.
+ *
+ * @param obj - The parsed payload to inspect.
+ * @returns `true` if `obj` looks like a JSON-RPC 2.0 message.
+ */
 function isJsonRpcMessage(obj: unknown): boolean {
   return (
     typeof obj === "object" && obj !== null && (obj as Record<string, unknown>).jsonrpc === "2.0"
