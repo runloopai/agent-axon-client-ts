@@ -1,8 +1,6 @@
 /**
- * Shared types for the Claude SDK transport and connection layers.
+ * Types for the Claude SDK transport layer.
  */
-
-export type { AxonEventListener } from "../shared/types.js";
 
 /**
  * Raw JSON data from the transport layer.

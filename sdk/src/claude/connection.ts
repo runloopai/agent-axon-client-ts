@@ -30,8 +30,6 @@ import type { AxonEventListener, BaseConnectionOptions } from "../shared/types.j
 import { AxonTransport, type Transport } from "./transport.js";
 import type { WireData } from "./types.js";
 
-export type { AxonEventListener } from "../shared/types.js";
-
 /** The inner request payload — discriminated by `subtype`. */
 type ControlRequestInner = SDKControlRequest["request"];
 
