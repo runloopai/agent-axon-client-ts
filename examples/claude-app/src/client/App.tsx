@@ -240,8 +240,10 @@ export default function App() {
           <ControlsBar
             permissionMode={agent.permissionMode}
             currentModel={agent.currentModel}
+            autoApprovePermissions={agent.autoApprovePermissions}
             onSetPermissionMode={agent.setPermissionMode}
             onSetModel={agent.setModel}
+            onSetAutoApprovePermissions={agent.setAutoApprovePermissions}
           />
         )}
 
@@ -882,13 +884,17 @@ function UsageBar({ usage }: { usage: UsageState }) {
 function ControlsBar({
   permissionMode,
   currentModel,
+  autoApprovePermissions,
   onSetPermissionMode,
   onSetModel,
+  onSetAutoApprovePermissions,
 }: {
   permissionMode: string | null;
   currentModel: string | null;
+  autoApprovePermissions: boolean;
   onSetPermissionMode: (mode: string) => void;
   onSetModel: (model: string) => void;
+  onSetAutoApprovePermissions: (enabled: boolean) => void;
 }) {
   const [showModelInput, setShowModelInput] = useState(false);
   const [modelInput, setModelInput] = useState(currentModel ?? "");
@@ -937,6 +943,14 @@ function ControlsBar({
           )}
         </span>
       )}
+      <label className="config-toggle">
+        <input
+          type="checkbox"
+          checked={autoApprovePermissions}
+          onChange={(e) => onSetAutoApprovePermissions(e.target.checked)}
+        />
+        <span className="config-toggle-label">Auto-approve permissions</span>
+      </label>
     </div>
   );
 }
