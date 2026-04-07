@@ -12,14 +12,11 @@ import type { ClientEvent } from "../../server/acp-client.js";
 import type {
   TurnBlock,
   ChatMessage,
+  UserAttachment,
   PlanEntry,
   StopReason,
 } from "./types.js";
 import { parseToolCallContent, nextBlockId } from "./parsers.js";
-
-// Safety net: if the broker signals a turn is active but no events arrive for
-// this long, force the UI back to idle so the input re-enables.
-const STALE_TURN_TIMEOUT_MS = 15_000;
 
 const NORMAL_END_REASONS = new Set(["end_turn", "endturn", "end turn"]);
 function isNormalEndTurn(reason: string): boolean {
@@ -34,7 +31,7 @@ export interface UseTurnBlocksReturn {
   plan: PlanEntry[] | null;
   error: string | null;
   blocksRef: React.RefObject<TurnBlock[]>;
-  startTurn: (userText: string) => void;
+  startTurn: (userText: string, attachments?: UserAttachment[]) => void;
   resetChat: () => void;
   onEvent: (event: ClientEvent) => void;
 }
@@ -49,9 +46,7 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
 
   const blocksRef = useRef<TurnBlock[]>([]);
   const thinkingStartRef = useRef<number | null>(null);
-  const staleTurnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingStopReasonRef = useRef<StopReason | undefined>(undefined);
+  const lastStopReasonRef = useRef<StopReason | undefined>(undefined);
 
   function pushBlock(block: TurnBlock) {
     blocksRef.current = [...blocksRef.current, block];
@@ -80,33 +75,8 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     thinkingStartRef.current = null;
   }
 
-  function clearStaleTurnTimer() {
-    if (staleTurnTimerRef.current) {
-      clearTimeout(staleTurnTimerRef.current);
-      staleTurnTimerRef.current = null;
-    }
-  }
-
-  function resetStaleTurnTimer() {
-    clearStaleTurnTimer();
-    staleTurnTimerRef.current = setTimeout(() => {
-      console.warn("[useTurnBlocks] stale turn detected — forcing idle");
-      setIsAgentTurn(false);
-      setIsStreaming(false);
-    }, STALE_TURN_TIMEOUT_MS);
-  }
-
-  function clearFlushTimer() {
-    if (flushTimerRef.current) {
-      clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
-    }
-  }
-
   /** Flush accumulated blocks into messages as an assistant message. */
   function flushBlocksToMessages(stopReason?: StopReason) {
-    clearFlushTimer();
-    pendingStopReasonRef.current = undefined;
     finalizeThinking();
     const turnBlocks = blocksRef.current;
     if (turnBlocks.length > 0) {
@@ -126,33 +96,27 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     setCurrentTurnBlocks([]);
   }
 
-  /** Schedule a flush after a short delay to catch trailing events from the broker. */
-  function scheduleDeferredFlush(stopReason?: StopReason) {
-    clearFlushTimer();
-    pendingStopReasonRef.current = stopReason;
-    flushTimerRef.current = setTimeout(() => {
-      flushTimerRef.current = null;
-      flushBlocksToMessages(pendingStopReasonRef.current);
-    }, 100);
-  }
-
-  const startTurn = useCallback((userText: string) => {
-    flushBlocksToMessages();
+  const startTurn = useCallback((userText: string, attachments?: UserAttachment[]) => {
+    flushBlocksToMessages(lastStopReasonRef.current);
+    lastStopReasonRef.current = undefined;
     setMessages((prev) => [
       ...prev,
-      { id: `user-${Date.now()}`, role: "user", content: userText },
+      {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: userText,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      },
     ]);
     blocksRef.current = [];
     thinkingStartRef.current = null;
     setCurrentTurnBlocks([]);
     setIsAgentTurn(true);
     setIsStreaming(false);
-    resetStaleTurnTimer();
   }, []);
 
   const resetChat = useCallback(() => {
-    clearStaleTurnTimer();
-    clearFlushTimer();
+    lastStopReasonRef.current = undefined;
     blocksRef.current = [];
     thinkingStartRef.current = null;
     setCurrentTurnBlocks([]);
@@ -163,26 +127,17 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     setError(null);
   }, []);
 
-  useEffect(() => {
-    return () => {
-      clearStaleTurnTimer();
-      clearFlushTimer();
-    };
-  }, []);
-
   const onEvent = useCallback((data: ClientEvent) => {
     if (data.type === "turn_started") {
       setIsAgentTurn(true);
       setIsStreaming(false);
-      resetStaleTurnTimer();
       return;
     }
 
     if (data.type === "turn_completed") {
-      clearStaleTurnTimer();
       setIsAgentTurn(false);
       setIsStreaming(false);
-      scheduleDeferredFlush(data.stopReason as StopReason);
+      lastStopReasonRef.current = data.stopReason as StopReason;
       return;
     }
 
@@ -191,7 +146,6 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     }
 
     if (data.type === "turn_error") {
-      clearStaleTurnTimer();
       flushBlocksToMessages();
       setIsAgentTurn(false);
       setIsStreaming(false);
@@ -200,11 +154,6 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     }
 
     if (data.type !== "session_update") return;
-
-    // If a deferred flush is pending, reset the timer so trailing events are included.
-    if (flushTimerRef.current) {
-      scheduleDeferredFlush(pendingStopReasonRef.current);
-    }
 
     const { update } = data;
 

@@ -7,6 +7,7 @@ export function SetupCard({
   systemPrompt, setSystemPrompt,
   onStart,
   connectionPhase,
+  connectionStatus,
   error,
 }: {
   agentBinary: string; setAgentBinary: (v: string) => void;
@@ -15,6 +16,7 @@ export function SetupCard({
   systemPrompt: string; setSystemPrompt: (v: string) => void;
   onStart: () => void;
   connectionPhase: ConnectionPhase;
+  connectionStatus: string | null;
   error: string | null;
 }) {
   const connecting = connectionPhase === "connecting";
@@ -86,7 +88,7 @@ export function SetupCard({
       {connecting && (
         <div className="phase-indicator">
           <div className="phase-spinner" />
-          <span>Provisioning sandbox and connecting to agent</span>
+          <span>{connectionStatus ?? "Provisioning sandbox and connecting to agent"}</span>
         </div>
       )}
       {error && <div className="error-banner">{error}</div>}

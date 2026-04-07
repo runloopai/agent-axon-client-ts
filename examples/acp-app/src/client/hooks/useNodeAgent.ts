@@ -68,7 +68,9 @@ export type {
 export function useNodeAgent(): UseNodeAgentReturn {
   // --- Connection lifecycle state ---
   const [connectionPhase, setConnectionPhase] = useState<ConnectionPhase>("idle");
+  const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSendingPrompt, setIsSendingPrompt] = useState(false);
   const [devboxId, setDevboxId] = useState<string | null>(null);
   const [axonId, setAxonId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -126,6 +128,11 @@ export function useNodeAgent(): UseNodeAgentReturn {
 
       if (data.type === "axon_event") {
         setAxonEvents((prev) => [...prev, (data as { type: "axon_event"; event: AxonEventView }).event]);
+        return;
+      }
+
+      if (data.type === "connection_progress") {
+        setConnectionStatus((data as { type: "connection_progress"; step: string }).step);
         return;
       }
 
@@ -268,9 +275,11 @@ export function useNodeAgent(): UseNodeAgentReturn {
       }]);
 
       resetChatState();
+      setConnectionStatus(null);
       setConnectionPhase("ready");
     } catch (err) {
       setConnectionPhase("error");
+      setConnectionStatus(null);
       setError(err instanceof Error ? err.message : String(err));
     }
   }, [connectWs, resetChatState, sessionConfig.applySessionResponse]);
@@ -278,8 +287,19 @@ export function useNodeAgent(): UseNodeAgentReturn {
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
     if (!text.trim() && (!content || content.length === 0)) return;
 
-    turnBlocks.startTurn(text);
+    const attachments = content
+      ?.filter((c) => c.type === "image" || c.type === "file")
+      .map((c) => ({
+        type: c.type as "image" | "file",
+        name: c.name as string | undefined,
+        data: c.data as string | undefined,
+        mimeType: c.mimeType as string | undefined,
+        text: c.text as string | undefined,
+      }));
 
+    turnBlocks.startTurn(text, attachments && attachments.length > 0 ? attachments : undefined);
+
+    setIsSendingPrompt(true);
     try {
       if (content && content.length > 0) {
         await api("/api/prompt", { content });
@@ -290,6 +310,8 @@ export function useNodeAgent(): UseNodeAgentReturn {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       turnBlocks.onEvent({ type: "turn_error", error: message } as ClientEvent);
+    } finally {
+      setIsSendingPrompt(false);
     }
   }, [turnBlocks.startTurn, turnBlocks.onEvent]);
 
@@ -412,6 +434,8 @@ export function useNodeAgent(): UseNodeAgentReturn {
     wsRef.current?.close();
     wsRef.current = null;
     setConnectionPhase("idle");
+    setConnectionStatus(null);
+    setIsSendingPrompt(false);
     setDevboxId(null);
     setAxonId(null);
     setSessionId(null);
@@ -432,11 +456,13 @@ export function useNodeAgent(): UseNodeAgentReturn {
 
   return {
     connectionPhase,
+    connectionStatus,
     error,
     messages: turnBlocks.messages,
     currentTurnBlocks: turnBlocks.currentTurnBlocks,
     isAgentTurn: turnBlocks.isAgentTurn,
     isStreaming: turnBlocks.isStreaming,
+    isSendingPrompt,
     usage,
     plan: turnBlocks.plan,
     toolActivity: activity.toolActivity,

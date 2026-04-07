@@ -568,6 +568,52 @@ html, body, #root {
   word-break: break-word;
 }
 
+/* ── User Attachments in Messages ────────────────────────── */
+
+.user-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.user-attachment-image {
+  border-radius: 6px;
+  overflow: hidden;
+  max-width: 280px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.user-attachment-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.user-attachment-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.user-attachment-file-icon {
+  font-size: 14px;
+}
+
+.user-attachment-file-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Assistant Turn (block container) ────────────────────── */
 
 .assistant-turn {
@@ -1441,58 +1487,166 @@ html, body, #root {
   margin: 0;
 }
 
-/* ── Info Panel ──────────────────────────────────────────── */
+/* ── Connection Info Banner ──────────────────────────────── */
 
-.info-panel {
-  padding: 4px;
+.conn-banner {
+  align-self: flex-start;
+  width: 100%;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s;
 }
 
-.info-section {
-  padding: 8px;
-  border-bottom: 1px solid var(--border);
+.conn-banner-expanded {
+  border-color: var(--text-muted);
 }
 
-.info-section:last-child { border-bottom: none; }
+.conn-banner-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+}
 
-.info-section-title {
+.conn-banner-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.conn-banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+.conn-banner-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.conn-banner-title strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.conn-banner-proto {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--cyan);
+  background: rgba(86, 212, 221, 0.1);
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.conn-banner-chevron {
+  margin-left: 4px;
+}
+
+.conn-banner-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px 8px 30px;
+  flex-wrap: wrap;
+}
+
+.cap-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.cap-yes {
+  background: rgba(63, 185, 80, 0.12);
+  color: var(--success);
+}
+
+.cap-no {
+  background: rgba(139, 148, 158, 0.1);
+  color: var(--text-muted);
+}
+
+.cap-inline {
+  font-size: 9px !important;
+  padding: 0 5px !important;
+}
+
+.conn-model-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--purple);
+  background: rgba(188, 140, 255, 0.1);
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: auto;
+}
+
+.conn-banner-body {
+  border-top: 1px solid var(--border);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.conn-section-title {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
-.info-value {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-primary);
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 8px;
-}
-
-.info-label {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.info-list {
+.conn-caps {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
 
-.info-chip {
+.conn-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conn-kv {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.conn-kv-key {
+  color: var(--text-muted);
+  white-space: nowrap;
+  min-width: 100px;
+  flex-shrink: 0;
+}
+
+.conn-kv-val {
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.conn-kv-val code {
   font-family: var(--font-mono);
-  font-size: 10px;
-  padding: 2px 6px;
+  font-size: 11px;
   background: var(--bg-tertiary);
+  padding: 1px 5px;
   border-radius: 3px;
-  color: var(--text-secondary);
 }
 
 .mcp-status {
@@ -1872,4 +2026,44 @@ html, body, #root {
 
 .btn-copy-all {
   font-size: 11px !important;
+}
+
+/* ── Command Picker ─────────────────────────────────────── */
+
+.command-picker {
+  position: absolute;
+  bottom: 100%;
+  left: 16px;
+  right: 16px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+  z-index: 10;
+  padding: 4px 0;
+  margin-bottom: 4px;
+}
+
+.command-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.command-item:hover,
+.command-item.active {
+  background: var(--bg-secondary);
+}
+
+.command-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
 }

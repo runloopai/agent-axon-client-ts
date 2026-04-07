@@ -1,0 +1,25 @@
+name: Smoke Tests
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  trigger-smoke-tests:
+    if: startsWith(github.head_ref, 'release-please--branches--main')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger smoke tests
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.SMOKE_TEST_PAT }}
+          repository: runloopai/agent-axon-client-smoke-tests
+          event-type: smoke-test
+          client-payload: >-
+            {
+              "sdk_version": "branch:${{ github.head_ref }}",
+              "environment": "both",
+              "triggered_by": "${{ github.repository }}",
+              "pr_number": "${{ github.event.pull_request.number }}"
+            }

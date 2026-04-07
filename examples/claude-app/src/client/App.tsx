@@ -25,14 +25,38 @@ import {
   type PendingControlRequest,
   type ControlRequestQuestion,
   type AxonEventView,
+  type UserAttachment,
 } from "./hooks/useClaudeAgent.js";
 import { useAttachments } from "./useAttachments.js";
 import { AttachmentBar } from "./AttachmentBar.js";
 import { AxonEventItem } from "./components/AxonEventItem.js";
+import { CommandPicker } from "./components/CommandPicker.js";
 
 function phaseLabel(phase: ConnectionPhase): string {
   if (phase === "connecting") return "Connecting to Claude Code\u2026";
   return "";
+}
+
+function UserAttachments({ attachments }: { attachments: UserAttachment[] }) {
+  return (
+    <div className="user-attachments">
+      {attachments.map((a, i) =>
+        a.type === "image" && a.data && a.mimeType ? (
+          <div key={i} className="user-attachment-image">
+            <img
+              src={`data:${a.mimeType};base64,${a.data}`}
+              alt={a.name ?? "attachment"}
+            />
+          </div>
+        ) : a.type === "file" ? (
+          <div key={i} className="user-attachment-file">
+            <span className="user-attachment-file-icon">{"\uD83D\uDCC4"}</span>
+            <span className="user-attachment-file-name">{a.name ?? "file"}</span>
+          </div>
+        ) : null,
+      )}
+    </div>
+  );
 }
 
 const PERMISSION_MODES = [
@@ -96,8 +120,10 @@ export default function App() {
   const [startModel, setStartModel] = useState("claude-haiku-4-5");
   const [inputText, setInputText] = useState("");
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
-  const [rightTab, setRightTab] = useState<"tools" | "info" | "axon">("tools");
+  const [rightTab, setRightTab] = useState<"tools" | "axon">("tools");
   const [expandedAxonEvents, setExpandedAxonEvents] = useState<Set<number>>(new Set());
+  const [showCommandPicker, setShowCommandPicker] = useState(false);
+  const [commandPickerIndex, setCommandPickerIndex] = useState(0);
   const axonEndRef = useRef<HTMLDivElement>(null);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -137,8 +163,26 @@ export default function App() {
     });
   };
 
+  const slashCommands = agent.initInfo?.slashCommands ?? [];
+  const slashFilter =
+    inputText.startsWith("/") && !inputText.includes(" ")
+      ? inputText.slice(1).toLowerCase()
+      : null;
+  const filteredCommands =
+    slashFilter !== null
+      ? slashCommands.filter((c) => c.toLowerCase().includes(slashFilter))
+      : [];
+
+  const selectCommand = (cmd: string) => {
+    setInputText("");
+    setShowCommandPicker(false);
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    agent.sendMessage(`/${cmd}`);
+  };
+
   const handleSend = async () => {
     if (!attach.hasContent(inputText)) return;
+    setShowCommandPicker(false);
     const text = inputText;
     const content = attach.toContentPayload(text);
     setInputText("");
@@ -149,6 +193,31 @@ export default function App() {
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showCommandPicker && filteredCommands.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setCommandPickerIndex((i) =>
+          Math.min(i + 1, filteredCommands.length - 1),
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setCommandPickerIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        e.preventDefault();
+        selectCommand(filteredCommands[commandPickerIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowCommandPicker(false);
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -156,10 +225,19 @@ export default function App() {
   };
 
   const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputText(e.target.value);
+    const val = e.target.value;
+    setInputText(val);
     const el = e.target;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
+
+    const isSlash = val.startsWith("/") && !val.includes(" ");
+    if (isSlash && slashCommands.length > 0) {
+      setShowCommandPicker(true);
+      setCommandPickerIndex(0);
+    } else {
+      setShowCommandPicker(false);
+    }
   };
 
   if (
@@ -181,6 +259,7 @@ export default function App() {
             setStartModel={setStartModel}
             onStart={handleStart}
             connectionPhase={agent.connectionPhase}
+            connectionStatus={agent.connectionStatus}
             error={agent.error}
           />
         </div>
@@ -262,7 +341,16 @@ export default function App() {
         )}
 
         <div className="chat-area" ref={chatAreaRef}>
-          {agent.messages.length === 0 && !agent.isAgentTurn && (
+          {agent.initInfo && (
+            <ConnectionInfoBanner
+              initInfo={agent.initInfo}
+              usage={agent.usage}
+              permissionMode={agent.permissionMode}
+              currentModel={agent.currentModel}
+            />
+          )}
+
+          {agent.messages.length === 0 && !agent.isAgentTurn && !agent.initInfo && (
             <div className="empty-state">Send a message to start chatting</div>
           )}
 
@@ -270,6 +358,9 @@ export default function App() {
             msg.role === "user" ? (
               <div key={msg.id} className="message user">
                 <div className="message-text">{msg.content}</div>
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <UserAttachments attachments={msg.attachments} />
+                )}
               </div>
             ) : (
               <AssistantTurn
@@ -312,6 +403,14 @@ export default function App() {
         <div className="input-bar" {...getRootProps()}>
           <input {...getInputProps()} />
           {isDragActive && <div className="dropzone-active">Drop files here</div>}
+          {showCommandPicker && filteredCommands.length > 0 && (
+            <CommandPicker
+              commands={filteredCommands}
+              selectedIndex={commandPickerIndex}
+              onSelect={selectCommand}
+              onHover={setCommandPickerIndex}
+            />
+          )}
           <AttachmentBar
             attachments={attach.attachments}
             onRemove={attach.removeAttachment}
@@ -344,7 +443,7 @@ export default function App() {
               onPaste={attach.handlePaste}
               placeholder="Send a message, paste images, or drop files"
               rows={1}
-              disabled={agent.connectionPhase !== "ready"}
+              disabled={agent.connectionPhase !== "ready" || agent.isSendingPrompt}
             />
             {agent.isStreaming || agent.isAgentTurn ? (
               <button className="btn btn-cancel" onClick={agent.cancel}>
@@ -354,9 +453,9 @@ export default function App() {
               <button
                 className="btn-send"
                 onClick={handleSend}
-                disabled={!attach.hasContent(inputText) || agent.connectionPhase !== "ready"}
+                disabled={!attach.hasContent(inputText) || agent.connectionPhase !== "ready" || agent.isSendingPrompt}
               >
-                Send
+                {agent.isSendingPrompt ? "Sending\u2026" : "Send"}
               </button>
             )}
           </div>
@@ -373,12 +472,6 @@ export default function App() {
             {allToolCalls.length > 0 && (
               <span className="tab-count">{allToolCalls.length}</span>
             )}
-          </button>
-          <button
-            className={`sidebar-tab ${rightTab === "info" ? "active" : ""}`}
-            onClick={() => setRightTab("info")}
-          >
-            Info
           </button>
           <button
             className={`sidebar-tab ${rightTab === "axon" ? "active" : ""}`}
@@ -399,14 +492,6 @@ export default function App() {
             {allToolCalls.map((tc) => (
               <ToolCallSidebarItem key={tc.id} toolCall={tc} />
             ))}
-          </div>
-        ) : rightTab === "info" ? (
-          <div className="events-list">
-            {agent.initInfo ? (
-              <InfoPanel initInfo={agent.initInfo} usage={agent.usage} />
-            ) : (
-              <div className="empty-state">Waiting for initialization...</div>
-            )}
           </div>
         ) : (
           <div className="events-list">
@@ -525,6 +610,16 @@ function AssistantTurn({
   );
 }
 
+const STOP_REASON_LABELS: Record<string, string> = {
+  tool_use: "Cancelled",
+  max_tokens: "Max tokens",
+  error_during_execution: "Error",
+};
+
+function humanizeStopReason(reason: string): string {
+  return STOP_REASON_LABELS[reason] ?? reason;
+}
+
 function TurnSummaryFooter({
   blocks,
   stopReason,
@@ -584,7 +679,7 @@ function TurnSummaryFooter({
         </span>
       )}
       {stopReason && stopReason !== "end_turn" && (
-        <span className="stop-reason-badge">{stopReason}</span>
+        <span className="stop-reason-badge">{humanizeStopReason(stopReason)}</span>
       )}
     </div>
   );
@@ -1010,6 +1105,7 @@ function SetupCard({
   setStartModel,
   onStart,
   connectionPhase,
+  connectionStatus,
   error,
 }: {
   blueprintName: string;
@@ -1022,6 +1118,7 @@ function SetupCard({
   setStartModel: (v: string) => void;
   onStart: () => void;
   connectionPhase: ConnectionPhase;
+  connectionStatus: string | null;
   error: string | null;
 }) {
   const connecting = connectionPhase === "connecting";
@@ -1143,7 +1240,7 @@ function SetupCard({
       {connecting && (
         <div className="phase-indicator">
           <div className="phase-spinner" />
-          <span>Provisioning sandbox and connecting to Claude Code</span>
+          <span>{connectionStatus ?? "Provisioning sandbox and connecting to Claude Code"}</span>
         </div>
       )}
       {error && <div className="error-banner">{error}</div>}
@@ -1331,83 +1428,123 @@ function QuestionView({
   );
 }
 
-// ── Info Panel ──────────────────────────────────────────────
+// ── Connection Info Banner (chat area) ─────────────────────
 
-function InfoPanel({
+function ConnectionInfoBanner({
   initInfo,
   usage,
+  permissionMode,
+  currentModel,
 }: {
   initInfo: InitInfo;
   usage: UsageState | null;
+  permissionMode: string | null;
+  currentModel: string | null;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <div className="info-panel">
-      <div className="info-section">
-        <div className="info-section-title">Model</div>
-        <div className="info-value">{initInfo.model}</div>
+    <div className={`conn-banner ${expanded ? "conn-banner-expanded" : ""}`}>
+      <div className="conn-banner-header" onClick={() => setExpanded(!expanded)}>
+        <span className="conn-banner-dot" />
+        <span className="conn-banner-title">
+          <strong>Claude Code</strong>
+          {" connected"}
+        </span>
+        <span className="conn-banner-proto">Claude SDK</span>
+        <span className={`chevron conn-banner-chevron ${expanded ? "expanded" : ""}`}>{"\u25B6"}</span>
       </div>
-      <div className="info-section">
-        <div className="info-section-title">Permission Mode</div>
-        <div className="info-value">{initInfo.permissionMode}</div>
-      </div>
-      {usage && (
-        <div className="info-section">
-          <div className="info-section-title">Token Usage</div>
-          <div className="info-grid">
-            <span className="info-label">Input:</span>
-            <span className="info-value">
-              {usage.inputTokens.toLocaleString()}
-            </span>
-            <span className="info-label">Output:</span>
-            <span className="info-value">
-              {usage.outputTokens.toLocaleString()}
-            </span>
-            <span className="info-label">Cache Read:</span>
-            <span className="info-value">
-              {usage.cacheReadInputTokens.toLocaleString()}
-            </span>
-            <span className="info-label">Cache Created:</span>
-            <span className="info-value">
-              {usage.cacheCreationInputTokens.toLocaleString()}
-            </span>
-          </div>
+
+      {!expanded && (
+        <div className="conn-banner-summary">
+          {initInfo.tools.length > 0 && (
+            <span className="cap-badge cap-yes cap-inline">{initInfo.tools.length} tools</span>
+          )}
+          {initInfo.mcpServers.length > 0 && (
+            <span className="cap-badge cap-yes cap-inline">{initInfo.mcpServers.length} MCP</span>
+          )}
+          {initInfo.slashCommands.length > 0 && (
+            <span className="cap-badge cap-yes cap-inline">{initInfo.slashCommands.length} commands</span>
+          )}
+          {(currentModel ?? initInfo.model) && (
+            <span className="conn-model-chip">{currentModel ?? initInfo.model}</span>
+          )}
         </div>
       )}
-      <div className="info-section">
-        <div className="info-section-title">
-          Tools ({initInfo.tools.length})
-        </div>
-        <div className="info-list">
-          {initInfo.tools.map((t) => (
-            <span key={t} className="info-chip">
-              {t}
-            </span>
-          ))}
-        </div>
-      </div>
-      {initInfo.mcpServers.length > 0 && (
-        <div className="info-section">
-          <div className="info-section-title">MCP Servers</div>
-          <div className="info-list">
-            {initInfo.mcpServers.map((s) => (
-              <span key={s.name} className="info-chip">
-                {s.name}{" "}
-                <span className={`mcp-status ${s.status}`}>({s.status})</span>
-              </span>
-            ))}
+
+      {expanded && (
+        <div className="conn-banner-body">
+          <div className="conn-section">
+            <div className="conn-section-title">Session</div>
+            <div className="conn-details">
+              <div className="conn-kv">
+                <span className="conn-kv-key">Model</span>
+                <span className="conn-kv-val"><code>{currentModel ?? initInfo.model}</code></span>
+              </div>
+              <div className="conn-kv">
+                <span className="conn-kv-key">Permission Mode</span>
+                <span className="conn-kv-val">{permissionMode ?? initInfo.permissionMode}</span>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-      {initInfo.slashCommands.length > 0 && (
-        <div className="info-section">
-          <div className="info-section-title">Slash Commands</div>
-          <div className="info-list">
-            {initInfo.slashCommands.map((c) => (
-              <span key={c} className="info-chip">
-                /{c}
-              </span>
-            ))}
+
+          {usage && (
+            <div className="conn-section">
+              <div className="conn-section-title">Token Usage</div>
+              <div className="conn-details">
+                <div className="conn-kv">
+                  <span className="conn-kv-key">Input</span>
+                  <span className="conn-kv-val">{usage.inputTokens.toLocaleString()}</span>
+                </div>
+                <div className="conn-kv">
+                  <span className="conn-kv-key">Output</span>
+                  <span className="conn-kv-val">{usage.outputTokens.toLocaleString()}</span>
+                </div>
+                <div className="conn-kv">
+                  <span className="conn-kv-key">Cache Read</span>
+                  <span className="conn-kv-val">{usage.cacheReadInputTokens.toLocaleString()}</span>
+                </div>
+                <div className="conn-kv">
+                  <span className="conn-kv-key">Cache Created</span>
+                  <span className="conn-kv-val">{usage.cacheCreationInputTokens.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="conn-section">
+            <div className="conn-section-title">Tools ({initInfo.tools.length})</div>
+            <div className="conn-caps">
+              {initInfo.tools.map((t) => (
+                <span key={t} className="cap-badge cap-yes">{t}</span>
+              ))}
+            </div>
           </div>
+
+          {initInfo.mcpServers.length > 0 && (
+            <div className="conn-section">
+              <div className="conn-section-title">MCP Servers</div>
+              <div className="conn-caps">
+                {initInfo.mcpServers.map((s) => (
+                  <span key={s.name} className="cap-badge cap-yes">
+                    {s.name}{" "}
+                    <span className={`mcp-status ${s.status}`}>({s.status})</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {initInfo.slashCommands.length > 0 && (
+            <div className="conn-section">
+              <div className="conn-section-title">Slash Commands</div>
+              <div className="conn-caps">
+                {initInfo.slashCommands.map((c) => (
+                  <span key={c} className="cap-badge cap-yes">/{c}</span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
