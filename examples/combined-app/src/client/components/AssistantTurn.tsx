@@ -16,6 +16,7 @@ import {
   ImageBlockView,
   AudioBlockView,
   EmbeddedResourceBlockView,
+  SystemInitBlockView,
 } from "./TurnBlocks.js";
 
 type RenderItem =
@@ -208,6 +209,15 @@ export function AssistantTurn({
             return <AudioBlockView key={block.id} block={block} />;
           case "resource":
             return <EmbeddedResourceBlockView key={block.id} block={block} />;
+          case "system_init":
+            return (
+              <SystemInitBlockView
+                key={block.id}
+                block={block}
+                expanded={expandedBlocks.has(block.id)}
+                onToggle={() => onToggleBlock(block.id)}
+              />
+            );
           default:
             return null;
         }

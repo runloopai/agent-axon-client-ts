@@ -196,6 +196,7 @@ examples/
   claude-hello-world/     → Minimal Claude single-prompt script
   claude-cli/             → Interactive Claude REPL
   claude-app/             → Full-stack Claude demo (Express + React)
+  combined-app/           → Full-stack combined demo (Claude + ACP, Express + React)
 ```
 
 ## Development

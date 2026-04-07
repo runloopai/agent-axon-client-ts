@@ -36,6 +36,7 @@ import type {
   SessionListEntry,
   AxonEventView,
   ToolCallBlock,
+  ACPInitExtensions,
 } from "../types.js";
 import { parseToolCallContent, extractOutputText, nextBlockId } from "./parsers.js";
 import { api } from "./api.js";
@@ -580,6 +581,35 @@ export function useACPAgent(): UseACPAgentReturn {
       applySessionResponse(resp);
       setSessions([{ sessionId: resp.sessionId as string, cwd: "." }]);
       resetAll();
+
+      const info = resp.agentInfo as AgentInfo | undefined;
+      const modes = resp.modes as { availableModes?: SessionMode[] } | undefined;
+      const models = resp.models as { availableModels?: ModelInfo[]; currentModelId?: string } | undefined;
+      const opts = resp.configOptions as SessionConfigOption[] | undefined;
+      const cmds = resp.availableCommands as AvailableCommand[] | undefined;
+      const extensions: ACPInitExtensions = {
+        protocol: "acp",
+        protocolVersion: (resp.protocolVersion as number) ?? null,
+        modes: modes?.availableModes ?? [],
+        models: models?.availableModels ?? [],
+        configOptions: opts ?? [],
+        agentCapabilities: (resp.agentCapabilities as AgentCapabilities) ?? null,
+        clientCapabilities: (resp.clientCapabilities as ClientCapabilities) ?? null,
+        authMethods: (resp.authMethods as unknown[]) ?? [],
+      };
+      const modelName = models?.availableModels?.find((m) => m.modelId === models.currentModelId)?.name
+        ?? models?.currentModelId ?? null;
+      pushBlock({
+        type: "system_init",
+        id: nextBlockId("init"),
+        agentName: info?.name ?? null,
+        agentVersion: info?.version ?? null,
+        model: modelName,
+        commands: cmds?.map((c) => c.name) ?? [],
+        extensions,
+        extra: { ...resp },
+      });
+
       setConnectionStatus(null);
       setConnectionPhase("ready");
     } catch (err) {

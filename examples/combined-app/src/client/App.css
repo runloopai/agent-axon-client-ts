@@ -1154,6 +1154,31 @@ html, body, #root {
   margin: 12px 0;
 }
 
+.text-block table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  width: 100%;
+  font-size: 12px;
+  overflow-x: auto;
+  display: block;
+}
+
+.text-block th,
+.text-block td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.text-block th {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+}
+
+.text-block tr:nth-child(even) {
+  background: var(--bg-secondary);
+}
+
 /* ── Streaming cursor ────────────────────────────────────── */
 
 .streaming-cursor {
@@ -3406,6 +3431,155 @@ html, body, #root {
   margin-top: 6px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+/* ── System init block ────────────────────────────────────── */
+
+.system-init-block {
+  padding: 10px 12px;
+  border-left: 3px solid var(--blue);
+  background: rgba(96, 165, 250, 0.06);
+  border-radius: var(--radius);
+  margin: 4px 0;
+}
+
+.init-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.init-icon {
+  font-size: 14px;
+}
+
+.init-title {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+}
+
+.init-model-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--blue);
+  font-family: var(--font-mono);
+}
+
+.init-body {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.init-section {
+  border-radius: var(--radius);
+}
+
+.init-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.init-section-header:hover {
+  color: var(--text-primary);
+}
+
+.init-section-label {
+  font-weight: 500;
+}
+
+.init-chevron {
+  font-size: 8px;
+  transition: transform 0.15s;
+}
+
+.init-section-body {
+  padding: 4px 0 4px 18px;
+}
+
+.init-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.init-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.init-mcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.init-mcp-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.init-mcp-status {
+  font-size: 8px;
+}
+
+.init-mcp-connected { color: var(--green); }
+.init-mcp-disconnected { color: var(--red); }
+.init-mcp-error { color: var(--red); }
+
+.init-kv {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.init-kv-label {
+  color: var(--text-muted);
+  min-width: 100px;
+}
+
+.init-kv-value {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.init-config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.init-capabilities-pre {
+  margin: 0;
+  padding: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 /* ── Extra data view ──────────────────────────────────────── */

@@ -130,7 +130,7 @@ function mapClaude(c: UseClaudeAgentReturn): Omit<UseAgentReturn, "start" | "shu
     authMethods: [],
     isAuthenticated: false,
     authDismissed: false,
-    availableCommands: [],
+    availableCommands: (c.initInfo?.slashCommands ?? []).map((name) => ({ name })),
     sessions: [],
     isLoadingSessions: false,
     autoApprovePermissions: c.autoApprovePermissions,

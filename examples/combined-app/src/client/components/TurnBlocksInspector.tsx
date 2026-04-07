@@ -11,6 +11,7 @@ import type {
   ImageBlock,
   AudioBlock,
   EmbeddedResourceBlock,
+  SystemInitBlock,
   ToolKind,
 } from "../types.js";
 import { toolKindMeta, statusIndicator } from "./shared.js";
@@ -194,6 +195,19 @@ function EmbeddedResourceSummary({ block }: { block: EmbeddedResourceBlock }) {
   );
 }
 
+function SystemInitSummary({ block }: { block: SystemInitBlock }) {
+  const label = [block.agentName, block.model ? `(${block.model})` : null].filter(Boolean).join(" ");
+  return (
+    <div className="tbi-block-item tbi-init-item">
+      <div className="tbi-compact-row">
+        <span className="tbi-resource-icon">{"\u26A1"}</span>
+        <span className="tbi-resource-label">{label || "Initialized"}</span>
+        {block.extensions && <span className="tbi-compact-meta">{block.extensions.protocol}</span>}
+      </div>
+    </div>
+  );
+}
+
 type RenderItem =
   | { kind: "block"; block: TurnBlock }
   | { kind: "group"; groupKind: ToolKind; blocks: ToolCallBlock[] };
@@ -253,6 +267,8 @@ function BlockRenderer({ block, isLive, isLastBlock }: { block: TurnBlock; isLiv
       return <AudioSummary block={block} />;
     case "resource":
       return <EmbeddedResourceSummary block={block} />;
+    case "system_init":
+      return <SystemInitSummary block={block} />;
     default:
       return null;
   }

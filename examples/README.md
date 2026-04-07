@@ -14,6 +14,7 @@ Example applications and scripts showing how to use `@runloop/agent-axon-client`
 | [`claude-hello-world`](claude-hello-world/) | Minimal Claude agent script — the simplest possible starting point |
 | [`claude-cli`](claude-cli/) | Interactive REPL for Claude Code agents |
 | [`claude-app`](claude-app/) | Full-stack Claude demo with a React UI |
+| [`combined-app`](combined-app/) | Full-stack combined demo (Claude + ACP) with a unified React UI |
 
 ## Prerequisites
 
