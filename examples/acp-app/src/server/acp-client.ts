@@ -60,7 +60,8 @@ export type ClientEvent =
   | { type: "turn_started"; turnId: number }
   | { type: "turn_completed"; turnId: number; stopReason: string }
   | ({ type: "turn_complete" } & PromptResponse)
-  | { type: "turn_error"; error: string };
+  | { type: "turn_error"; error: string }
+  | { type: "connection_progress"; step: string };
 
 export class NodeACPClient implements Client {
   private terminalManager = new TerminalManager();

@@ -79,10 +79,12 @@ app.post("/api/start", async (req, res) => {
       ...(baseUrl ? { baseURL: baseUrl } : {}),
     });
 
+    ws.broadcast({ type: "connection_progress", step: "Creating Axon channel..." });
     const axon = await sdk.axon.create({ name: "claude-demo-sdk" });
     // The runloop/agents blueprint used has Claude pre-installed.
     // When using a ClaudeSDKConnection, ensure the Agent is on the blueprint by
     // using the AgentAPI or a Blueprint.
+    ws.broadcast({ type: "connection_progress", step: "Provisioning sandbox..." });
     const devbox = await sdk.devbox.create({
       name: "claude-app",
       blueprint_name: blueprintName ?? "runloop/agents",
@@ -162,6 +164,7 @@ app.post("/api/start", async (req, res) => {
       });
     });
 
+    ws.broadcast({ type: "connection_progress", step: "Connecting to Claude Code..." });
     await conn.initialize();
 
     // Start the background read loop

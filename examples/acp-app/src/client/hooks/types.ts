@@ -183,10 +183,19 @@ export type TurnBlock =
 
 // --- Chat message ---
 
+export interface UserAttachment {
+  type: "image" | "file";
+  name?: string;
+  data?: string;
+  mimeType?: string;
+  text?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  attachments?: UserAttachment[];
   blocks?: TurnBlock[];
   stopReason?: StopReason;
 }
@@ -265,11 +274,13 @@ export interface SessionConfigOption {
 
 export interface UseNodeAgentReturn {
   connectionPhase: ConnectionPhase;
+  connectionStatus: string | null;
   error: string | null;
   messages: ChatMessage[];
   currentTurnBlocks: TurnBlock[];
   isAgentTurn: boolean;
   isStreaming: boolean;
+  isSendingPrompt: boolean;
   usage: UsageState | null;
   plan: PlanEntry[] | null;
   toolActivity: ToolActivity[];

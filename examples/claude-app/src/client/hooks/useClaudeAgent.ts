@@ -90,10 +90,19 @@ export interface PendingControlRequest {
   rawRequest: Record<string, unknown>;
 }
 
+export interface UserAttachment {
+  type: "image" | "file";
+  name?: string;
+  data?: string;
+  mimeType?: string;
+  text?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  attachments?: UserAttachment[];
   blocks?: TurnBlock[];
   stopReason?: string;
   cost?: number;
@@ -118,11 +127,13 @@ export interface InitInfo {
 
 export interface UseClaudeAgentReturn {
   connectionPhase: ConnectionPhase;
+  connectionStatus: string | null;
   error: string | null;
   messages: ChatMessage[];
   currentTurnBlocks: TurnBlock[];
   isAgentTurn: boolean;
   isStreaming: boolean;
+  isSendingPrompt: boolean;
   usage: UsageState | null;
   initInfo: InitInfo | null;
   devboxId: string | null;
@@ -172,7 +183,9 @@ function nextBlockId(prefix: string): string {
 
 export function useClaudeAgent(): UseClaudeAgentReturn {
   const [connectionPhase, setConnectionPhase] = useState<ConnectionPhase>("idle");
+  const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSendingPrompt, setIsSendingPrompt] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentTurnBlocks, setCurrentTurnBlocks] = useState<TurnBlock[]>([]);
   const [isAgentTurn, setIsAgentTurn] = useState(false);
@@ -692,6 +705,11 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
         return;
       }
 
+      if (parsed.type === "connection_progress") {
+        setConnectionStatus(parsed.step);
+        return;
+      }
+
       if (parsed.type === "sdk_message") {
         handleSDKMessage(parsed.message as Record<string, unknown>);
       } else if (parsed.type === "control_request") {
@@ -745,9 +763,11 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
         setMessages([]);
         setCurrentTurnBlocks([]);
         blocksRef.current = [];
+        setConnectionStatus(null);
         setConnectionPhase("ready");
       } catch (err) {
         setConnectionPhase("error");
+        setConnectionStatus(null);
         setError(err instanceof Error ? err.message : String(err));
       }
     },
@@ -757,9 +777,24 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
     if (!text.trim() && (!content || content.length === 0)) return;
 
+    const attachments: UserAttachment[] | undefined = content
+      ?.filter((c) => c.type === "image" || c.type === "file")
+      .map((c) => ({
+        type: c.type as "image" | "file",
+        name: c.name as string | undefined,
+        data: c.data as string | undefined,
+        mimeType: c.mimeType as string | undefined,
+        text: c.text as string | undefined,
+      }));
+
     setMessages((prev) => [
       ...prev,
-      { id: `user-${Date.now()}`, role: "user", content: text },
+      {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: text,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      },
     ]);
 
     blocksRef.current = [];
@@ -769,6 +804,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     setIsAgentTurn(true);
     setIsStreaming(false);
 
+    setIsSendingPrompt(true);
     try {
       if (content && content.length > 0) {
         await api("/api/prompt", { content });
@@ -778,6 +814,8 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       finalizeTurn();
+    } finally {
+      setIsSendingPrompt(false);
     }
   }, []);
 
@@ -834,6 +872,8 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     wsRef.current?.close();
     wsRef.current = null;
     setConnectionPhase("idle");
+    setConnectionStatus(null);
+    setIsSendingPrompt(false);
     setDevboxId(null);
     setAxonId(null);
     setIsStreaming(false);
@@ -850,11 +890,13 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
 
   return {
     connectionPhase,
+    connectionStatus,
     error,
     messages,
     currentTurnBlocks,
     isAgentTurn,
     isStreaming,
+    isSendingPrompt,
     usage,
     initInfo,
     devboxId,

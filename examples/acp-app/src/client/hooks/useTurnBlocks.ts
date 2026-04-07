@@ -12,6 +12,7 @@ import type { ClientEvent } from "../../server/acp-client.js";
 import type {
   TurnBlock,
   ChatMessage,
+  UserAttachment,
   PlanEntry,
   StopReason,
 } from "./types.js";
@@ -34,7 +35,7 @@ export interface UseTurnBlocksReturn {
   plan: PlanEntry[] | null;
   error: string | null;
   blocksRef: React.RefObject<TurnBlock[]>;
-  startTurn: (userText: string) => void;
+  startTurn: (userText: string, attachments?: UserAttachment[]) => void;
   resetChat: () => void;
   onEvent: (event: ClientEvent) => void;
 }
@@ -136,11 +137,16 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     }, 100);
   }
 
-  const startTurn = useCallback((userText: string) => {
+  const startTurn = useCallback((userText: string, attachments?: UserAttachment[]) => {
     flushBlocksToMessages();
     setMessages((prev) => [
       ...prev,
-      { id: `user-${Date.now()}`, role: "user", content: userText },
+      {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: userText,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      },
     ]);
     blocksRef.current = [];
     thinkingStartRef.current = null;
@@ -200,6 +206,9 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     }
 
     if (data.type !== "session_update") return;
+
+    // Any session_update means the turn is still alive — reset the stale timer.
+    resetStaleTurnTimer();
 
     // If a deferred flush is pending, reset the timer so trailing events are included.
     if (flushTimerRef.current) {

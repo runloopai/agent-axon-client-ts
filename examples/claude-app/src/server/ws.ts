@@ -7,7 +7,8 @@ export type WsEvent =
   | { type: "control_request"; controlRequest: unknown }
   | { type: "turn_complete"; result: unknown }
   | { type: "turn_error"; error: string }
-  | { type: "axon_event"; event: AxonEventView };
+  | { type: "axon_event"; event: AxonEventView }
+  | { type: "connection_progress"; step: string };
 
 export class WsBroadcaster {
   private wss: WebSocketServer;

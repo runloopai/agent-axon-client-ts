@@ -14,6 +14,7 @@ import {
 import { useAttachments } from "./useAttachments.js";
 import { AttachmentBar } from "./AttachmentBar.js";
 
+import type { UserAttachment } from "./hooks/types.js";
 import { SetupCard } from "./components/SetupCard.js";
 import { ControlsBar } from "./components/ControlsBar.js";
 import { ConnectionInfoBanner } from "./components/Banners.js";
@@ -25,6 +26,28 @@ import { UsageBar } from "./components/UsageBar.js";
 import { FileOpItem, TerminalCard } from "./components/ActivityPanel.js";
 import { AxonEventItem } from "./components/AxonEventItem.js";
 import { TurnBlocksInspector } from "./components/TurnBlocksInspector.js";
+
+function UserAttachments({ attachments }: { attachments: UserAttachment[] }) {
+  return (
+    <div className="user-attachments">
+      {attachments.map((a, i) =>
+        a.type === "image" && a.data && a.mimeType ? (
+          <div key={i} className="user-attachment-image">
+            <img
+              src={`data:${a.mimeType};base64,${a.data}`}
+              alt={a.name ?? "attachment"}
+            />
+          </div>
+        ) : a.type === "file" ? (
+          <div key={i} className="user-attachment-file">
+            <span className="user-attachment-file-icon">{"\uD83D\uDCC4"}</span>
+            <span className="user-attachment-file-name">{a.name ?? "file"}</span>
+          </div>
+        ) : null,
+      )}
+    </div>
+  );
+}
 
 export default function App() {
   const agent = useNodeAgent();
@@ -218,6 +241,7 @@ export default function App() {
             setSystemPrompt={setSystemPrompt}
             onStart={handleStart}
             connectionPhase={agent.connectionPhase}
+            connectionStatus={agent.connectionStatus}
             error={agent.error}
           />
         </div>
@@ -313,6 +337,9 @@ export default function App() {
             msg.role === "user" ? (
               <div key={msg.id} className="message user">
                 <div className="message-text">{msg.content}</div>
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <UserAttachments attachments={msg.attachments} />
+                )}
               </div>
             ) : (
               <AssistantTurn
@@ -398,7 +425,7 @@ export default function App() {
               onPaste={attach.handlePaste}
               placeholder="Send a message, paste images, or drop files"
               rows={1}
-              disabled={agent.connectionPhase !== "ready" || agent.isAgentTurn}
+              disabled={agent.connectionPhase !== "ready" || agent.isAgentTurn || agent.isSendingPrompt}
             />
             {agent.isAgentTurn ? (
               <button className="btn btn-cancel" onClick={agent.cancel}>
@@ -408,9 +435,9 @@ export default function App() {
               <button
                 className="btn-send"
                 onClick={handleSend}
-                disabled={!attach.hasContent(inputText) || agent.connectionPhase !== "ready"}
+                disabled={!attach.hasContent(inputText) || agent.connectionPhase !== "ready" || agent.isSendingPrompt}
               >
-                Send
+                {agent.isSendingPrompt ? "Sending\u2026" : "Send"}
               </button>
             )}
           </div>
