@@ -35,6 +35,7 @@ jobs:
             examples
             deps
             project
+            main
           subjectPattern: ^(?![A-Z]).+$
           subjectPatternError: |
             The subject "{subject}" found in the pull request title "{title}"
