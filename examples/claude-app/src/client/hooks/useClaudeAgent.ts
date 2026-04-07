@@ -409,8 +409,9 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
 
         if (isError) {
           const errors = msg.errors as string[] | undefined;
-          if (errors?.length) {
-            setError(errors.join("; "));
+          const userErrors = errors?.filter((e) => !e.startsWith("[ede_diagnostic]"));
+          if (userErrors?.length) {
+            setError(userErrors.join("; "));
           }
         }
 

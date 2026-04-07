@@ -610,6 +610,16 @@ function AssistantTurn({
   );
 }
 
+const STOP_REASON_LABELS: Record<string, string> = {
+  tool_use: "Cancelled",
+  max_tokens: "Max tokens",
+  error_during_execution: "Error",
+};
+
+function humanizeStopReason(reason: string): string {
+  return STOP_REASON_LABELS[reason] ?? reason;
+}
+
 function TurnSummaryFooter({
   blocks,
   stopReason,
@@ -669,7 +679,7 @@ function TurnSummaryFooter({
         </span>
       )}
       {stopReason && stopReason !== "end_turn" && (
-        <span className="stop-reason-badge">{stopReason}</span>
+        <span className="stop-reason-badge">{humanizeStopReason(stopReason)}</span>
       )}
     </div>
   );
