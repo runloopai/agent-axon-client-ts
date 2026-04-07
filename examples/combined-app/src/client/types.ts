@@ -296,9 +296,14 @@ export interface ModelInfo {
   name: string;
 }
 
+export interface AvailableCommandInput {
+  hint: string;
+}
+
 export interface AvailableCommand {
   name: string;
   description?: string;
+  input?: AvailableCommandInput | null;
 }
 
 export interface SessionConfigOption {
