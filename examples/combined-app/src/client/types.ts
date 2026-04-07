@@ -286,7 +286,7 @@ export interface PendingElicitation {
 // --- ACP-specific: session config ---
 
 export interface SessionMode {
-  modeId: string;
+  id: string;
   name: string;
   description?: string;
 }

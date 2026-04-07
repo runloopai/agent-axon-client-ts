@@ -523,7 +523,7 @@ export function SystemInitBlockView({ block, expanded, onToggle }: { block: Syst
             <>
               {ext.modes.length > 0 && (
                 <InitSection label={`Modes (${ext.modes.length})`}>
-                  <InitTagList items={ext.modes.map((m) => m.name ?? m.modeId)} />
+                  <InitTagList items={ext.modes.map((m) => m.name ?? m.id)} />
                 </InitSection>
               )}
               {ext.models.length > 0 && (
