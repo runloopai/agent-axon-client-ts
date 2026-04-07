@@ -136,7 +136,7 @@ export interface UseClaudeAgentReturn {
   /** A pending control request awaiting user input (e.g. AskUserQuestion), or null. */
   pendingControlRequest: PendingControlRequest | null;
   start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => Promise<void>;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
   cancel: () => Promise<void>;
   setModel: (model: string) => Promise<void>;
   setPermissionMode: (mode: string) => Promise<void>;
@@ -754,8 +754,8 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     [connectWs],
   );
 
-  const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim()) return;
+  const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
+    if (!text.trim() && (!content || content.length === 0)) return;
 
     setMessages((prev) => [
       ...prev,
@@ -770,7 +770,11 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     setIsStreaming(false);
 
     try {
-      await api("/api/prompt", { text });
+      if (content && content.length > 0) {
+        await api("/api/prompt", { content });
+      } else {
+        await api("/api/prompt", { text });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       finalizeTurn();

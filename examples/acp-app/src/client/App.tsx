@@ -5,11 +5,14 @@ import {
   useCallback,
   type KeyboardEvent,
 } from "react";
+import { useDropzone } from "react-dropzone";
 import {
   useNodeAgent,
   type AvailableCommand,
   type AxonEventView,
 } from "./hooks/useNodeAgent.js";
+import { useAttachments } from "../../../shared/useAttachments.js";
+import { AttachmentBar } from "../../../shared/AttachmentBar.js";
 
 import { SetupCard } from "./components/SetupCard.js";
 import { ControlsBar } from "./components/ControlsBar.js";
@@ -25,10 +28,12 @@ import { TurnBlocksInspector } from "./components/TurnBlocksInspector.js";
 
 export default function App() {
   const agent = useNodeAgent();
+  const attach = useAttachments();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
   const axonEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [agentBinary, setAgentBinary] = useState("opencode");
   const [launchArgs, setLaunchArgs] = useState("acp");
@@ -43,6 +48,12 @@ export default function App() {
   const [expandedTerminal, setExpandedTerminal] = useState<string | null>(null);
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [commandPickerIndex, setCommandPickerIndex] = useState(0);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    noClick: true,
+    noKeyboard: true,
+    onDrop: (files) => attach.addFiles(files),
+  });
 
   useEffect(() => {
     const el = chatAreaRef.current;
@@ -80,12 +91,15 @@ export default function App() {
   };
 
   const handleSend = async () => {
-    if (!inputText.trim()) return;
+    if (!attach.hasContent(inputText)) return;
     setShowCommandPicker(false);
     const text = inputText;
+    const content = attach.toContentPayload(text);
     setInputText("");
+    attach.clearAttachments();
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    await agent.sendMessage(text);
+    const hasAttachments = content.some((c) => c.type !== "text");
+    await agent.sendMessage(text, hasAttachments ? content : undefined);
   };
 
   const selectCommand = (cmd: AvailableCommand) => {
@@ -341,7 +355,9 @@ export default function App() {
           <div ref={chatEndRef} />
         </div>
 
-        <div className="input-bar">
+        <div className="input-bar" {...getRootProps()}>
+          <input {...getInputProps()} />
+          {isDragActive && <div className="dropzone-active">Drop files here</div>}
           {showCommandPicker && filteredCommands.length > 0 && (
             <CommandPicker
               commands={filteredCommands}
@@ -350,28 +366,54 @@ export default function App() {
               onHover={setCommandPickerIndex}
             />
           )}
-          <textarea
-            ref={textareaRef}
-            value={inputText}
-            onChange={handleTextareaInput}
-            onKeyDown={handleKeyDown}
-            placeholder="Send a message"
-            rows={1}
-            disabled={agent.connectionPhase !== "ready" || agent.isAgentTurn}
+          <AttachmentBar
+            attachments={attach.attachments}
+            onRemove={attach.removeAttachment}
           />
-          {agent.isAgentTurn ? (
-            <button className="btn btn-cancel" onClick={agent.cancel}>
-              Cancel
-            </button>
-          ) : (
+          <div className="input-row">
             <button
-              className="btn-send"
-              onClick={handleSend}
-              disabled={!inputText.trim() || agent.connectionPhase !== "ready"}
+              className="btn-attach"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={agent.connectionPhase !== "ready" || agent.isAgentTurn}
+              title="Attach files"
             >
-              Send
+              📎
             </button>
-          )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: "none" }}
+              accept="image/*,.txt,.md,.json,.csv,.xml,.yaml,.yml,.ts,.js,.py,.html,.css,.sh,.toml,.cfg,.log"
+              onChange={(e) => {
+                if (e.target.files) attach.addFiles(Array.from(e.target.files));
+                e.target.value = "";
+              }}
+            />
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={handleTextareaInput}
+              onKeyDown={handleKeyDown}
+              onPaste={attach.handlePaste}
+              placeholder="Send a message, paste images, or drop files"
+              rows={1}
+              disabled={agent.connectionPhase !== "ready" || agent.isAgentTurn}
+            />
+            {agent.isAgentTurn ? (
+              <button className="btn btn-cancel" onClick={agent.cancel}>
+                Cancel
+              </button>
+            ) : (
+              <button
+                className="btn-send"
+                onClick={handleSend}
+                disabled={!attach.hasContent(inputText) || agent.connectionPhase !== "ready"}
+              >
+                Send
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
