@@ -597,6 +597,12 @@ export class ClaudeAxonConnection {
    * If the handler or default logic throws, an error response is sent
    * back to the CLI so it does not hang waiting.
    *
+   * **Important:** If you override the handler via {@link onControlRequest},
+   * you **must** handle `can_use_tool` permission requests yourself, or
+   * include `--dangerously-skip-permissions` in the `launch_args` passed to
+   * the broker mount. Failing to do so will cause the CLI to hang waiting
+   * for a permission response that never arrives.
+   *
    * @param message - The incoming `SDKControlRequest` from the CLI.
    */
   private async handleIncomingControlRequest(message: SDKControlRequest): Promise<void> {
