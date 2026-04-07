@@ -216,6 +216,51 @@ describe("AxonTransport", () => {
     });
   });
 
+  describe("reconnect()", () => {
+    it("re-subscribes to the Axon SSE stream", async () => {
+      await transport.connect();
+
+      const ctrl2 = createControllableStream(true);
+      axon.subscribeSse.mockResolvedValueOnce(ctrl2.stream);
+
+      await transport.reconnect();
+
+      expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
+    });
+
+    it("passes after_sequence from last seen event on re-subscribe", async () => {
+      await transport.connect();
+
+      ctrl.push(makeAgentEvent("assistant", { type: "assistant", text: "hi" }, 42));
+      ctrl.push(makeAgentEvent("result", { type: "result" }, 43));
+      ctrl.end();
+
+      for await (const _msg of transport.readMessages()) {
+        // drain
+      }
+
+      const ctrl2 = createControllableStream(true);
+      axon.subscribeSse.mockResolvedValueOnce(ctrl2.stream);
+
+      await transport.reconnect();
+
+      expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
+      expect(axon.subscribeSse).toHaveBeenNthCalledWith(1);
+      expect(axon.subscribeSse).toHaveBeenNthCalledWith(2, { after_sequence: 43 });
+    });
+
+    it("passes no after_sequence when no events were received", async () => {
+      await transport.connect();
+
+      const ctrl2 = createControllableStream(true);
+      axon.subscribeSse.mockResolvedValueOnce(ctrl2.stream);
+
+      await transport.reconnect();
+
+      expect(axon.subscribeSse).toHaveBeenNthCalledWith(2, undefined);
+    });
+  });
+
   describe("isReady()", () => {
     it("returns false before connect", () => {
       expect(transport.isReady()).toBe(false);
