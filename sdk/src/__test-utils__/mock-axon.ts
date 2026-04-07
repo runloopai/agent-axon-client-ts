@@ -22,6 +22,10 @@ export function makeUserEvent(eventType: string, payload: unknown): MockAxonEven
   };
 }
 
+export interface MockSseStream extends AsyncIterable<MockAxonEvent> {
+  controller?: { abort: ReturnType<typeof vi.fn> };
+}
+
 /**
  * Creates an async-iterable SSE stream that can be driven imperatively.
  * Call `push(event)` to enqueue, `end()` to signal stream completion.
@@ -42,7 +46,7 @@ export function createControllableStream(withController = false) {
     }
   }
 
-  const stream: Record<string, unknown> = {
+  const stream: MockSseStream = {
     [Symbol.asyncIterator](): AsyncIterator<MockAxonEvent> {
       return {
         next(): Promise<IteratorResult<MockAxonEvent>> {
@@ -89,9 +93,7 @@ export type PublishCall = {
 };
 
 export function createMockAxon(
-  sseStreamOrCtrl:
-    | ReturnType<typeof createControllableStream>
-    | { [Symbol.asyncIterator](): AsyncIterator<MockAxonEvent> },
+  sseStreamOrCtrl: ReturnType<typeof createControllableStream> | MockSseStream,
 ) {
   const stream = "stream" in sseStreamOrCtrl ? sseStreamOrCtrl.stream : sseStreamOrCtrl;
 

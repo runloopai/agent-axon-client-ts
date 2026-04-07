@@ -27,9 +27,10 @@
  * @module
  */
 
-// Full upstream type surface for consumers who need additional ACP protocol
-// types beyond what this library's API explicitly re-exports above.
+/** @category ACP Protocol */
 export type * from "@agentclientprotocol/sdk";
+
+/** @category ACP Protocol */
 export type {
   AuthenticateRequest,
   AuthenticateResponse,
@@ -54,11 +55,18 @@ export type {
   SetSessionModeResponse,
   Stream,
 } from "@agentclientprotocol/sdk";
+
+/** @category ACP Protocol */
 export {
   CLIENT_METHODS,
   ClientSideConnection,
   PROTOCOL_VERSION,
 } from "@agentclientprotocol/sdk";
+export type {
+  AxonEventListener,
+  AxonEventView,
+  BaseConnectionOptions,
+} from "../shared/types.js";
 export { axonStream } from "./axon-stream.js";
 export { ACPAxonConnection } from "./connection.js";
 export type {
@@ -89,8 +97,6 @@ export {
 } from "./session-update-guards.js";
 export type {
   ACPAxonConnectionOptions,
-  AxonEventListener,
-  AxonEventView,
   AxonStreamOptions,
   SessionUpdateListener,
 } from "./types.js";

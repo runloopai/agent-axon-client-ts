@@ -1,19 +1,23 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPoints": ["src/index.ts", "src/acp/index.ts", "src/claude/index.ts"],
+  "entryPoints": ["src/index.ts", "src/acp/index.ts", "src/claude/index.ts", "src/shared/index.ts"],
+  "plugin": ["./typedoc-default-category-plugin.mjs"],
   "out": "docs",
   "name": "@runloop/agent-axon-client",
   "readme": "README.md",
   "excludeInternal": true,
   "excludePrivate": true,
   "githubPages": true,
-  "defaultCategory": "ACP Protocol",
+  "defaultCategory": "Other",
   "categoryOrder": [
     "Connection",
     "Configuration",
     "Session Updates",
     "Transport",
+    "Types",
     "ACP Protocol",
+    "Claude SDK",
+    "Other",
     "*"
   ],
   "navigation": {

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { ClaudeAxonConnection } from "./connection.js";
 import type { Transport } from "./transport.js";
 import type { WireData } from "./types.js";
@@ -14,8 +14,8 @@ interface MockTransport extends Transport {
   _written: string[];
   _push(msg: WireData): void;
   _end(): void;
-  abortStream: ReturnType<typeof vi.fn>;
-  reconnect: ReturnType<typeof vi.fn>;
+  abortStream: Mock<() => void>;
+  reconnect: Mock<() => Promise<void>>;
 }
 
 function createMockTransport(): MockTransport {
@@ -104,7 +104,7 @@ async function createConnectedClient(
   });
 
   // Replace internal transport with mock
-  (conn as unknown as { transport: Transport }).transport = transport;
+  (conn as unknown as { transport: MockTransport }).transport = transport;
 
   // Queue up the initialize control response so initialize() succeeds.
   // The initialize() method sends an initialize control_request and waits for
@@ -495,10 +495,9 @@ describe("ClaudeAxonConnection", () => {
 
       conn.abortStream();
 
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
-      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
+      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
       expect(listener).toHaveBeenCalledOnce();
     });
 
@@ -517,13 +516,10 @@ describe("ClaudeAxonConnection", () => {
       const listener = vi.fn();
       conn.onAxonEvent(listener);
 
-      // Since we replaced the transport in createConnectedClient,
-      // call emitAxonEvent directly to trigger the listeners.
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
       const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
-      emitAxonEvent(fakeEvent);
+      listeners.emit(fakeEvent);
 
       expect(listener).toHaveBeenCalledOnce();
       expect(listener).toHaveBeenCalledWith(fakeEvent);
@@ -535,17 +531,16 @@ describe("ClaudeAxonConnection", () => {
       const listener = vi.fn();
       const unsub = conn.onAxonEvent(listener);
 
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
       const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
 
-      emitAxonEvent(fakeEvent);
+      listeners.emit(fakeEvent);
       expect(listener).toHaveBeenCalledOnce();
 
       unsub();
 
-      emitAxonEvent(fakeEvent);
+      listeners.emit(fakeEvent);
       expect(listener).toHaveBeenCalledOnce();
     });
 
@@ -562,10 +557,9 @@ describe("ClaudeAxonConnection", () => {
       conn.onAxonEvent(throwingListener);
       conn.onAxonEvent(normalListener);
 
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
-      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
+      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
 
       expect(throwingListener).toHaveBeenCalledOnce();
       expect(normalListener).toHaveBeenCalledOnce();
@@ -581,10 +575,9 @@ describe("ClaudeAxonConnection", () => {
         throw listenerError;
       });
 
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
-      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
+      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
 
       expect(spy).toHaveBeenCalledWith("[ClaudeAxonConnection]", listenerError);
       spy.mockRestore();
@@ -598,10 +591,9 @@ describe("ClaudeAxonConnection", () => {
 
       await conn.disconnect();
 
-      const emitAxonEvent = (
-        conn as unknown as { emitAxonEvent: (ev: unknown) => void }
-      ).emitAxonEvent.bind(conn);
-      emitAxonEvent({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
+        .axonEventListeners;
+      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
 
       expect(listener).not.toHaveBeenCalled();
     });
@@ -780,7 +772,7 @@ describe("ClaudeAxonConnection", () => {
       const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
         systemPrompt: "You are a helpful bot.",
       });
-      (conn as unknown as { transport: Transport }).transport = transport;
+      (conn as unknown as { transport: MockTransport }).transport = transport;
 
       (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
         transport._written.push(data);
@@ -813,7 +805,7 @@ describe("ClaudeAxonConnection", () => {
       const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
         appendSystemPrompt: "Always respond in JSON.",
       });
-      (conn as unknown as { transport: Transport }).transport = transport;
+      (conn as unknown as { transport: MockTransport }).transport = transport;
 
       (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
         transport._written.push(data);

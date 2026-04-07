@@ -32,6 +32,7 @@ bun install          # install all workspace dependencies
 bun run build        # build the SDK
 bun run test         # run SDK tests
 bun run check        # lint + format check (SDK)
+bun run typecheck    # type-check src + tests (no emit)
 ```
 
 ## Key constraints
@@ -44,12 +45,13 @@ bun run check        # lint + format check (SDK)
 
 ## Pre-push checks
 
-After editing any file under `sdk/src/`, and before committing, pushing, or declaring a task complete, run all three in order:
+After editing any file under `sdk/src/`, and before committing, pushing, or declaring a task complete, run all four in order:
 
 ```bash
-bun run check   # Biome lint + format
-bun run build   # TypeScript compilation
-bun run test    # Vitest suite
+bun run check      # Biome lint + format
+bun run typecheck  # Type-check src + tests (no emit)
+bun run build      # TypeScript compilation
+bun run test       # Vitest suite
 ```
 
 If any step fails, fix the issue and re-run from that step. Common Biome fixes:

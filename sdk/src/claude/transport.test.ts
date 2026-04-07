@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, type vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   createControllableStream,
   createMockAxon,
@@ -204,10 +204,7 @@ describe("AxonTransport", () => {
       await transport.connect();
       await transport.close();
 
-      const controller = (ctrl.stream as Record<string, unknown>).controller as {
-        abort: ReturnType<typeof vi.fn>;
-      };
-      expect(controller.abort).toHaveBeenCalledOnce();
+      expect(ctrl.stream.controller?.abort).toHaveBeenCalledOnce();
     });
 
     it("is idempotent — second close is a no-op", async () => {
@@ -215,10 +212,7 @@ describe("AxonTransport", () => {
       await transport.close();
       await transport.close();
 
-      const controller = (ctrl.stream as Record<string, unknown>).controller as {
-        abort: ReturnType<typeof vi.fn>;
-      };
-      expect(controller.abort).toHaveBeenCalledOnce();
+      expect(ctrl.stream.controller?.abort).toHaveBeenCalledOnce();
     });
   });
 

@@ -13,20 +13,67 @@
  * The main connection class for interacting with Claude Code.
  *
  * @categoryDescription Configuration
- * Options and handler types used when creating and configuring a connection.
+ * Options, callbacks, and listener types used when creating a connection.
  *
  * @categoryDescription Transport
  * Low-level transport layer that bridges Axon SSE streams and the Claude
  * wire protocol. Most users won't need this directly.
  *
+ * @categoryDescription Claude SDK
+ * Re-exported message and control types from the upstream
+ * `@anthropic-ai/claude-agent-sdk`. Use these to type method parameters
+ * and narrow response messages.
+ *
  * @module
  */
 
-export type { AxonEventView } from "@runloop/api-client/resources/axons";
+/** @category Claude SDK */
+export type * from "@anthropic-ai/claude-agent-sdk";
+
+/** @category Claude SDK */
+export type {
+  PermissionMode,
+  SDKAPIRetryMessage,
+  SDKAssistantMessage,
+  SDKAuthStatusMessage,
+  SDKCompactBoundaryMessage,
+  SDKControlRequest,
+  SDKControlResponse,
+  SDKElicitationCompleteMessage,
+  SDKFilesPersistedEvent,
+  SDKHookProgressMessage,
+  SDKHookResponseMessage,
+  SDKHookStartedMessage,
+  SDKLocalCommandOutputMessage,
+  SDKMessage,
+  SDKPartialAssistantMessage,
+  SDKPromptSuggestionMessage,
+  SDKRateLimitEvent,
+  SDKResultError,
+  SDKResultMessage,
+  SDKResultSuccess,
+  SDKSessionStateChangedMessage,
+  SDKStatusMessage,
+  SDKSystemMessage,
+  SDKTaskNotificationMessage,
+  SDKTaskProgressMessage,
+  SDKTaskStartedMessage,
+  SDKToolProgressMessage,
+  SDKToolUseSummaryMessage,
+  SDKUserMessage,
+  SDKUserMessageReplay,
+} from "@anthropic-ai/claude-agent-sdk";
+export type { AxonEventListener, AxonEventView, BaseConnectionOptions } from "../shared/types.js";
 export {
   ClaudeAxonConnection,
   type ClaudeAxonConnectionOptions,
   type ControlRequestHandler,
+  type ControlRequestInner,
+  type ControlRequestOfSubtype,
 } from "./connection.js";
-export { AxonTransport, type AxonTransportOptions, type Transport } from "./transport.js";
-export type { AxonEventListener, WireData } from "./types.js";
+export {
+  AxonTransport,
+  type AxonTransportOptions,
+  type Transport,
+} from "./transport.js";
+export type { WireData } from "./types.js";

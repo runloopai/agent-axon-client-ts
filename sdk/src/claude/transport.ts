@@ -11,6 +11,7 @@
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
 import type { Stream } from "@runloop/api-client/streaming";
+import { makeLogger } from "../shared/logging.js";
 import type { WireData } from "./types.js";
 
 /**
@@ -94,9 +95,6 @@ export class AxonTransport implements Transport {
   /** The Axon channel used for publishing and subscribing. */
   private axon: Axon;
 
-  /** Whether verbose diagnostic logging is enabled. */
-  private verbose: boolean;
-
   /** Optional callback fired for every raw Axon event (before origin filtering). */
   private onAxonEvent?: (event: AxonEventView) => void;
 
@@ -109,6 +107,8 @@ export class AxonTransport implements Transport {
   /** Whether {@link close} has been called. */
   private closed = false;
 
+  private log: (tag: string, ...args: unknown[]) => void;
+
   /**
    * Creates a new Axon-backed transport.
    *
@@ -117,20 +117,8 @@ export class AxonTransport implements Transport {
    */
   constructor(axon: Axon, options?: AxonTransportOptions) {
     this.axon = axon;
-    this.verbose = options?.verbose ?? false;
+    this.log = makeLogger("axon-transport", options?.verbose ?? false);
     this.onAxonEvent = options?.onAxonEvent;
-  }
-
-  /**
-   * Writes a timestamped diagnostic line to stderr when verbose mode is on.
-   *
-   * @param tag  - Short label identifying the subsystem (e.g. "connect", "read").
-   * @param args - Values to log after the tag.
-   */
-  private log(tag: string, ...args: unknown[]): void {
-    if (!this.verbose) return;
-    const ts = new Date().toISOString().slice(11, 23);
-    console.error(`[${ts}] [axon-transport:${tag}]`, ...args);
   }
 
   /**
