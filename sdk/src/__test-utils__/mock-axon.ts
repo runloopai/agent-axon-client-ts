@@ -4,21 +4,32 @@ export interface MockAxonEvent {
   event_type: string;
   payload: string;
   origin: string;
+  sequence?: number;
 }
 
-export function makeAgentEvent(eventType: string, payload: unknown): MockAxonEvent {
+export function makeAgentEvent(
+  eventType: string,
+  payload: unknown,
+  sequence?: number,
+): MockAxonEvent {
   return {
     event_type: eventType,
     payload: JSON.stringify(payload),
     origin: "AGENT_EVENT",
+    ...(sequence != null ? { sequence } : {}),
   };
 }
 
-export function makeUserEvent(eventType: string, payload: unknown): MockAxonEvent {
+export function makeUserEvent(
+  eventType: string,
+  payload: unknown,
+  sequence?: number,
+): MockAxonEvent {
   return {
     event_type: eventType,
     payload: JSON.stringify(payload),
     origin: "USER_EVENT",
+    ...(sequence != null ? { sequence } : {}),
   };
 }
 

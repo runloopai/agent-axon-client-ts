@@ -107,6 +107,9 @@ export class AxonTransport implements Transport {
   /** Whether {@link close} has been called. */
   private closed = false;
 
+  /** Sequence number of the last received Axon event, used to resume on reconnect. */
+  private lastSequence: number | undefined;
+
   private log: (tag: string, ...args: unknown[]) => void;
 
   /**
@@ -187,6 +190,7 @@ export class AxonTransport implements Transport {
     for await (const event of this.sseStream) {
       if (this.closed) break;
       eventCount++;
+      this.lastSequence = event.sequence;
 
       this.onAxonEvent?.(event);
 
@@ -234,7 +238,9 @@ export class AxonTransport implements Transport {
   async reconnect(): Promise<void> {
     this.log("reconnect", "aborting old stream and re-subscribing");
     this.abortStream();
-    this.sseStream = await this.axon.subscribeSse();
+    this.sseStream = await this.axon.subscribeSse(
+      this.lastSequence != null ? { after_sequence: this.lastSequence } : undefined,
+    );
     this.log("reconnect", "SSE reconnected");
   }
 
