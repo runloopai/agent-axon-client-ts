@@ -297,7 +297,7 @@ export interface UseNodeAgentReturn {
   sessions: SessionListEntry[];
   isLoadingSessions: boolean;
   start: (config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string }) => Promise<void>;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
   cancel: () => Promise<void>;
   setMode: (modeId: string) => Promise<void>;
   setModel: (modelId: string) => Promise<void>;

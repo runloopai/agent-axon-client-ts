@@ -46,10 +46,27 @@ app.post(
   "/api/prompt",
   asyncHandler(async (req, res) => {
     const { connection, sessionId } = mgr.requireSession();
-    const { text } = req.body;
+    const { content, text } = req.body;
+
+    const contentItems: Record<string, unknown>[] =
+      Array.isArray(content) ? content : [{ type: "text", text }];
+
+    const prompt = contentItems.map((item) => {
+      switch (item.type) {
+        case "image":
+          return { type: "image" as const, data: item.data as string, mimeType: item.mimeType as string };
+        case "file":
+          return {
+            type: "resource" as const,
+            resource: { uri: `file:///${item.name}`, text: item.text as string, mimeType: item.mimeType as string },
+          };
+        default:
+          return { type: "text" as const, text: (item.text ?? "") as string };
+      }
+    });
 
     connection
-      .prompt({ sessionId, prompt: [{ type: "text", text }] })
+      .prompt({ sessionId, prompt })
       .then((resp) => {
         console.log("[prompt] turn complete, stopReason:", resp.stopReason);
         ws.broadcast({ type: "turn_complete", ...resp });

@@ -1154,11 +1154,17 @@ html, body, #root {
 .input-bar {
   position: relative;
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  flex-direction: column;
+  gap: 0;
   padding: 12px 16px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border);
+}
+
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
 }
 
 .input-bar textarea {
@@ -1181,6 +1187,21 @@ html, body, #root {
 .input-bar textarea:focus { border-color: var(--border-focus); }
 .input-bar textarea::placeholder { color: var(--text-muted); }
 
+.btn-attach {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: border-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.btn-attach:hover:not(:disabled) { border-color: var(--border-focus); color: var(--text-primary); }
+.btn-attach:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .btn-send {
   background: var(--accent);
   color: #fff;
@@ -1197,6 +1218,78 @@ html, body, #root {
 
 .btn-send:hover:not(:disabled) { background: var(--accent-hover); }
 .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Dropzone overlay ─────────────────────────────────── */
+
+.dropzone-active {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(88, 166, 255, 0.12);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* ── Attachment bar ───────────────────────────────────── */
+
+.attachment-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 0 8px;
+}
+
+.attachment-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  max-width: 200px;
+}
+
+.attachment-thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.attachment-file-icon { font-size: 16px; flex-shrink: 0; }
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.attachment-size { color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
+
+.attachment-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.attachment-remove:hover { color: var(--text-primary); }
 
 /* ── Events / Activity Sidebar ───────────────────────────── */
 

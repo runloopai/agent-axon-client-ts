@@ -187,10 +187,35 @@ app.post("/api/prompt", async (req, res) => {
     res.status(400).json({ error: "Not connected" });
     return;
   }
-  const { text } = req.body;
+  const { content, text } = req.body;
+
+  let prompt: string | { type: "user"; message: { role: "user"; content: unknown[] }; parent_tool_use_id: null };
+
+  if (Array.isArray(content) && content.some((c: Record<string, unknown>) => c.type !== "text")) {
+    const blocks: unknown[] = content.map((item: Record<string, unknown>) => {
+      switch (item.type) {
+        case "image":
+          return {
+            type: "image",
+            source: { type: "base64", media_type: item.mimeType, data: item.data },
+          };
+        case "file":
+          return { type: "text", text: `--- ${item.name} ---\n${item.text}` };
+        default:
+          return { type: "text", text: item.text ?? "" };
+      }
+    });
+    prompt = {
+      type: "user",
+      message: { role: "user", content: blocks },
+      parent_tool_use_id: null,
+    };
+  } else {
+    prompt = text ?? content?.[0]?.text ?? "";
+  }
 
   // Fire and forget — results stream via WebSocket
-  connection.send(text).catch((err) => {
+  connection.send(prompt as any).catch((err: unknown) => {
     ws.broadcast({
       type: "turn_error",
       error: err instanceof Error ? err.message : String(err),

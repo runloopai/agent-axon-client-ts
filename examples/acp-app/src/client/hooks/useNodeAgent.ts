@@ -275,13 +275,17 @@ export function useNodeAgent(): UseNodeAgentReturn {
     }
   }, [connectWs, resetChatState, sessionConfig.applySessionResponse]);
 
-  const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim()) return;
+  const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
+    if (!text.trim() && (!content || content.length === 0)) return;
 
     turnBlocks.startTurn(text);
 
     try {
-      await api("/api/prompt", { text });
+      if (content && content.length > 0) {
+        await api("/api/prompt", { content });
+      } else {
+        await api("/api/prompt", { text });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
