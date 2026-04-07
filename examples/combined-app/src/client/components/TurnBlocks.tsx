@@ -416,7 +416,7 @@ function PlanEntryView({ entry }: { entry: PlanEntry }) {
   return (
     <div className={`plan-entry plan-entry-${entry.status}`}>
       {planStatusIcon(entry.status)}
-      <span className="plan-entry-text">{entry.content}</span>
+      <MarkdownContent text={entry.content} className="plan-entry-text" />
       {entry.priority && (
         <span className={`plan-priority plan-priority-${entry.priority}`}>{entry.priority}</span>
       )}
@@ -436,13 +436,13 @@ export function TaskBlockView({ block }: { block: TaskBlock }) {
         ) : (
           <span className="tc-status-fail">{"\u2717"}</span>
         )}
-        <span className="task-description">{block.description}</span>
+        <MarkdownContent text={block.description} className="task-description" />
         {block.toolUses != null && (
           <span className="task-meta">{block.toolUses} tools</span>
         )}
       </div>
       {block.summary && (
-        <div className="task-summary">{block.summary}</div>
+        <MarkdownContent text={block.summary} className="task-summary" />
       )}
       <ExtraDataView extra={block.extra} />
     </div>

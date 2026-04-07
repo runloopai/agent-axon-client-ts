@@ -405,6 +405,9 @@ export interface AxonEventView {
   origin: string;
   payload: string;
   created_at: string;
+  sequence: number;
+  source: string;
+  timestamp_ms: number;
   [key: string]: unknown;
 }
 
