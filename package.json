@@ -23,13 +23,7 @@
     "clean": "rm -rf sdk/dist",
     "prepare": "husky"
   },
-  "lint-staged": {
-    "sdk/src/**/*.ts": [
-      "bunx biome check --fix --no-errors-on-unmatched"
-    ]
-  },
   "devDependencies": {
-    "husky": "^9.1.7",
-    "lint-staged": "^16.4.0"
+    "husky": "^9.1.7"
   }
 }
