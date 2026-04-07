@@ -103,20 +103,37 @@ export type PublishCall = {
   source: string;
 };
 
+/**
+ * Creates a mock Axon with a controllable SSE stream.
+ *
+ * Returns a `signal` that automatically aborts when `subscribeSse` is called
+ * a second time (i.e. on reconnect). Pass this signal to `axonStream()` in
+ * tests that call `drain()` so the reconnect loop terminates cleanly.
+ */
 export function createMockAxon(
   sseStreamOrCtrl: ReturnType<typeof createControllableStream> | MockSseStream,
 ) {
   const stream = "stream" in sseStreamOrCtrl ? sseStreamOrCtrl.stream : sseStreamOrCtrl;
 
+  const abortController = new AbortController();
+  let firstCall = true;
+
   const published: PublishCall[] = [];
   const axon = {
     id: "test-axon",
-    subscribeSse: vi.fn().mockResolvedValue(stream),
+    subscribeSse: vi.fn().mockImplementation(async () => {
+      if (firstCall) {
+        firstCall = false;
+        return stream;
+      }
+      abortController.abort();
+      return stream;
+    }),
     publish: vi.fn().mockImplementation(async (data: PublishCall) => {
       published.push(data);
     }),
   };
-  return { axon, published };
+  return { axon, published, signal: abortController.signal };
 }
 
 /** Collect all messages from a ReadableStream until it closes. */

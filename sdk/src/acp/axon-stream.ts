@@ -95,14 +95,12 @@ function createReadable(
   return new ReadableStream<AnyMessage>({
     async start(controller) {
       let totalEvents = 0;
-      let attempt = 0;
       let lastSequence: number | undefined;
 
       while (!signal?.aborted) {
-        attempt++;
         let eventCount = 0;
         try {
-          log?.("read", `opening SSE stream (attempt ${attempt})`);
+          log?.("read", "opening SSE stream");
           const sseStream = await axon.subscribeSse(
             lastSequence != null ? { after_sequence: lastSequence } : undefined,
           );
@@ -132,27 +130,16 @@ function createReadable(
           }
         } catch (err) {
           if (signal?.aborted) break;
-          if (attempt === 1) {
-            console.warn(
-              `[axonStream] SSE stream error after ${eventCount} events, re-subscribing...`,
-              err,
-            );
-            continue;
-          }
-          log?.("read", `error on reconnect attempt after ${eventCount} events: ${err}`);
-          controller.error(err);
-          return;
+          console.warn(
+            `[axonStream] SSE stream error after ${eventCount} events, re-subscribing...`,
+            err,
+          );
+          continue;
         }
 
         if (signal?.aborted) break;
 
-        if (attempt === 1) {
-          console.warn(
-            `[axonStream] SSE stream ended after ${eventCount} events, re-subscribing...`,
-          );
-          continue;
-        }
-        break;
+        console.warn(`[axonStream] SSE stream ended after ${eventCount} events, re-subscribing...`);
       }
 
       pendingRequests.clear();

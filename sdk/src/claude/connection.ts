@@ -357,8 +357,6 @@ export class ClaudeAxonConnection {
     this.readLoopRunning = true;
 
     (async () => {
-      let reconnected = false;
-
       const consumeStream = async (): Promise<"ended" | "error"> => {
         try {
           for await (const message of this.transport.readMessages()) {
@@ -376,12 +374,11 @@ export class ClaudeAxonConnection {
         }
       };
 
-      const outcome = await consumeStream();
+      let outcome = await consumeStream();
 
-      if (!this.closed && !this.streamAborted && !reconnected) {
+      while (!this.closed && !this.streamAborted) {
         const label = outcome === "error" ? "error" : "ended unexpectedly";
         console.warn(`[ClaudeAxonConnection] SSE stream ${label}, reconnecting...`);
-        reconnected = true;
         try {
           await this.transport.reconnect();
 
@@ -393,9 +390,11 @@ export class ClaudeAxonConnection {
             console.warn("[ClaudeAxonConnection] Reconnected successfully");
           };
 
-          await Promise.all([consumeStream(), reInitialize()]);
+          const [streamOutcome] = await Promise.all([consumeStream(), reInitialize()]);
+          outcome = streamOutcome;
         } catch (reconnectErr) {
           this.log("readLoop", `reconnect failed: ${reconnectErr}`);
+          break;
         }
       }
 

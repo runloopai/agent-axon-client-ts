@@ -18,9 +18,9 @@ describe("axonStream", () => {
   describe("readable (Axon SSE → JSON-RPC)", () => {
     it("skips non-AGENT_EVENT events", async () => {
       const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      const { axon, signal } = createMockAxon(ctrl.stream);
 
-      const { readable } = axonStream({ axon: axon as never });
+      const { readable } = axonStream({ axon: axon as never, signal });
 
       ctrl.push(makeUserEvent("session/update", { foo: 1 }));
       ctrl.push(makeAgentEvent("session/update", { sessionUpdate: "usage_update" }));
@@ -33,7 +33,7 @@ describe("axonStream", () => {
 
     it("passes through full JSON-RPC messages from the payload", async () => {
       const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      const { axon, signal } = createMockAxon(ctrl.stream);
 
       const jsonRpcMsg = {
         jsonrpc: "2.0",
@@ -44,7 +44,7 @@ describe("axonStream", () => {
       ctrl.push(makeAgentEvent("anything", jsonRpcMsg));
       ctrl.end();
 
-      const { readable } = axonStream({ axon: axon as never });
+      const { readable } = axonStream({ axon: axon as never, signal });
       const messages = await drain(readable);
 
       expect(messages).toHaveLength(1);
@@ -53,9 +53,9 @@ describe("axonStream", () => {
 
     it("clears pendingRequests when response arrives as a pre-wrapped JSON-RPC envelope", async () => {
       const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      const { axon, signal } = createMockAxon(ctrl.stream);
 
-      const { readable, writable } = axonStream({ axon: axon as never });
+      const { readable, writable } = axonStream({ axon: axon as never, signal });
 
       const writer = writable.getWriter();
 
@@ -105,13 +105,13 @@ describe("axonStream", () => {
 
     it("wraps notification event_types (session/update) as JSON-RPC notifications", async () => {
       const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      const { axon, signal } = createMockAxon(ctrl.stream);
 
       const update = { sessionUpdate: "agent_message_chunk", text: "hello" };
       ctrl.push(makeAgentEvent(CLIENT_METHODS.session_update, update));
       ctrl.end();
 
-      const { readable } = axonStream({ axon: axon as never });
+      const { readable } = axonStream({ axon: axon as never, signal });
       const messages = await drain(readable);
 
       expect(messages).toHaveLength(1);
@@ -124,9 +124,9 @@ describe("axonStream", () => {
 
     it("correlates responses to pending outbound requests", async () => {
       const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      const { axon, signal } = createMockAxon(ctrl.stream);
 
-      const { readable, writable } = axonStream({ axon: axon as never });
+      const { readable, writable } = axonStream({ axon: axon as never, signal });
 
       const writer = writable.getWriter();
       await writer.write({
@@ -153,13 +153,13 @@ describe("axonStream", () => {
 
     it("wraps agent-to-client requests (client methods) with auto-generated IDs", async () => {
       const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      const { axon, signal } = createMockAxon(ctrl.stream);
 
       const permParams = { options: [{ kind: "allow_once", optionId: "opt1" }] };
       ctrl.push(makeAgentEvent(CLIENT_METHODS.session_request_permission, permParams));
       ctrl.end();
 
-      const { readable } = axonStream({ axon: axon as never });
+      const { readable } = axonStream({ axon: axon as never, signal });
       const messages = await drain(readable);
 
       expect(messages).toHaveLength(1);
@@ -173,12 +173,12 @@ describe("axonStream", () => {
 
     it("treats unknown event_types as notifications", async () => {
       const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      const { axon, signal } = createMockAxon(ctrl.stream);
 
       ctrl.push(makeAgentEvent("custom/unknown_event", { data: 1 }));
       ctrl.end();
 
-      const { readable } = axonStream({ axon: axon as never });
+      const { readable } = axonStream({ axon: axon as never, signal });
       const messages = await drain(readable);
 
       expect(messages).toHaveLength(1);
@@ -191,7 +191,7 @@ describe("axonStream", () => {
 
     it("calls onError and skips event when payload is invalid JSON", async () => {
       const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      const { axon, signal } = createMockAxon(ctrl.stream);
 
       const onError = vi.fn();
 
@@ -203,7 +203,7 @@ describe("axonStream", () => {
       ctrl.push(makeAgentEvent("session/update", { ok: true }));
       ctrl.end();
 
-      const { readable } = axonStream({ axon: axon as never, onError });
+      const { readable } = axonStream({ axon: axon as never, signal, onError });
       const messages = await drain(readable);
 
       expect(onError).toHaveBeenCalledOnce();
@@ -213,7 +213,7 @@ describe("axonStream", () => {
 
     it("calls onAxonEvent for every event including non-AGENT_EVENT", async () => {
       const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      const { axon, signal } = createMockAxon(ctrl.stream);
 
       const onAxonEvent = vi.fn();
 
@@ -221,7 +221,7 @@ describe("axonStream", () => {
       ctrl.push(makeAgentEvent("session/update", { x: 1 }));
       ctrl.end();
 
-      const { readable } = axonStream({ axon: axon as never, onAxonEvent });
+      const { readable } = axonStream({ axon: axon as never, signal, onAxonEvent });
       await drain(readable);
 
       expect(onAxonEvent).toHaveBeenCalledTimes(2);
@@ -254,16 +254,23 @@ describe("axonStream", () => {
   });
 
   describe("auto-reconnect", () => {
-    it("re-subscribes once when the SSE stream ends unexpectedly", async () => {
+    it("re-subscribes continuously when the SSE stream ends unexpectedly", async () => {
+      const abortController = new AbortController();
       const ctrl1 = createControllableStream();
       const ctrl2 = createControllableStream();
       const published: PublishCall[] = [];
+      let callCount = 0;
       const axon = {
         id: "test-axon",
-        subscribeSse: vi
-          .fn()
-          .mockResolvedValueOnce(ctrl1.stream)
-          .mockResolvedValueOnce(ctrl2.stream),
+        subscribeSse: vi.fn().mockImplementation(async () => {
+          callCount++;
+          if (callCount === 1) return ctrl1.stream;
+          if (callCount === 2) return ctrl2.stream;
+          abortController.abort();
+          const done = createControllableStream();
+          done.end();
+          return done.stream;
+        }),
         publish: vi.fn().mockImplementation(async (data: PublishCall) => {
           published.push(data);
         }),
@@ -271,7 +278,10 @@ describe("axonStream", () => {
 
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      const { readable } = axonStream({ axon: axon as never });
+      const { readable } = axonStream({
+        axon: axon as never,
+        signal: abortController.signal,
+      });
 
       ctrl1.push(makeAgentEvent("session/update", { msg: "first" }));
       ctrl1.end();
@@ -283,27 +293,37 @@ describe("axonStream", () => {
       expect(messages).toHaveLength(2);
       expect(messages[0]).toMatchObject({ params: { msg: "first" } });
       expect(messages[1]).toMatchObject({ params: { msg: "second" } });
-      expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
+      expect(axon.subscribeSse).toHaveBeenCalledTimes(3);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("SSE stream ended"));
 
       warnSpy.mockRestore();
     });
 
     it("passes after_sequence on re-subscribe using last seen sequence", async () => {
+      const abortController = new AbortController();
       const ctrl1 = createControllableStream();
       const ctrl2 = createControllableStream();
+      let callCount = 0;
       const axon = {
         id: "test-axon",
-        subscribeSse: vi
-          .fn()
-          .mockResolvedValueOnce(ctrl1.stream)
-          .mockResolvedValueOnce(ctrl2.stream),
+        subscribeSse: vi.fn().mockImplementation(async () => {
+          callCount++;
+          if (callCount === 1) return ctrl1.stream;
+          if (callCount === 2) return ctrl2.stream;
+          abortController.abort();
+          const done = createControllableStream();
+          done.end();
+          return done.stream;
+        }),
         publish: vi.fn(),
       };
 
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      const { readable } = axonStream({ axon: axon as never });
+      const { readable } = axonStream({
+        axon: axon as never,
+        signal: abortController.signal,
+      });
 
       ctrl1.push(makeAgentEvent("session/update", { msg: "first" }, 10));
       ctrl1.push(makeAgentEvent("session/update", { msg: "second" }, 15));
@@ -314,14 +334,14 @@ describe("axonStream", () => {
 
       const messages = await drain(readable);
       expect(messages).toHaveLength(3);
-      expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
       expect(axon.subscribeSse).toHaveBeenNthCalledWith(1, undefined);
       expect(axon.subscribeSse).toHaveBeenNthCalledWith(2, { after_sequence: 15 });
 
       warnSpy.mockRestore();
     });
 
-    it("re-subscribes once on SSE stream error and continues", async () => {
+    it("re-subscribes on SSE stream error and continues", async () => {
+      const abortController = new AbortController();
       const ctrl2 = createControllableStream();
       let callCount = 0;
       const axon = {
@@ -339,14 +359,21 @@ describe("axonStream", () => {
               },
             };
           }
-          return ctrl2.stream;
+          if (callCount === 2) return ctrl2.stream;
+          abortController.abort();
+          const done = createControllableStream();
+          done.end();
+          return done.stream;
         }),
         publish: vi.fn(),
       };
 
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      const { readable } = axonStream({ axon: axon as never });
+      const { readable } = axonStream({
+        axon: axon as never,
+        signal: abortController.signal,
+      });
 
       ctrl2.push(makeAgentEvent("session/update", { msg: "recovered" }));
       ctrl2.end();
@@ -354,7 +381,6 @@ describe("axonStream", () => {
       const messages = await drain(readable);
       expect(messages).toHaveLength(1);
       expect(messages[0]).toMatchObject({ params: { msg: "recovered" } });
-      expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("SSE stream error"),
         expect.any(Error),
@@ -363,28 +389,38 @@ describe("axonStream", () => {
       warnSpy.mockRestore();
     });
 
-    it("closes the stream if the second subscription also fails", async () => {
+    it("keeps retrying on repeated SSE failures until aborted", async () => {
+      const abortController = new AbortController();
+      let callCount = 0;
       const axon = {
         id: "test-axon",
-        subscribeSse: vi.fn().mockImplementation(async () => ({
-          [Symbol.asyncIterator]() {
-            return {
-              next() {
-                return Promise.reject(new Error("permanent failure"));
-              },
-            };
-          },
-        })),
+        subscribeSse: vi.fn().mockImplementation(async () => {
+          callCount++;
+          if (callCount >= 3) {
+            abortController.abort();
+          }
+          return {
+            [Symbol.asyncIterator]() {
+              return {
+                next() {
+                  return Promise.reject(new Error("permanent failure"));
+                },
+              };
+            },
+          };
+        }),
         publish: vi.fn(),
       };
 
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      const { readable } = axonStream({ axon: axon as never });
+      const { readable } = axonStream({
+        axon: axon as never,
+        signal: abortController.signal,
+      });
 
-      const reader = readable.getReader();
-      await expect(reader.read()).rejects.toThrow("permanent failure");
-      expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
+      await drain(readable);
+      expect(axon.subscribeSse).toHaveBeenCalledTimes(3);
 
       warnSpy.mockRestore();
     });
@@ -416,12 +452,14 @@ describe("axonStream", () => {
     let ctrl: ReturnType<typeof createControllableStream>;
     let axon: ReturnType<typeof createMockAxon>["axon"];
     let published: PublishCall[];
+    let signal: AbortSignal;
 
     beforeEach(() => {
       ctrl = createControllableStream();
       const mock = createMockAxon(ctrl.stream);
       axon = mock.axon;
       published = mock.published;
+      signal = mock.signal;
     });
 
     async function writeMessage(writable: WritableStream, msg: unknown) {
@@ -546,7 +584,7 @@ describe("axonStream", () => {
     });
 
     it("tracks pending requests for response correlation", async () => {
-      const { readable, writable } = axonStream({ axon: axon as never });
+      const { readable, writable } = axonStream({ axon: axon as never, signal });
 
       // Send two different requests
       const writer = writable.getWriter();
@@ -580,9 +618,9 @@ describe("axonStream", () => {
   describe("end-to-end request-response cycle", () => {
     it("handles a full initialize request-response cycle", async () => {
       const ctrl = createControllableStream();
-      const { axon, published } = createMockAxon(ctrl.stream);
+      const { axon, published, signal } = createMockAxon(ctrl.stream);
 
-      const { readable, writable } = axonStream({ axon: axon as never });
+      const { readable, writable } = axonStream({ axon: axon as never, signal });
 
       const writer = writable.getWriter();
       await writer.write({
@@ -615,9 +653,9 @@ describe("axonStream", () => {
 
     it("handles interleaved requests, notifications, and agent-to-client requests", async () => {
       const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      const { axon, signal } = createMockAxon(ctrl.stream);
 
-      const { readable, writable } = axonStream({ axon: axon as never });
+      const { readable, writable } = axonStream({ axon: axon as never, signal });
 
       const writer = writable.getWriter();
 
