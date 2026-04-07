@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.2.0...agent-axon-client-v0.3.0) (2026-04-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sdk:** homogenize ACP and Claude connection APIs ([#48](https://github.com/runloopai/agent-axon-client-ts/issues/48))
+
+### Features
+
+* **sdk:** homogenize ACP and Claude connection APIs ([#48](https://github.com/runloopai/agent-axon-client-ts/issues/48)) ([cf3bfbf](https://github.com/runloopai/agent-axon-client-ts/commit/cf3bfbfa5fd19f8dd228b72a7f645f10ccd77722))
+
+
+### Bug Fixes
+
+* **acp:** update event source for acp to be `acp-sdk-client` from `broker-transport` ([#51](https://github.com/runloopai/agent-axon-client-ts/issues/51)) ([d9ae252](https://github.com/runloopai/agent-axon-client-ts/commit/d9ae2521410e3e43db542547891a04475f759c27))
+* **sdk:** harden error handling, lifecycle guards, and resource cleanup ([#50](https://github.com/runloopai/agent-axon-client-ts/issues/50)) ([eda5c63](https://github.com/runloopai/agent-axon-client-ts/commit/eda5c634186b62903a5ecb8a6d8dbeb2682230df))
+* **sdk:** pass after_sequence on SSE reconnect to resume from last event ([#55](https://github.com/runloopai/agent-axon-client-ts/issues/55)) ([03cbb45](https://github.com/runloopai/agent-axon-client-ts/commit/03cbb45ee2c68204061f26d57b92dd5df8560baf))
+
 ## [0.2.0](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.1.2...agent-axon-client-v0.2.0) (2026-04-03)
 
 
