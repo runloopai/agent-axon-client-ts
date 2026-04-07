@@ -96,18 +96,22 @@ function createReadable(
     async start(controller) {
       let totalEvents = 0;
       let attempt = 0;
+      let lastSequence: number | undefined;
 
       while (!signal?.aborted) {
         attempt++;
         let eventCount = 0;
         try {
           log?.("read", `opening SSE stream (attempt ${attempt})`);
-          const sseStream = await axon.subscribeSse();
+          const sseStream = await axon.subscribeSse(
+            lastSequence != null ? { after_sequence: lastSequence } : undefined,
+          );
           log?.("read", "SSE connected");
           for await (const axonEvent of sseStream) {
             if (signal?.aborted) break;
             eventCount++;
             totalEvents++;
+            lastSequence = axonEvent.sequence;
 
             onAxonEvent?.(axonEvent);
 

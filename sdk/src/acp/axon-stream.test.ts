@@ -289,6 +289,38 @@ describe("axonStream", () => {
       warnSpy.mockRestore();
     });
 
+    it("passes after_sequence on re-subscribe using last seen sequence", async () => {
+      const ctrl1 = createControllableStream();
+      const ctrl2 = createControllableStream();
+      const axon = {
+        id: "test-axon",
+        subscribeSse: vi
+          .fn()
+          .mockResolvedValueOnce(ctrl1.stream)
+          .mockResolvedValueOnce(ctrl2.stream),
+        publish: vi.fn(),
+      };
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const { readable } = axonStream({ axon: axon as never });
+
+      ctrl1.push(makeAgentEvent("session/update", { msg: "first" }, 10));
+      ctrl1.push(makeAgentEvent("session/update", { msg: "second" }, 15));
+      ctrl1.end();
+
+      ctrl2.push(makeAgentEvent("session/update", { msg: "third" }, 16));
+      ctrl2.end();
+
+      const messages = await drain(readable);
+      expect(messages).toHaveLength(3);
+      expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
+      expect(axon.subscribeSse).toHaveBeenNthCalledWith(1, undefined);
+      expect(axon.subscribeSse).toHaveBeenNthCalledWith(2, { after_sequence: 15 });
+
+      warnSpy.mockRestore();
+    });
+
     it("re-subscribes once on SSE stream error and continues", async () => {
       const ctrl2 = createControllableStream();
       let callCount = 0;
