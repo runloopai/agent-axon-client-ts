@@ -1,0 +1,706 @@
+import { useState, useRef, useCallback } from "react";
+import type { WsEvent } from "../../server/ws.js";
+import type {
+  TurnBlock,
+  ChatMessage,
+  UsageState,
+  InitInfo,
+  PendingControlRequest,
+  ControlRequestQuestion,
+  TaskBlock,
+  PlanEntry,
+  AxonEventView,
+  ToolCallBlock,
+} from "../types.js";
+import { nextBlockId, inferToolKind } from "./parsers.js";
+import { api } from "./api.js";
+
+export interface UseClaudeAgentReturn {
+  connectionPhase: "idle" | "connecting" | "ready" | "error";
+  connectionStatus: string | null;
+  error: string | null;
+  messages: ChatMessage[];
+  currentTurnBlocks: TurnBlock[];
+  isAgentTurn: boolean;
+  isStreaming: boolean;
+  isSendingPrompt: boolean;
+  usage: UsageState | null;
+  initInfo: InitInfo | null;
+  devboxId: string | null;
+  axonId: string | null;
+  runloopUrl: string | null;
+  permissionMode: string | null;
+  currentModel: string | null;
+  autoApprovePermissions: boolean;
+  axonEvents: AxonEventView[];
+  pendingControlRequest: PendingControlRequest | null;
+  start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => Promise<void>;
+  sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
+  cancel: () => Promise<void>;
+  setModel: (model: string) => Promise<void>;
+  setPermissionMode: (mode: string) => Promise<void>;
+  setAutoApprovePermissions: (enabled: boolean) => Promise<void>;
+  sendControlResponse: (requestId: string, response: Record<string, unknown>) => Promise<void>;
+  shutdown: () => Promise<void>;
+}
+
+export function useClaudeAgent(): UseClaudeAgentReturn {
+  const [connectionPhase, setConnectionPhase] = useState<"idle" | "connecting" | "ready" | "error">("idle");
+  const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSendingPrompt, setIsSendingPrompt] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [currentTurnBlocks, setCurrentTurnBlocks] = useState<TurnBlock[]>([]);
+  const [isAgentTurn, setIsAgentTurn] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [usage, setUsage] = useState<UsageState | null>(null);
+  const [initInfo, setInitInfo] = useState<InitInfo | null>(null);
+  const [devboxId, setDevboxId] = useState<string | null>(null);
+  const [axonId, setAxonId] = useState<string | null>(null);
+  const [runloopUrl, setRunloopUrl] = useState<string | null>(null);
+  const [permissionMode, setPermissionMode] = useState<string | null>(null);
+  const [currentModel, setCurrentModel] = useState<string | null>(null);
+  const [pendingControlRequest, setPendingControlRequest] = useState<PendingControlRequest | null>(null);
+  const [autoApprovePermissions, setAutoApprovePermissionsState] = useState(true);
+  const [axonEvents, setAxonEvents] = useState<AxonEventView[]>([]);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const blocksRef = useRef<TurnBlock[]>([]);
+  const thinkingStartRef = useRef<number | null>(null);
+  const activeBlockIndexRef = useRef<Map<number, string>>(new Map());
+
+  function pushBlock(block: TurnBlock) {
+    blocksRef.current = [...blocksRef.current, block];
+    setCurrentTurnBlocks(blocksRef.current);
+  }
+
+  function updateBlocks(updater: (blocks: TurnBlock[]) => TurnBlock[]) {
+    blocksRef.current = updater(blocksRef.current);
+    setCurrentTurnBlocks(blocksRef.current);
+  }
+
+  function lastBlock(): TurnBlock | undefined {
+    return blocksRef.current[blocksRef.current.length - 1];
+  }
+
+  function finalizeThinking() {
+    if (!thinkingStartRef.current) return;
+    const duration = Math.round((Date.now() - thinkingStartRef.current) / 1000);
+    updateBlocks((blocks) =>
+      blocks.map((b) =>
+        b.type === "thinking" && b.isActive
+          ? { ...b, isActive: false, duration }
+          : b,
+      ),
+    );
+    thinkingStartRef.current = null;
+  }
+
+  function finalizeTurn(stopReason?: string, cost?: number, numTurns?: number, durationMs?: number) {
+    finalizeThinking();
+    const turnBlocks = blocksRef.current;
+    if (turnBlocks.length > 0) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: "",
+          blocks: turnBlocks,
+          ...(stopReason ? { stopReason } : {}),
+          ...(cost != null ? { cost } : {}),
+          ...(numTurns != null ? { numTurns } : {}),
+          ...(durationMs != null ? { durationMs } : {}),
+        },
+      ]);
+    }
+    blocksRef.current = [];
+    thinkingStartRef.current = null;
+    activeBlockIndexRef.current.clear();
+    setCurrentTurnBlocks([]);
+    setIsAgentTurn(false);
+    setIsStreaming(false);
+  }
+
+  function handleSDKMessage(msg: Record<string, unknown>): void {
+    const msgType = msg.type as string;
+
+    switch (msgType) {
+      case "stream_event": {
+        const event = msg.event as Record<string, unknown>;
+        if (!event) break;
+        handleStreamEvent(event);
+        break;
+      }
+
+      case "user": {
+        const message = msg.message as Record<string, unknown>;
+        if (!message) break;
+        const content = message.content as Array<Record<string, unknown>>;
+        if (!Array.isArray(content)) break;
+
+        // TodoWrite results -> unified PlanBlock
+        const toolUseResult = msg.tool_use_result as Record<string, unknown> | undefined;
+        if (toolUseResult?.newTodos) {
+          const newTodos = toolUseResult.newTodos as Array<Record<string, unknown>>;
+          const entries: PlanEntry[] = newTodos.map((t) => ({
+            content: (t.content as string) ?? "",
+            status: (t.status as PlanEntry["status"]) ?? "pending",
+            priority: null,
+          }));
+
+          const existingPlan = blocksRef.current.find((b) => b.type === "plan");
+          if (existingPlan) {
+            updateBlocks((blocks) =>
+              blocks.map((b) =>
+                b.type === "plan" ? { ...b, entries } : b,
+              ),
+            );
+          } else {
+            pushBlock({ type: "plan", id: nextBlockId("plan"), entries });
+          }
+        }
+
+        for (const block of content) {
+          if (block.type === "tool_result") {
+            const toolUseId = block.tool_use_id as string;
+            const resultContent = block.content as unknown;
+            let outputText = "";
+            if (typeof resultContent === "string") {
+              outputText = resultContent;
+            } else if (Array.isArray(resultContent)) {
+              outputText = resultContent
+                .filter((c: Record<string, unknown>) => c.type === "text")
+                .map((c: Record<string, unknown>) => c.text as string)
+                .join("\n");
+            }
+            const isError = block.is_error === true;
+
+            updateBlocks((blocks) =>
+              blocks.map((b) => {
+                if (b.type !== "tool_call" || b.toolCallId !== toolUseId) return b;
+                const tc = b as ToolCallBlock;
+                const isFinishing = tc.status !== "completed" && tc.status !== "failed";
+                return {
+                  ...tc,
+                  rawOutput: outputText || tc.rawOutput,
+                  content: outputText ? [{ type: "content" as const, text: outputText }] : tc.content,
+                  status: isError ? "failed" as const : "completed" as const,
+                  duration: isFinishing
+                    ? Math.round((Date.now() - tc.startedAt) / 1000 * 10) / 10
+                    : tc.duration,
+                };
+              }),
+            );
+          }
+        }
+        break;
+      }
+
+      case "assistant": {
+        const message = msg.message as Record<string, unknown>;
+        if (!message) break;
+        const content = message.content as Array<Record<string, unknown>>;
+        if (!Array.isArray(content)) break;
+
+        setIsAgentTurn(true);
+
+        for (const block of content) {
+          if (block.type === "thinking") {
+            finalizeThinking();
+            pushBlock({
+              type: "thinking",
+              id: nextBlockId("think"),
+              text: (block.thinking as string) ?? "",
+              duration: null,
+              isActive: false,
+            });
+          } else if (block.type === "text") {
+            finalizeThinking();
+            pushBlock({
+              type: "text",
+              id: nextBlockId("txt"),
+              text: (block.text as string) ?? "",
+            });
+          } else if (block.type === "tool_use") {
+            finalizeThinking();
+            const toolName = (block.name as string) ?? "unknown";
+            pushBlock({
+              type: "tool_call",
+              id: nextBlockId("tc"),
+              toolCallId: (block.id as string) ?? "",
+              title: toolName,
+              kind: inferToolKind(toolName),
+              status: "in_progress",
+              locations: [],
+              content: [],
+              rawInput: block.input ?? null,
+              rawOutput: null,
+              startedAt: Date.now(),
+              duration: null,
+              extra: { toolName },
+            });
+          }
+        }
+        break;
+      }
+
+      case "result": {
+        const isError = msg.is_error as boolean;
+        const stopReason = (msg.stop_reason as string) ?? (isError ? msg.subtype as string : undefined);
+        const cost = msg.total_cost_usd as number | undefined;
+        const numTurns = msg.num_turns as number | undefined;
+        const durationMs = msg.duration_ms as number | undefined;
+        const msgUsage = msg.usage as Record<string, number> | undefined;
+
+        if (msgUsage) {
+          setUsage({
+            inputTokens: msgUsage.input_tokens ?? 0,
+            outputTokens: msgUsage.output_tokens ?? 0,
+            cacheCreationInputTokens: msgUsage.cache_creation_input_tokens ?? 0,
+            cacheReadInputTokens: msgUsage.cache_read_input_tokens ?? 0,
+          });
+        }
+
+        if (isError) {
+          const errors = msg.errors as string[] | undefined;
+          const userErrors = errors?.filter((e) => !e.startsWith("[ede_diagnostic]"));
+          if (userErrors?.length) {
+            setError(userErrors.join("; "));
+          }
+        }
+
+        finalizeTurn(stopReason ?? undefined, cost, numTurns, durationMs);
+        break;
+      }
+
+      case "system": {
+        const subtype = msg.subtype as string;
+        switch (subtype) {
+          case "init": {
+            setInitInfo({
+              model: (msg.model as string) ?? "unknown",
+              tools: (msg.tools as string[]) ?? [],
+              mcpServers: (msg.mcp_servers as Array<{ name: string; status: string }>) ?? [],
+              permissionMode: (msg.permissionMode as string) ?? "default",
+              slashCommands: (msg.slash_commands as string[]) ?? [],
+            });
+            setCurrentModel((msg.model as string) ?? null);
+            setPermissionMode((msg.permissionMode as string) ?? null);
+            break;
+          }
+          case "status": {
+            const mode = msg.permissionMode as string | undefined;
+            if (mode) setPermissionMode(mode);
+            break;
+          }
+          case "task_started": {
+            pushBlock({
+              type: "task",
+              id: nextBlockId("task"),
+              taskId: (msg.task_id as string) ?? "",
+              description: (msg.description as string) ?? "",
+              status: "started",
+            });
+            setIsAgentTurn(true);
+            break;
+          }
+          case "task_progress": {
+            const taskId = msg.task_id as string;
+            const description = msg.description as string;
+            const taskUsage = msg.usage as Record<string, number> | undefined;
+            updateBlocks((blocks) =>
+              blocks.map((b) =>
+                b.type === "task" && b.taskId === taskId
+                  ? {
+                      ...b,
+                      status: "in_progress" as const,
+                      description,
+                      toolUses: taskUsage?.tool_uses,
+                    }
+                  : b,
+              ),
+            );
+            break;
+          }
+          case "task_notification": {
+            const taskId = msg.task_id as string;
+            const status = msg.status as string;
+            const summary = msg.summary as string;
+            updateBlocks((blocks) =>
+              blocks.map((b) =>
+                b.type === "task" && b.taskId === taskId
+                  ? { ...b, status: status as TaskBlock["status"], summary }
+                  : b,
+              ),
+            );
+            break;
+          }
+        }
+        break;
+      }
+
+      case "tool_progress": {
+        const toolUseId = msg.tool_use_id as string;
+        updateBlocks((blocks) =>
+          blocks.map((b) =>
+            b.type === "tool_call" && b.toolCallId === toolUseId
+              ? { ...b, status: "in_progress" as const }
+              : b,
+          ),
+        );
+        break;
+      }
+
+      case "rate_limit_event": {
+        const info = msg.rate_limit_info as Record<string, unknown>;
+        if (info?.status === "rejected") {
+          setError(`Rate limited. Resets at: ${info.resetsAt}`);
+        }
+        break;
+      }
+    }
+  }
+
+  function handleStreamEvent(event: Record<string, unknown>): void {
+    const eventType = event.type as string;
+
+    switch (eventType) {
+      case "content_block_start": {
+        const index = event.index as number;
+        const contentBlock = event.content_block as Record<string, unknown>;
+        if (!contentBlock) break;
+
+        const blockType = contentBlock.type as string;
+
+        if (blockType === "thinking") {
+          finalizeThinking();
+          thinkingStartRef.current = Date.now();
+          const blockId = nextBlockId("think");
+          activeBlockIndexRef.current.set(index, blockId);
+          pushBlock({
+            type: "thinking",
+            id: blockId,
+            text: "",
+            duration: null,
+            isActive: true,
+          });
+          setIsAgentTurn(true);
+        } else if (blockType === "text") {
+          finalizeThinking();
+          const blockId = nextBlockId("txt");
+          activeBlockIndexRef.current.set(index, blockId);
+          pushBlock({
+            type: "text",
+            id: blockId,
+            text: "",
+          });
+          setIsStreaming(true);
+          setIsAgentTurn(true);
+        } else if (blockType === "tool_use") {
+          finalizeThinking();
+          const blockId = nextBlockId("tc");
+          activeBlockIndexRef.current.set(index, blockId);
+          const toolName = (contentBlock.name as string) ?? "unknown";
+          pushBlock({
+            type: "tool_call",
+            id: blockId,
+            toolCallId: (contentBlock.id as string) ?? "",
+            title: toolName,
+            kind: inferToolKind(toolName),
+            status: "pending",
+            locations: [],
+            content: [],
+            rawInput: null,
+            rawOutput: null,
+            startedAt: Date.now(),
+            duration: null,
+            extra: { toolName },
+          });
+          setIsAgentTurn(true);
+        }
+        break;
+      }
+
+      case "content_block_delta": {
+        const index = event.index as number;
+        const delta = event.delta as Record<string, unknown>;
+        if (!delta) break;
+
+        const blockId = activeBlockIndexRef.current.get(index);
+        if (!blockId) break;
+
+        const deltaType = delta.type as string;
+
+        if (deltaType === "thinking_delta") {
+          const thinking = delta.thinking as string;
+          if (thinking) {
+            updateBlocks((blocks) =>
+              blocks.map((b) =>
+                b.id === blockId && b.type === "thinking"
+                  ? { ...b, text: b.text + thinking }
+                  : b,
+              ),
+            );
+          }
+        } else if (deltaType === "text_delta") {
+          const text = delta.text as string;
+          if (text) {
+            updateBlocks((blocks) =>
+              blocks.map((b) =>
+                b.id === blockId && b.type === "text"
+                  ? { ...b, text: b.text + text }
+                  : b,
+              ),
+            );
+          }
+        }
+        break;
+      }
+
+      case "content_block_stop": {
+        const index = event.index as number;
+        const blockId = activeBlockIndexRef.current.get(index);
+        if (blockId) {
+          const block = blocksRef.current.find((b) => b.id === blockId);
+          if (block?.type === "thinking" && block.isActive) {
+            finalizeThinking();
+          }
+          activeBlockIndexRef.current.delete(index);
+        }
+        break;
+      }
+
+      case "message_start":
+        setIsAgentTurn(true);
+        break;
+
+      case "message_delta": {
+        const deltaUsage = event.usage as Record<string, number> | undefined;
+        if (deltaUsage) {
+          setUsage((prev) => ({
+            inputTokens: prev?.inputTokens ?? 0,
+            outputTokens: deltaUsage.output_tokens ?? prev?.outputTokens ?? 0,
+            cacheCreationInputTokens: prev?.cacheCreationInputTokens ?? 0,
+            cacheReadInputTokens: prev?.cacheReadInputTokens ?? 0,
+          }));
+        }
+        break;
+      }
+
+      case "message_stop":
+        break;
+    }
+  }
+
+  function handleControlRequest(msg: Record<string, unknown>): void {
+    const requestId = msg.request_id as string;
+    const request = msg.request as Record<string, unknown>;
+    if (!request || request.subtype !== "can_use_tool") return;
+
+    const toolName = request.tool_name as string;
+    const toolUseId = request.tool_use_id as string;
+    const input = request.input as Record<string, unknown>;
+    const questions = (input?.questions as ControlRequestQuestion[]) ?? [];
+
+    setPendingControlRequest({
+      requestId,
+      toolName,
+      toolUseId,
+      questions,
+      rawRequest: msg,
+    });
+  }
+
+  const connectWs = useCallback(() => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const socket = new WebSocket(wsUrl);
+    wsRef.current = socket;
+
+    socket.onmessage = (ev) => {
+      let parsed: WsEvent;
+      try {
+        parsed = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+
+      if (parsed.type === "axon_event") {
+        setAxonEvents((prev) => [...prev, parsed.event as AxonEventView]);
+        return;
+      }
+
+      if (parsed.type === "connection_progress") {
+        setConnectionStatus(parsed.step);
+        return;
+      }
+
+      if (parsed.type === "sdk_message") {
+        handleSDKMessage(parsed.message as Record<string, unknown>);
+      } else if (parsed.type === "control_request") {
+        handleControlRequest(parsed.controlRequest as Record<string, unknown>);
+      } else if (parsed.type === "turn_error") {
+        finalizeTurn();
+        setError(parsed.error);
+      }
+    };
+
+    socket.onclose = () => {
+      wsRef.current = null;
+    };
+  }, []);
+
+  const start = useCallback(async (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => {
+    try {
+      setError(null);
+      setConnectionPhase("connecting");
+      connectWs();
+
+      const resp = await api<{
+        devboxId: string;
+        axonId: string;
+        runloopUrl?: string;
+      }>("/api/start", { agentType: "claude", ...config });
+
+      setDevboxId(resp.devboxId);
+      setAxonId(resp.axonId);
+      if (resp.runloopUrl) setRunloopUrl(resp.runloopUrl);
+      setConnectionPhase("ready");
+      setConnectionStatus(null);
+    } catch (err) {
+      setConnectionPhase("error");
+      setConnectionStatus(null);
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [connectWs]);
+
+  const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
+    if (!text.trim() && (!content || content.length === 0)) return;
+
+    const attachments = content
+      ?.filter((c) => c.type === "image" || c.type === "file")
+      .map((c) => ({
+        type: c.type as "image" | "file",
+        name: c.name as string | undefined,
+        data: c.data as string | undefined,
+        mimeType: c.mimeType as string | undefined,
+        text: c.text as string | undefined,
+      }));
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: text,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      },
+    ]);
+    blocksRef.current = [];
+    thinkingStartRef.current = null;
+    activeBlockIndexRef.current.clear();
+    setCurrentTurnBlocks([]);
+    setIsAgentTurn(true);
+    setIsStreaming(false);
+
+    setIsSendingPrompt(true);
+    try {
+      if (content && content.length > 0) {
+        await api("/api/prompt", { content });
+      } else {
+        await api("/api/prompt", { text });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSendingPrompt(false);
+    }
+  }, []);
+
+  const cancel = useCallback(async () => {
+    try { await api("/api/cancel", {}); } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const setModelAction = useCallback(async (model: string) => {
+    try { await api("/api/set-model", { model }); } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const setPermissionModeAction = useCallback(async (mode: string) => {
+    try { await api("/api/set-permission-mode", { mode }); } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const setAutoApprovePermissions = useCallback(async (enabled: boolean) => {
+    setAutoApprovePermissionsState(enabled);
+    try { await api("/api/set-auto-approve-permissions", { enabled }); } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const sendControlResponse = useCallback(async (requestId: string, response: Record<string, unknown>) => {
+    try {
+      await api("/api/control-response", { requestId, response });
+      setPendingControlRequest(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const shutdown = useCallback(async () => {
+    try { await api("/api/shutdown", {}); } catch { /* ignore */ }
+    wsRef.current?.close();
+    wsRef.current = null;
+    setConnectionPhase("idle");
+    setConnectionStatus(null);
+    setIsSendingPrompt(false);
+    setDevboxId(null);
+    setAxonId(null);
+    setPendingControlRequest(null);
+    setAutoApprovePermissionsState(true);
+    setAxonEvents([]);
+    setUsage(null);
+    setInitInfo(null);
+    blocksRef.current = [];
+    thinkingStartRef.current = null;
+    activeBlockIndexRef.current.clear();
+    setCurrentTurnBlocks([]);
+    setMessages([]);
+    setIsAgentTurn(false);
+    setIsStreaming(false);
+  }, []);
+
+  return {
+    connectionPhase,
+    connectionStatus,
+    error,
+    messages,
+    currentTurnBlocks,
+    isAgentTurn,
+    isStreaming,
+    isSendingPrompt,
+    usage,
+    initInfo,
+    devboxId,
+    axonId,
+    runloopUrl,
+    permissionMode,
+    currentModel,
+    autoApprovePermissions,
+    axonEvents,
+    pendingControlRequest,
+    start,
+    sendMessage,
+    cancel,
+    setModel: setModelAction,
+    setPermissionMode: setPermissionModeAction,
+    setAutoApprovePermissions,
+    sendControlResponse,
+    shutdown,
+  };
+}

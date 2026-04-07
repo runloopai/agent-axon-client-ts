@@ -31,6 +31,7 @@ import { useAttachments } from "./useAttachments.js";
 import { AttachmentBar } from "./AttachmentBar.js";
 import { AxonEventItem } from "./components/AxonEventItem.js";
 import { CommandPicker } from "./components/CommandPicker.js";
+import { TurnBlocksInspector } from "./components/TurnBlocksInspector.js";
 
 function phaseLabel(phase: ConnectionPhase): string {
   if (phase === "connecting") return "Connecting to Claude Code\u2026";
@@ -120,7 +121,7 @@ export default function App() {
   const [startModel, setStartModel] = useState("claude-haiku-4-5");
   const [inputText, setInputText] = useState("");
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
-  const [rightTab, setRightTab] = useState<"tools" | "axon">("tools");
+  const [rightTab, setRightTab] = useState<"activity" | "axon">("activity");
   const [expandedAxonEvents, setExpandedAxonEvents] = useState<Set<number>>(new Set());
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [commandPickerIndex, setCommandPickerIndex] = useState(0);
@@ -267,17 +268,10 @@ export default function App() {
     );
   }
 
-  // Collect tool calls from current turn for activity sidebar
-  const allToolCalls = [
-    ...agent.messages.flatMap((m) =>
-      (m.blocks ?? []).filter(
-        (b): b is ToolCallBlock => b.type === "tool_call",
-      ),
-    ),
-    ...agent.currentTurnBlocks.filter(
-      (b): b is ToolCallBlock => b.type === "tool_call",
-    ),
-  ];
+  const totalBlocks = agent.messages.reduce(
+    (sum, m) => sum + (m.blocks?.length ?? 0),
+    0,
+  ) + agent.currentTurnBlocks.length;
 
   return (
     <div className="app app-ready">
@@ -465,12 +459,12 @@ export default function App() {
       <div className="events-sidebar">
         <div className="sidebar-tabs">
           <button
-            className={`sidebar-tab ${rightTab === "tools" ? "active" : ""}`}
-            onClick={() => setRightTab("tools")}
+            className={`sidebar-tab ${rightTab === "activity" ? "active" : ""}`}
+            onClick={() => setRightTab("activity")}
           >
-            Tool Calls
-            {allToolCalls.length > 0 && (
-              <span className="tab-count">{allToolCalls.length}</span>
+            Activity
+            {totalBlocks > 0 && (
+              <span className="tab-count">{totalBlocks}</span>
             )}
           </button>
           <button
@@ -484,14 +478,13 @@ export default function App() {
           </button>
         </div>
 
-        {rightTab === "tools" ? (
+        {rightTab === "activity" ? (
           <div className="events-list">
-            {allToolCalls.length === 0 && (
-              <div className="empty-state">No tool calls yet</div>
-            )}
-            {allToolCalls.map((tc) => (
-              <ToolCallSidebarItem key={tc.id} toolCall={tc} />
-            ))}
+            <TurnBlocksInspector
+              messages={agent.messages}
+              currentTurnBlocks={agent.currentTurnBlocks}
+              isAgentTurn={agent.isAgentTurn}
+            />
           </div>
         ) : (
           <div className="events-list">
@@ -1244,54 +1237,6 @@ function SetupCard({
         </div>
       )}
       {error && <div className="error-banner">{error}</div>}
-    </div>
-  );
-}
-
-// ── Tool call sidebar ───────────────────────────────────────
-
-function ToolCallSidebarItem({ toolCall }: { toolCall: ToolCallBlock }) {
-  const [expanded, setExpanded] = useState(false);
-  const icon = getToolIcon(toolCall.toolName);
-  const hasOutput = !!toolCall.output;
-
-  let displayTitle = toolCall.toolName;
-  if (toolCall.input && typeof toolCall.input === "object") {
-    const input = toolCall.input as Record<string, unknown>;
-    if (input.command) displayTitle = input.command as string;
-    else if (input.file_path) displayTitle = input.file_path as string;
-  }
-
-  return (
-    <div className={`tool-activity-item ${toolCall.status}`}>
-      <div
-        className="tool-activity-header"
-        onClick={hasOutput ? () => setExpanded(!expanded) : undefined}
-        style={hasOutput ? { cursor: "pointer" } : undefined}
-      >
-        <div className="tool-call-sidebar-icon">{icon}</div>
-        <div className="tool-activity-info">
-          <div className="tool-activity-title">{displayTitle}</div>
-          <div className="tool-activity-meta">
-            <span className={`tool-activity-status ${toolCall.status}`}>
-              {toolCall.status}
-            </span>
-            {toolCall.duration != null && (
-              <span className="tool-activity-time">{toolCall.duration}s</span>
-            )}
-          </div>
-        </div>
-        {hasOutput && (
-          <span className={`chevron ${expanded ? "expanded" : ""}`}>
-            {"\u25B6"}
-          </span>
-        )}
-      </div>
-      {expanded && toolCall.output && (
-        <div className="tool-activity-output">
-          <pre>{toolCall.output}</pre>
-        </div>
-      )}
     </div>
   );
 }

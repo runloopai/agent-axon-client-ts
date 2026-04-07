@@ -51,6 +51,34 @@
         "@runloop/api-client": "^1.17.0",
       },
     },
+    "examples/agent-app": {
+      "name": "@runloop/example-agent-app",
+      "version": "0.1.0",
+      "dependencies": {
+        "@anthropic-ai/claude-agent-sdk": "0.2.91",
+        "@runloop/agent-axon-client": "workspace:*",
+        "@runloop/api-client": "^1.17.0",
+        "diff": "^8.0.4",
+        "express": "^5.2.1",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.0",
+        "react-dropzone": "^15.0.0",
+        "react-markdown": "^10.1.0",
+        "react-syntax-highlighter": "^16.1.1",
+        "ws": "^8.18.0",
+      },
+      "devDependencies": {
+        "@types/diff": "^8.0.0",
+        "@types/express": "^5.0.6",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@types/react-syntax-highlighter": "^15.5.13",
+        "@types/ws": "^8.18.1",
+        "@vitejs/plugin-react": "^6.0.1",
+        "typescript": "~5.8.0",
+        "vite": "^8.0.3",
+      },
+    },
     "examples/claude-app": {
       "name": "@runloop/example-claude-app",
       "version": "0.1.0",
@@ -99,7 +127,7 @@
     },
     "sdk": {
       "name": "@runloop/agent-axon-client",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@agentclientprotocol/sdk": "0.18.0",
       },
@@ -357,6 +385,8 @@
     "@runloop/example-acp-cli": ["@runloop/example-acp-cli@workspace:examples/acp-cli"],
 
     "@runloop/example-acp-hello-world": ["@runloop/example-acp-hello-world@workspace:examples/acp-hello-world"],
+
+    "@runloop/example-agent-app": ["@runloop/example-agent-app@workspace:examples/agent-app"],
 
     "@runloop/example-claude-app": ["@runloop/example-claude-app@workspace:examples/claude-app"],
 
@@ -1009,6 +1039,8 @@
     "@runloop/api-client/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@runloop/example-acp-app/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
+
+    "@runloop/example-agent-app/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
 
     "@runloop/example-claude-app/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
 

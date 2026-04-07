@@ -236,6 +236,7 @@ export class AxonTransport implements Transport {
    * call will yield events from the fresh subscription.
    */
   async reconnect(): Promise<void> {
+    if (this.closed) return;
     this.log("reconnect", "aborting old stream and re-subscribing");
     this.abortStream();
     this.sseStream = await this.axon.subscribeSse(

@@ -159,6 +159,7 @@ export class ACPAxonConnection {
    * @returns The restored session metadata.
    */
   loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
+    this.ensureConnected();
     return this.protocol.loadSession(params);
   }
 
@@ -169,6 +170,7 @@ export class ACPAxonConnection {
    * @returns An array of session summaries.
    */
   listSessions(params: ListSessionsRequest): Promise<ListSessionsResponse> {
+    this.ensureConnected();
     return this.protocol.listSessions(params);
   }
 
@@ -205,6 +207,7 @@ export class ACPAxonConnection {
    * @returns The authentication result.
    */
   authenticate(params: AuthenticateRequest): Promise<AuthenticateResponse> {
+    this.ensureConnected();
     return this.protocol.authenticate(params);
   }
 
@@ -215,6 +218,7 @@ export class ACPAxonConnection {
    * @returns Confirmation of the mode change.
    */
   setSessionMode(params: SetSessionModeRequest): Promise<SetSessionModeResponse> {
+    this.ensureConnected();
     return this.protocol.setSessionMode(params);
   }
 
@@ -227,6 +231,7 @@ export class ACPAxonConnection {
   setSessionConfigOption(
     params: SetSessionConfigOptionRequest,
   ): Promise<SetSessionConfigOptionResponse> {
+    this.ensureConnected();
     return this.protocol.setSessionConfigOption(params);
   }
 
@@ -238,6 +243,7 @@ export class ACPAxonConnection {
    * @returns The agent's response payload.
    */
   extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+    this.ensureConnected();
     return this.protocol.extMethod(method, params);
   }
 
@@ -249,6 +255,7 @@ export class ACPAxonConnection {
    * @param params - Arbitrary key-value payload for the notification.
    */
   extNotification(method: string, params: Record<string, unknown>): Promise<void> {
+    this.ensureConnected();
     return this.protocol.extNotification(method, params);
   }
 

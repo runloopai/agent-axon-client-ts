@@ -167,11 +167,12 @@ export class ClaudeAxonConnection {
   readonly devboxId: string;
 
   /**
-   * Whether the connection has been initialized and the read loop is active.
-   * Returns `false` before {@link initialize} is called or after the read loop ends.
+   * Whether the connection has been fully initialized (transport connected,
+   * read loop active, and protocol handshake complete).
+   * Returns `false` before {@link initialize} resolves or after the read loop ends.
    */
   get isInitialized(): boolean {
-    return this.readLoopRunning && !this.closed;
+    return this.handshakeComplete && this.readLoopRunning && !this.closed;
   }
 
   /**
@@ -205,6 +206,9 @@ export class ClaudeAxonConnection {
 
   /** Whether the background read loop has been started. */
   private readLoopRunning = false;
+
+  /** Whether the initialize handshake has completed successfully. */
+  private handshakeComplete = false;
 
   /** Whether the background read loop has finished (stream ended or errored). */
   private readLoopDone = false;
@@ -276,6 +280,7 @@ export class ClaudeAxonConnection {
     this.startReadLoop();
 
     await this.sendInitialize();
+    this.handshakeComplete = true;
 
     if (this.options.model) {
       await this.setModel(this.options.model);
@@ -313,6 +318,8 @@ export class ClaudeAxonConnection {
     }
     this.messageWaiters.length = 0;
     this.messageQueue.length = 0;
+
+    this.handshakeComplete = false;
 
     // Fail pending control requests
     for (const [, pending] of this.pendingControlRequests) {
@@ -382,11 +389,13 @@ export class ClaudeAxonConnection {
         const label = outcome === "error" ? "error" : "ended unexpectedly";
         console.warn(`[ClaudeAxonConnection] SSE stream ${label}, reconnecting...`);
         reconnected = true;
+        this.handshakeComplete = false;
         try {
           await this.transport.reconnect();
 
           const reInitialize = async () => {
             await this.sendInitialize();
+            this.handshakeComplete = true;
             if (this.options.model) {
               await this.setModel(this.options.model);
             }
