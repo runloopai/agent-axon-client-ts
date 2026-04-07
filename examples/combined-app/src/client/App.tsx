@@ -5,7 +5,7 @@ import {
   useCallback,
   type KeyboardEvent,
 } from "react";
-import type { AgentType, AvailableCommand, AxonEventView, UserAttachment } from "./types.js";
+import type { AgentType, AvailableCommand, AxonEventView, StartConfig, UserAttachment } from "./types.js";
 import { useAgent } from "./hooks/useAgent.js";
 import { SetupCard } from "./components/SetupCard.js";
 import { ControlsBar } from "./components/ControlsBar.js";
@@ -38,8 +38,7 @@ function UserAttachments({ attachments }: { attachments: UserAttachment[] }) {
 
 export default function App() {
   const [selectedAgentType, setSelectedAgentType] = useState<AgentType>("acp");
-  const [activeAgentType, setActiveAgentType] = useState<AgentType | null>(null);
-  const agent = useAgent(activeAgentType);
+  const agent = useAgent();
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
@@ -84,22 +83,30 @@ export default function App() {
   };
 
   const handleStart = async () => {
-    setActiveAgentType(selectedAgentType);
-
-    const config: Record<string, unknown> = {
+    const sharedConfig = {
       launchCommands: launchCommands ? launchCommands.split("\n").filter(Boolean) : undefined,
       systemPrompt: systemPrompt || undefined,
     };
 
-    if (selectedAgentType === "acp") {
-      config.agentBinary = agentBinary;
-      config.launchArgs = launchArgs ? launchArgs.split(/\s+/) : undefined;
-    } else {
-      config.blueprintName = blueprintName || undefined;
-      config.model = model || undefined;
-    }
+    const params: StartConfig = selectedAgentType === "acp"
+      ? {
+          agentType: "acp",
+          config: {
+            ...sharedConfig,
+            agentBinary,
+            launchArgs: launchArgs ? launchArgs.split(/\s+/) : undefined,
+          },
+        }
+      : {
+          agentType: "claude",
+          config: {
+            ...sharedConfig,
+            blueprintName: blueprintName || undefined,
+            model: model || undefined,
+          },
+        };
 
-    await agent.start(config);
+    await agent.start(params);
   };
 
   const handleSend = async () => {
@@ -189,7 +196,6 @@ export default function App() {
 
   const handleShutdown = async () => {
     await agent.shutdown();
-    setActiveAgentType(null);
   };
 
   if (
@@ -225,7 +231,7 @@ export default function App() {
     );
   }
 
-  const agentLabel = activeAgentType === "claude" ? "Claude Code" : "ACP Agent";
+  const agentLabel = agent.agentType === "claude" ? "Claude Code" : "ACP Agent";
 
   return (
     <div className="app">
@@ -254,7 +260,7 @@ export default function App() {
       </div>
 
       <div className="main-area">
-        {activeAgentType === "acp" && (
+        {agent.agentType === "acp" && (
           <ControlsBar
             availableModes={agent.availableModes}
             currentMode={agent.currentMode}
@@ -269,7 +275,7 @@ export default function App() {
           />
         )}
 
-        {activeAgentType === "claude" && (
+        {agent.agentType === "claude" && (
           <div className="controls-bar">
             <label className="config-toggle">
               <input

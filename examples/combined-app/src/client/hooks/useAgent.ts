@@ -1,22 +1,41 @@
+import { useState, useCallback } from "react";
 import { useClaudeAgent, type UseClaudeAgentReturn } from "./useClaudeAgent.js";
 import { useACPAgent, type UseACPAgentReturn } from "./useACPAgent.js";
-import type { AgentType, UseAgentReturn } from "../types.js";
+import type { AgentType, StartConfig, UseAgentReturn } from "../types.js";
 
 const NOOP_ASYNC = async () => {};
 const NOOP = () => {};
 
-export function useAgent(agentType: AgentType | null): UseAgentReturn {
+export function useAgent(): UseAgentReturn {
+  const [activeAgentType, setActiveAgentType] = useState<AgentType | null>(null);
   const claude = useClaudeAgent();
   const acp = useACPAgent();
 
-  if (agentType === "claude") {
-    return mapClaude(claude);
+  const start = useCallback(async (params: StartConfig) => {
+    setActiveAgentType(params.agentType);
+    if (params.agentType === "claude") {
+      await claude.start(params.config);
+    } else {
+      await acp.start(params.config);
+    }
+  }, [claude.start, acp.start]);
+
+  const shutdown = useCallback(async () => {
+    if (activeAgentType === "claude") {
+      await claude.shutdown();
+    } else if (activeAgentType === "acp") {
+      await acp.shutdown();
+    }
+    setActiveAgentType(null);
+  }, [activeAgentType, claude.shutdown, acp.shutdown]);
+
+  if (activeAgentType === "claude") {
+    return { ...mapClaude(claude), start, shutdown };
   }
-  if (agentType === "acp") {
-    return mapACP(acp);
+  if (activeAgentType === "acp") {
+    return { ...mapACP(acp), start, shutdown };
   }
 
-  // No agent selected yet
   return {
     agentType: null,
     connectionPhase: "idle",
@@ -57,10 +76,10 @@ export function useAgent(agentType: AgentType | null): UseAgentReturn {
     sessionId: null,
     runloopUrl: null,
     axonEvents: [],
-    start: NOOP_ASYNC,
+    start,
     sendMessage: NOOP_ASYNC,
     cancel: NOOP_ASYNC,
-    shutdown: NOOP_ASYNC,
+    shutdown,
     setAutoApprovePermissions: NOOP_ASYNC,
     setModel: NOOP_ASYNC,
     setPermissionMode: NOOP_ASYNC,
@@ -79,7 +98,7 @@ export function useAgent(agentType: AgentType | null): UseAgentReturn {
   };
 }
 
-function mapClaude(c: UseClaudeAgentReturn): UseAgentReturn {
+function mapClaude(c: UseClaudeAgentReturn): Omit<UseAgentReturn, "start" | "shutdown"> {
   return {
     agentType: "claude",
     connectionPhase: c.connectionPhase,
@@ -120,10 +139,8 @@ function mapClaude(c: UseClaudeAgentReturn): UseAgentReturn {
     sessionId: null,
     runloopUrl: c.runloopUrl,
     axonEvents: c.axonEvents,
-    start: (config) => c.start(config as any),
     sendMessage: c.sendMessage,
     cancel: c.cancel,
-    shutdown: c.shutdown,
     setAutoApprovePermissions: c.setAutoApprovePermissions,
     setModel: c.setModel,
     setPermissionMode: c.setPermissionMode,
@@ -142,7 +159,7 @@ function mapClaude(c: UseClaudeAgentReturn): UseAgentReturn {
   };
 }
 
-function mapACP(a: UseACPAgentReturn): UseAgentReturn {
+function mapACP(a: UseACPAgentReturn): Omit<UseAgentReturn, "start" | "shutdown"> {
   return {
     agentType: "acp",
     connectionPhase: a.connectionPhase,
@@ -183,10 +200,8 @@ function mapACP(a: UseACPAgentReturn): UseAgentReturn {
     sessionId: a.sessionId,
     runloopUrl: a.runloopUrl,
     axonEvents: a.axonEvents,
-    start: (config) => a.start(config as any),
     sendMessage: a.sendMessage,
     cancel: a.cancel,
-    shutdown: a.shutdown,
     setAutoApprovePermissions: a.setAutoApprovePermissions,
     setModel: NOOP_ASYNC,
     setPermissionMode: NOOP_ASYNC,

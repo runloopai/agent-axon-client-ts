@@ -1,10 +1,10 @@
 {
-  "name": "@runloop/example-agent-app",
+  "name": "@runloop/example-combined-app",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/server/index.ts",
+    "dev": "bun --env-file=.env --watch src/server/index.ts",
     "dev:client": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit",

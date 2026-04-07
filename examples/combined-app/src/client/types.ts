@@ -376,6 +376,26 @@ export interface AxonEventView {
   [key: string]: unknown;
 }
 
+// --- Start config types ---
+
+export interface ClaudeStartConfig {
+  blueprintName?: string;
+  launchCommands?: string[];
+  systemPrompt?: string;
+  model?: string;
+}
+
+export interface ACPStartConfig {
+  agentBinary: string;
+  launchArgs?: string[];
+  launchCommands?: string[];
+  systemPrompt?: string;
+}
+
+export type StartConfig =
+  | { agentType: "claude"; config: ClaudeStartConfig }
+  | { agentType: "acp"; config: ACPStartConfig };
+
 // --- Unified hook return type ---
 
 export interface UseAgentReturn {
@@ -426,7 +446,7 @@ export interface UseAgentReturn {
   axonEvents: AxonEventView[];
 
   // Actions
-  start: (config: Record<string, unknown>) => Promise<void>;
+  start: (params: StartConfig) => Promise<void>;
   sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
   cancel: () => Promise<void>;
   shutdown: () => Promise<void>;

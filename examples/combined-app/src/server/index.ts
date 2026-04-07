@@ -324,6 +324,8 @@ app.get("/api/axon-events", (_req, res) => {
 
 const PORT = process.env.PORT ?? 3003;
 server.listen(PORT, () => {
-  console.log(`Agent App server listening on http://localhost:${PORT}`);
+  console.log(`Combined App server listening on http://localhost:${PORT}`);
   console.log(`Start the Vite dev server with: bun run dev:client`);
+  console.log(`RUNLOOP_API_KEY: ${process.env.RUNLOOP_API_KEY ? "set" : "NOT SET"}`);
+  console.log(`ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? "set" : "NOT SET"}`);
 });

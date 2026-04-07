@@ -36,11 +36,11 @@ export class ClaudeConnectionManager {
     });
 
     this.ws.broadcast({ type: "connection_progress", step: "Creating Axon channel..." });
-    const axon = await sdk.axon.create({ name: "agent-app-claude" });
+    const axon = await sdk.axon.create({ name: "combined-app-claude" });
 
     this.ws.broadcast({ type: "connection_progress", step: "Provisioning sandbox..." });
     const devbox = await sdk.devbox.create({
-      name: "agent-app-claude",
+      name: "combined-app-claude",
       blueprint_name: opts.blueprintName ?? "runloop/agents",
       mounts: [
         {

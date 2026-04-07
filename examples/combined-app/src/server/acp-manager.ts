@@ -45,7 +45,7 @@ export class ACPConnectionManager {
     });
 
     this.ws.broadcast({ type: "connection_progress", step: "Creating Axon channel..." });
-    const axon = await sdk.axon.create({ name: "agent-app-acp" });
+    const axon = await sdk.axon.create({ name: "combined-app-acp" });
 
     const launchCommands = opts.launchCommands ? [...opts.launchCommands] : [];
     if (opts.systemPrompt) {
@@ -64,7 +64,7 @@ export class ACPConnectionManager {
 
     this.ws.broadcast({ type: "connection_progress", step: "Provisioning sandbox..." });
     const devbox = await sdk.devbox.create({
-      name: "agent-app-acp",
+      name: "combined-app-acp",
       blueprint_name: "runloop/agents",
       mounts: [
         {
@@ -127,7 +127,7 @@ export class ACPConnectionManager {
 
     const initResp = await this.connection.initialize({
       protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "agent-app", version: "0.1.0" },
+      clientInfo: { name: "combined-app", version: "0.1.0" },
       clientCapabilities: CLIENT_CAPABILITIES,
     });
 

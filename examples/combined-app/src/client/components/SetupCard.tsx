@@ -31,7 +31,7 @@ export function SetupCard({
   return (
     <div className="setup-card">
       <div className="setup-header">
-        <h2>Agent App</h2>
+        <h2>Combined App</h2>
         <p className="setup-subtitle">
           Launch a <strong>Claude Code</strong> or <strong>ACP</strong> agent in a secure cloud sandbox and interact through a unified interface.
         </p>
