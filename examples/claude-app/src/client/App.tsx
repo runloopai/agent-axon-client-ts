@@ -26,8 +26,8 @@ import {
   type ControlRequestQuestion,
   type AxonEventView,
 } from "./hooks/useClaudeAgent.js";
-import { useAttachments } from "../../../shared/useAttachments.js";
-import { AttachmentBar } from "../../../shared/AttachmentBar.js";
+import { useAttachments } from "./useAttachments.js";
+import { AttachmentBar } from "./AttachmentBar.js";
 import { AxonEventItem } from "./components/AxonEventItem.js";
 
 function phaseLabel(phase: ConnectionPhase): string {

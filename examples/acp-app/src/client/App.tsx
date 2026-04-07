@@ -11,8 +11,8 @@ import {
   type AvailableCommand,
   type AxonEventView,
 } from "./hooks/useNodeAgent.js";
-import { useAttachments } from "../../../shared/useAttachments.js";
-import { AttachmentBar } from "../../../shared/AttachmentBar.js";
+import { useAttachments } from "./useAttachments.js";
+import { AttachmentBar } from "./AttachmentBar.js";
 
 import { SetupCard } from "./components/SetupCard.js";
 import { ControlsBar } from "./components/ControlsBar.js";
