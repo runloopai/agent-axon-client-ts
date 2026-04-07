@@ -656,13 +656,20 @@ describe("ACPAxonConnection", () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
       const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
-      conn.protocol.initialize = vi.fn().mockResolvedValue({} as never);
-      conn.protocol.prompt = vi.fn().mockResolvedValue({} as never);
 
       await conn.disconnect();
 
       expect(() => conn.initialize({} as never)).toThrow("disconnected");
+      expect(() => conn.newSession({} as never)).toThrow("disconnected");
+      expect(() => conn.loadSession({} as never)).toThrow("disconnected");
+      expect(() => conn.listSessions({} as never)).toThrow("disconnected");
       expect(() => conn.prompt({} as never)).toThrow("disconnected");
+      expect(() => conn.cancel({} as never)).toThrow("disconnected");
+      expect(() => conn.authenticate({} as never)).toThrow("disconnected");
+      expect(() => conn.setSessionMode({} as never)).toThrow("disconnected");
+      expect(() => conn.setSessionConfigOption({} as never)).toThrow("disconnected");
+      expect(() => conn.extMethod("x", {})).toThrow("disconnected");
+      expect(() => conn.extNotification("x", {})).toThrow("disconnected");
     });
   });
 

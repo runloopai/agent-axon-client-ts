@@ -1413,78 +1413,357 @@ html, body, #root {
   font-size: 13px;
 }
 
-/* ── Tool Activity Items (sidebar) ───────────────────────── */
+/* ── Turn Blocks Inspector (Activity sidebar) ────────────── */
 
-.tool-activity-item {
-  border-radius: 4px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  margin-bottom: 4px;
-  overflow: hidden;
-  flex-shrink: 0;
+.tbi-container {
+  margin-bottom: 12px;
 }
 
-.tool-activity-header {
+.tbi-header-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  justify-content: space-between;
+  padding: 4px 4px 6px;
 }
 
-.tool-call-sidebar-icon {
-  font-size: 14px;
+.tbi-header-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.tbi-header-stats {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.tbi-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tbi-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 4px;
+}
+
+/* ── Message groups ─────────────────────────────────────── */
+
+.tbi-message-group {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.tbi-user {
+  border-left: 3px solid var(--accent);
+}
+
+.tbi-assistant {
+  border-left: 3px solid var(--success);
+}
+
+.tbi-live {
+  border-left-color: var(--warning);
+  border-style: solid;
+  animation: tbi-pulse 2s ease-in-out infinite;
+}
+
+@keyframes tbi-pulse {
+  0%, 100% { border-left-color: var(--warning); }
+  50% { border-left-color: var(--text-muted); }
+}
+
+.tbi-message-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+}
+
+.tbi-message-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.tbi-role-badge {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
   flex-shrink: 0;
 }
 
-.tool-activity-info { flex: 1; min-width: 0; }
+.tbi-role-user {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--accent);
+}
 
-.tool-activity-title {
+.tbi-role-assistant {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--success);
+}
+
+.tbi-message-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.tbi-message-index {
   font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.tbi-block-count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.tbi-stop-reason {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(248, 81, 73, 0.12);
+  color: var(--error);
+  white-space: nowrap;
+}
+
+.tbi-live-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning);
+  animation: pulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.tbi-chevron {
+  margin-left: auto;
+}
+
+/* ── Message body ───────────────────────────────────────── */
+
+.tbi-message-body {
+  border-top: 1px solid var(--border);
+  padding: 4px;
+}
+
+.tbi-user-text {
   font-size: 11px;
+  color: var(--text-primary);
+  padding: 4px 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.tbi-empty-blocks {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 6px;
+}
+
+.tbi-blocks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ── Block items (compact summaries) ───────────────────── */
+
+.tbi-block-item {
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.tbi-compact-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
+  min-height: 24px;
+}
+
+.tbi-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.tbi-clickable:hover {
+  background: var(--bg-tertiary);
+}
+
+.tbi-compact-meta {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.tbi-compact-preview {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 0 6px 4px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
+/* ── Thinking summary ──────────────────────────────────── */
+
+.tbi-thinking-item {
+  border-left: 2px solid var(--purple);
+}
+
+.tbi-thinking-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--purple);
+}
+
+/* ── Tool call summary ─────────────────────────────────── */
+
+.tbi-tc-item {
+  border-left: 2px solid var(--text-muted);
+}
+
+.tbi-tc-item.kind-read    { border-left-color: var(--accent); }
+.tbi-tc-item.kind-edit    { border-left-color: var(--success); }
+.tbi-tc-item.kind-delete  { border-left-color: var(--error); }
+.tbi-tc-item.kind-search  { border-left-color: var(--purple); }
+.tbi-tc-item.kind-execute { border-left-color: var(--warning); }
+.tbi-tc-item.kind-think   { border-left-color: var(--purple); }
+.tbi-tc-item.kind-fetch   { border-left-color: var(--cyan); }
+.tbi-tc-item.kind-other   { border-left-color: var(--text-muted); }
+
+.tbi-tc-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.tbi-tc-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
-.tool-activity-meta {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-top: 2px;
+/* ── Tool call group summary ───────────────────────────── */
+
+.tbi-tc-group-item {
+  border-left: 2px solid var(--text-muted);
 }
 
-.tool-activity-status {
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-muted);
-}
+.tbi-tc-group-item.kind-read    { border-left-color: var(--accent); }
+.tbi-tc-group-item.kind-edit    { border-left-color: var(--success); }
+.tbi-tc-group-item.kind-delete  { border-left-color: var(--error); }
+.tbi-tc-group-item.kind-search  { border-left-color: var(--purple); }
+.tbi-tc-group-item.kind-execute { border-left-color: var(--warning); }
 
-.tool-activity-status.completed { color: var(--success); }
-.tool-activity-status.pending { color: var(--warning); }
-.tool-activity-status.running { color: var(--accent); }
-.tool-activity-status.failed { color: var(--error); }
-
-.tool-activity-time { font-size: 10px; color: var(--text-muted); }
-
-.tool-activity-output {
+.tbi-group-children {
   border-top: 1px solid var(--border);
-  padding: 8px;
-  max-height: 200px;
-  overflow-y: auto;
-  background: var(--bg-primary);
+  padding: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-.tool-activity-output pre {
-  font-family: var(--font-mono);
+.tbi-group-children .tbi-tc-item {
+  border-left: none;
+}
+
+/* ── Text summary ──────────────────────────────────────── */
+
+.tbi-text-item .tbi-compact-row {
+  gap: 5px;
+}
+
+.tbi-text-icon {
   font-size: 11px;
-  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.tbi-text-preview {
+  font-size: 10px;
   color: var(--text-secondary);
-  white-space: pre-wrap;
-  word-break: break-all;
-  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.tbi-streaming-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* ── Task summary ──────────────────────────────────────── */
+
+.tbi-task-item {
+  border-left: 2px solid var(--purple);
+}
+
+/* ── Plan / Todo summary ───────────────────────────────── */
+
+.tbi-plan-item {
+  border-left: 2px solid var(--cyan);
+}
+
+.tbi-plan-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.tbi-plan-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ── Turn summary stats ────────────────────────────────── */
+
+.tbi-turn-stats {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 3px 6px 1px;
+  letter-spacing: 0.02em;
 }
 
 /* ── Connection Info Banner ──────────────────────────────── */

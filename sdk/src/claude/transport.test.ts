@@ -259,6 +259,16 @@ describe("AxonTransport", () => {
 
       expect(axon.subscribeSse).toHaveBeenNthCalledWith(2, undefined);
     });
+
+    it("no-ops after close()", async () => {
+      await transport.connect();
+      await transport.close();
+
+      await transport.reconnect();
+
+      expect(axon.subscribeSse).toHaveBeenCalledTimes(1);
+      expect(transport.isReady()).toBe(false);
+    });
   });
 
   describe("isReady()", () => {
