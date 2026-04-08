@@ -2,7 +2,7 @@
  * ClaudeAxonConnection — bidirectional, interactive client for Claude Code via Axon.
  *
  * Provides:
- * - initialize() / disconnect() lifecycle
+ * - connect() / initialize() / disconnect() lifecycle
  * - send() to send user messages
  * - receiveMessages() / receiveResponse() async iterators
  * - Control protocol: interrupt, setPermissionMode, setModel
@@ -148,7 +148,7 @@ export interface ClaudeAxonConnectionOptions extends BaseConnectionOptions {
  * Bidirectional, interactive client for Claude Code via Axon.
  *
  * Provides:
- * - {@link initialize} / {@link disconnect} lifecycle
+ * - {@link connect} / {@link initialize} / {@link disconnect} lifecycle
  * - {@link send} to send user messages
  * - {@link receiveMessages} / {@link receiveResponse} async iterators
  * - Control protocol: {@link interrupt}, {@link setPermissionMode}, {@link setModel}
@@ -165,6 +165,14 @@ export class ClaudeAxonConnection {
 
   /** The Runloop devbox ID. */
   readonly devboxId: string;
+
+  /**
+   * Whether the transport is connected and the read loop is active.
+   * Returns `true` after {@link connect} resolves and before {@link disconnect}.
+   */
+  get isConnected(): boolean {
+    return this.readLoopRunning && !this.closed;
+  }
 
   /**
    * Whether the connection has been fully initialized (transport connected,
@@ -235,7 +243,8 @@ export class ClaudeAxonConnection {
   /**
    * Creates a new Claude connection over the given Axon channel and devbox.
    *
-   * Unlike ACP, the transport is not opened until {@link initialize} is called.
+   * Unlike ACP, the transport is not opened until {@link connect} (or
+   * {@link initialize}, which calls `connect()` automatically) is called.
    *
    * @param axon    - The Axon channel to communicate over (from `@runloop/api-client`).
    * @param devbox  - The Runloop devbox hosting the Claude Code agent.
@@ -261,11 +270,39 @@ export class ClaudeAxonConnection {
   // -----------------------------------------------------------------------
 
   /**
-   * Opens the transport, starts the background read loop, performs the
-   * `initialize` handshake, and optionally sets the model.
+   * Opens the transport and starts the background read loop.
+   *
+   * Call this before {@link initialize} to establish the Axon connection.
+   * If you only call {@link initialize}, it will call `connect()` for you
+   * automatically.
    *
    * @throws If this instance has already been disconnected (connections
    *   are single-use — create a new instance instead).
+   * @throws If the transport is already connected.
+   */
+  async connect(): Promise<void> {
+    if (this.closed) {
+      throw new Error(
+        "This ClaudeAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
+      );
+    }
+    if (this.readLoopRunning) {
+      throw new Error("Already connected. Call disconnect() before reconnecting.");
+    }
+    await this.transport.connect();
+    this.startReadLoop();
+  }
+
+  /**
+   * Performs the `initialize` handshake with the Claude Code CLI and
+   * optionally sets the model.
+   *
+   * You must call {@link connect} before calling this method.
+   *
+   * @throws If this instance has already been disconnected.
+   * @throws If {@link connect} has not been called yet.
+   * @throws If the handshake has already completed. Call `disconnect()`
+   *   before reinitializing.
    */
   async initialize(): Promise<void> {
     if (this.closed) {
@@ -273,11 +310,12 @@ export class ClaudeAxonConnection {
         "This ClaudeAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
       );
     }
-    if (this.readLoopRunning) {
+    if (!this.readLoopRunning) {
+      throw new Error("Not connected. Call connect() before initialize().");
+    }
+    if (this.handshakeComplete) {
       throw new Error("Already initialized. Call disconnect() before reinitializing.");
     }
-    await this.transport.connect();
-    this.startReadLoop();
 
     await this.sendInitialize();
     this.handshakeComplete = true;
@@ -389,20 +427,10 @@ export class ClaudeAxonConnection {
         const label = outcome === "error" ? "error" : "ended unexpectedly";
         console.warn(`[ClaudeAxonConnection] SSE stream ${label}, reconnecting...`);
         reconnected = true;
-        this.handshakeComplete = false;
         try {
           await this.transport.reconnect();
-
-          const reInitialize = async () => {
-            await this.sendInitialize();
-            this.handshakeComplete = true;
-            if (this.options.model) {
-              await this.setModel(this.options.model);
-            }
-            console.warn("[ClaudeAxonConnection] Reconnected successfully");
-          };
-
-          await Promise.all([consumeStream(), reInitialize()]);
+          console.warn("[ClaudeAxonConnection] Reconnected successfully");
+          await consumeStream();
         } catch (reconnectErr) {
           this.log("readLoop", `reconnect failed: ${reconnectErr}`);
         }
@@ -702,7 +730,7 @@ export class ClaudeAxonConnection {
       throw new Error("Connection is disconnected. Cannot send messages.");
     }
     if (!this.readLoopRunning) {
-      throw new Error("Connection is not initialized. Call initialize() first.");
+      throw new Error("Connection is not connected. Call connect() or initialize() first.");
     }
     const message: SDKUserMessage =
       typeof prompt === "string"

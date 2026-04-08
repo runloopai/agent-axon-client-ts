@@ -5,9 +5,11 @@ import {
   useCallback,
   type KeyboardEvent,
 } from "react";
-import type { AgentType, AvailableCommand, AxonEventView, StartConfig, UserAttachment } from "./types.js";
+import type { AgentType, AvailableCommand, AxonEventView, UserAttachment } from "./types.js";
 import { useAgent } from "./hooks/useAgent.js";
+import { useAgentList } from "./hooks/useAgentList.js";
 import { SetupCard } from "./components/SetupCard.js";
+import { AgentSidebar } from "./components/AgentSidebar.js";
 import { ControlsBar } from "./components/ControlsBar.js";
 import { AssistantTurn } from "./components/AssistantTurn.js";
 import { ElicitationForm } from "./components/ElicitationForm.js";
@@ -16,6 +18,7 @@ import { ControlRequestPrompt } from "./components/ControlRequestPrompt.js";
 import { CommandPicker } from "./components/CommandPicker.js";
 import { AxonEventItem } from "./components/AxonEventItem.js";
 import { TurnBlocksInspector } from "./components/TurnBlocksInspector.js";
+import { api } from "./hooks/api.js";
 
 function UserAttachments({ attachments }: { attachments: UserAttachment[] }) {
   return (
@@ -37,8 +40,20 @@ function UserAttachments({ attachments }: { attachments: UserAttachment[] }) {
 }
 
 export default function App() {
+  const agentList = useAgentList();
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [showSetup, setShowSetup] = useState(true);
   const [selectedAgentType, setSelectedAgentType] = useState<AgentType>("acp");
-  const agent = useAgent();
+
+  const [startPhase, setStartPhase] = useState<"idle" | "connecting" | "error">("idle");
+  const [startStatus, setStartStatus] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
+  const startWsRef = useRef<WebSocket | null>(null);
+
+  const selectedEntry = agentList.agents.find((a) => a.id === selectedAgentId);
+  const activeAgentType = selectedEntry?.agentType ?? null;
+
+  const agent = useAgent(selectedAgentId, activeAgentType);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
@@ -58,6 +73,10 @@ export default function App() {
   const [rightTab, setRightTab] = useState<"activity" | "axon">("activity");
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [commandPickerIndex, setCommandPickerIndex] = useState(0);
+
+  useEffect(() => {
+    agentList.refresh();
+  }, []);
 
   useEffect(() => {
     const el = chatAreaRef.current;
@@ -84,32 +103,103 @@ export default function App() {
   };
 
   const handleStart = async () => {
+    setStartPhase("connecting");
+    setStartStatus("Provisioning sandbox and connecting to agent…");
+    setStartError(null);
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const ws = new WebSocket(wsUrl);
+    startWsRef.current = ws;
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data.type === "connection_progress" && data.step) {
+          setStartStatus(data.step);
+        }
+      } catch { /* ignore */ }
+    };
+
     const sharedConfig = {
       launchCommands: launchCommands ? launchCommands.split("\n").filter(Boolean) : undefined,
       systemPrompt: systemPrompt || undefined,
     };
 
-    const params: StartConfig = selectedAgentType === "acp"
+    const config = selectedAgentType === "acp"
       ? {
-          agentType: "acp",
-          config: {
-            ...sharedConfig,
-            agentBinary,
-            launchArgs: launchArgs ? launchArgs.split(/\s+/) : undefined,
-            autoApprovePermissions: startAutoApprove,
-          },
+          agentBinary,
+          launchArgs: launchArgs ? launchArgs.split(/\s+/) : undefined,
+          autoApprovePermissions: startAutoApprove,
+          ...sharedConfig,
         }
       : {
-          agentType: "claude",
-          config: {
-            ...sharedConfig,
-            blueprintName: blueprintName || undefined,
-            model: model || undefined,
-            autoApprovePermissions: startAutoApprove,
-          },
+          blueprintName: blueprintName || undefined,
+          model: model || undefined,
+          autoApprovePermissions: startAutoApprove,
+          ...sharedConfig,
         };
 
-    await agent.start(params);
+    try {
+      const resp = await api<{ agentId: string; agentType: AgentType; [key: string]: unknown }>(
+        "/api/start",
+        { agentType: selectedAgentType, ...config },
+      );
+
+      ws.close();
+      startWsRef.current = null;
+
+      agentList.addLocal({
+        id: resp.agentId,
+        agentType: resp.agentType,
+        name: selectedAgentType === "claude"
+          ? (blueprintName || "Claude Agent")
+          : (agentBinary || "ACP Agent"),
+        axonId: resp.axonId as string,
+        devboxId: resp.devboxId as string,
+        createdAt: Date.now(),
+      });
+
+      setSelectedAgentId(resp.agentId);
+      setShowSetup(false);
+      setStartPhase("idle");
+      setStartStatus(null);
+    } catch (err) {
+      ws.close();
+      startWsRef.current = null;
+      setStartPhase("error");
+      setStartStatus(null);
+      setStartError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleShutdownAgent = async (agentId: string) => {
+    try {
+      await api("/api/shutdown", { agentId });
+    } catch { /* ignore */ }
+    agentList.removeLocal(agentId);
+    if (selectedAgentId === agentId) {
+      const remaining = agentList.agents.filter((a) => a.id !== agentId);
+      if (remaining.length > 0) {
+        setSelectedAgentId(remaining[0].id);
+        setShowSetup(false);
+      } else {
+        setSelectedAgentId(null);
+        setShowSetup(true);
+      }
+    }
+  };
+
+  const handleNewAgent = () => {
+    setShowSetup(true);
+    setSelectedAgentId(null);
+    setStartPhase("idle");
+    setStartStatus(null);
+    setStartError(null);
+  };
+
+  const handleSelectAgent = (agentId: string) => {
+    setSelectedAgentId(agentId);
+    setShowSetup(false);
   };
 
   const handleSend = async () => {
@@ -205,16 +295,235 @@ export default function App() {
   }, [agent.axonEvents]);
 
   const handleShutdown = async () => {
-    await agent.shutdown();
+    if (selectedAgentId) {
+      await handleShutdownAgent(selectedAgentId);
+    }
   };
 
-  if (
-    agent.connectionPhase === "idle" ||
-    agent.connectionPhase === "error" ||
-    agent.connectionPhase === "connecting"
-  ) {
-    return (
-      <div className="app">
+  const showChatView = selectedAgentId && !showSetup && selectedEntry;
+
+  const agentLabel = agent.agentType === "claude" ? "Claude Code" : "ACP Agent";
+
+  return (
+    <div className="app">
+      <AgentSidebar
+        agents={agentList.agents}
+        selectedAgentId={selectedAgentId}
+        onSelect={handleSelectAgent}
+        onNewAgent={handleNewAgent}
+        onShutdown={handleShutdownAgent}
+      />
+
+      {showChatView ? (
+        <>
+          <div className="main-column">
+            <div className="header">
+              <div className={`status-dot ${agent.connectionPhase === "ready" ? "ready" : "connecting"}`} />
+              <h1>{agentLabel}</h1>
+              <div className="status-bar">
+                <div className="status-ids">
+                  {selectedEntry?.devboxId && (
+                    <div className="status-id">
+                      devbox: <span>{selectedEntry.devboxId}</span>
+                    </div>
+                  )}
+                  {selectedEntry?.axonId && <div className="status-id">axon: <span>{selectedEntry.axonId}</span></div>}
+                </div>
+                <button className="btn btn-danger" onClick={handleShutdown}>Shutdown</button>
+              </div>
+            </div>
+
+            <div className="main-area">
+              {agent.agentType === "acp" && (
+                <ControlsBar
+                  availableModes={agent.availableModes}
+                  currentMode={agent.currentMode}
+                  configOptions={agent.configOptions}
+                  availableModels={agent.availableModels}
+                  currentModelId={agent.currentModelId}
+                  autoApprovePermissions={agent.autoApprovePermissions}
+                  onSetMode={agent.setMode}
+                  onSetModel={agent.setACPModel}
+                  onSetConfigOption={agent.setConfigOption}
+                  onSetAutoApprovePermissions={agent.setAutoApprovePermissions}
+                />
+              )}
+
+              {agent.agentType === "claude" && (
+                <div className="controls-bar">
+                  <label className="config-toggle">
+                    <input
+                      type="checkbox"
+                      checked={agent.autoApprovePermissions}
+                      onChange={(e) => agent.setAutoApprovePermissions(e.target.checked)}
+                    />
+                    <span className="config-toggle-label">Auto-approve permissions</span>
+                  </label>
+                  {agent.initInfo && (
+                    <span className="config-label">Model: {agent.initInfo.model}</span>
+                  )}
+                </div>
+              )}
+
+              <div className="chat-area" ref={chatAreaRef}>
+                {agent.messages.length === 0 && agent.currentTurnBlocks.length === 0 && !agent.isAgentTurn && agent.connectionPhase === "ready" && (
+                  <div className="empty-state">Send a message to start chatting</div>
+                )}
+
+                {agent.messages.map((msg) =>
+                  msg.role === "user" ? (
+                    <div key={msg.id} className="message user">
+                      <div className="message-text">{msg.content}</div>
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <UserAttachments attachments={msg.attachments} />
+                      )}
+                    </div>
+                  ) : (
+                    <AssistantTurn
+                      key={msg.id}
+                      blocks={msg.blocks ?? []}
+                      expandedBlocks={expandedBlocks}
+                      onToggleBlock={toggleBlock}
+                      terminals={agent.terminals}
+                      isLive={false}
+                      stopReason={msg.stopReason}
+                    />
+                  ),
+                )}
+
+                {agent.currentTurnBlocks.length > 0 && (
+                  <AssistantTurn
+                    blocks={agent.currentTurnBlocks}
+                    expandedBlocks={expandedBlocks}
+                    onToggleBlock={toggleBlock}
+                    terminals={agent.terminals}
+                    isLive={agent.isAgentTurn}
+                  />
+                )}
+
+                {agent.pendingControlRequest && (
+                  <ControlRequestPrompt
+                    request={agent.pendingControlRequest}
+                    onRespond={agent.sendControlResponse}
+                  />
+                )}
+
+                {agent.pendingPermission && (
+                  <PermissionDialog
+                    permission={agent.pendingPermission}
+                    onAllow={agent.respondToPermission}
+                    onCancel={agent.cancelPermission}
+                  />
+                )}
+
+                {agent.pendingElicitation && (
+                  <ElicitationForm
+                    elicitation={agent.pendingElicitation}
+                    onRespond={agent.respondToElicitation}
+                  />
+                )}
+
+                <div ref={chatEndRef} />
+              </div>
+
+              <div className="input-bar">
+                {showCommandPicker && filteredCommands.length > 0 && (
+                  <CommandPicker
+                    commands={filteredCommands}
+                    selectedIndex={commandPickerIndex}
+                    onSelect={selectCommand}
+                    onHover={setCommandPickerIndex}
+                  />
+                )}
+                <div className="input-row">
+                  <textarea
+                    ref={textareaRef}
+                    value={inputText}
+                    onChange={handleTextareaInput}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Send a message..."
+                    rows={1}
+                    disabled={agent.connectionPhase !== "ready" || agent.isAgentTurn || agent.isSendingPrompt}
+                  />
+                  {agent.isAgentTurn ? (
+                    <button className="btn btn-cancel" onClick={agent.cancel}>Cancel</button>
+                  ) : (
+                    <button
+                      className="btn-send"
+                      onClick={handleSend}
+                      disabled={!inputText.trim() || agent.connectionPhase !== "ready" || agent.isSendingPrompt}
+                    >
+                      {agent.isSendingPrompt ? "Sending\u2026" : "Send"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="events-sidebar">
+            <div className="sidebar-tabs">
+              <button
+                className={`sidebar-tab ${rightTab === "activity" ? "active" : ""}`}
+                onClick={() => setRightTab("activity")}
+              >
+                Activity
+                {agent.messages.length + agent.currentTurnBlocks.length > 0 && (
+                  <span className="tab-count">
+                    {agent.messages.reduce((s, m) => s + (m.blocks?.length ?? 0), 0) + agent.currentTurnBlocks.length}
+                  </span>
+                )}
+              </button>
+              <button
+                className={`sidebar-tab ${rightTab === "axon" ? "active" : ""}`}
+                onClick={() => setRightTab("axon")}
+              >
+                Axon
+                {agent.axonEvents.length > 0 && (
+                  <span className="tab-count">{agent.axonEvents.length}</span>
+                )}
+              </button>
+            </div>
+
+            {rightTab === "activity" ? (
+              <div className="events-list">
+                <TurnBlocksInspector
+                  messages={agent.messages}
+                  currentTurnBlocks={agent.currentTurnBlocks}
+                  isAgentTurn={agent.isAgentTurn}
+                />
+              </div>
+            ) : (
+              <div className="events-list">
+                {agent.axonEvents.length > 0 && (
+                  <div className="events-list-toolbar">
+                    <button className="btn btn-ghost btn-copy-all" onClick={copyAllAxonEvents}>Copy All</button>
+                  </div>
+                )}
+                {agent.axonEvents.length === 0 && (
+                  <div className="empty-state">No axon events yet</div>
+                )}
+                {agent.axonEvents.map((event, i) => (
+                  <AxonEventItem
+                    key={i}
+                    event={event}
+                    expanded={expandedAxonEvents.has(i)}
+                    onToggle={() =>
+                      setExpandedAxonEvents((prev) => {
+                        const next = new Set(prev);
+                        next.has(i) ? next.delete(i) : next.add(i);
+                        return next;
+                      })
+                    }
+                    onCopy={() => copyAxonEvent(event)}
+                  />
+                ))}
+                <div ref={axonEndRef} />
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
         <div className="setup-panel">
           <SetupCard
             agentType={selectedAgentType}
@@ -234,231 +543,12 @@ export default function App() {
             autoApprovePermissions={startAutoApprove}
             setAutoApprovePermissions={setStartAutoApprove}
             onStart={handleStart}
-            connectionPhase={agent.connectionPhase}
-            connectionStatus={agent.connectionStatus}
-            error={agent.error}
+            connectionPhase={startPhase}
+            connectionStatus={startStatus}
+            error={startError}
           />
         </div>
-      </div>
-    );
-  }
-
-  const agentLabel = agent.agentType === "claude" ? "Claude Code" : "ACP Agent";
-
-  return (
-    <div className="app">
-      <div className="header">
-        <h1>{agentLabel}</h1>
-        <div className="status-bar">
-          <div className={`status-dot ${agent.connectionPhase === "ready" ? "ready" : "connecting"}`} />
-          <div className="status-ids">
-            {agent.devboxId && (
-              <div className="status-id">
-                devbox:{" "}
-                {agent.runloopUrl ? (
-                  <a href={`${agent.runloopUrl.replace("api", "platform")}/devboxes/${agent.devboxId}`} target="_blank" rel="noopener noreferrer">
-                    {agent.devboxId}
-                  </a>
-                ) : (
-                  <span>{agent.devboxId}</span>
-                )}
-              </div>
-            )}
-            {agent.axonId && <div className="status-id">axon: <span>{agent.axonId}</span></div>}
-            {agent.sessionId && <div className="status-id">session: <span>{agent.sessionId}</span></div>}
-          </div>
-          <button className="btn btn-danger" onClick={handleShutdown}>Shutdown</button>
-        </div>
-      </div>
-
-      <div className="main-area">
-        {agent.agentType === "acp" && (
-          <ControlsBar
-            availableModes={agent.availableModes}
-            currentMode={agent.currentMode}
-            configOptions={agent.configOptions}
-            availableModels={agent.availableModels}
-            currentModelId={agent.currentModelId}
-            autoApprovePermissions={agent.autoApprovePermissions}
-            onSetMode={agent.setMode}
-            onSetModel={agent.setACPModel}
-            onSetConfigOption={agent.setConfigOption}
-            onSetAutoApprovePermissions={agent.setAutoApprovePermissions}
-          />
-        )}
-
-        {agent.agentType === "claude" && (
-          <div className="controls-bar">
-            <label className="config-toggle">
-              <input
-                type="checkbox"
-                checked={agent.autoApprovePermissions}
-                onChange={(e) => agent.setAutoApprovePermissions(e.target.checked)}
-              />
-              <span className="config-toggle-label">Auto-approve permissions</span>
-            </label>
-            {agent.initInfo && (
-              <span className="config-label">Model: {agent.initInfo.model}</span>
-            )}
-          </div>
-        )}
-
-        <div className="chat-area" ref={chatAreaRef}>
-          {agent.messages.length === 0 && !agent.isAgentTurn && (
-            <div className="empty-state">Send a message to start chatting</div>
-          )}
-
-          {agent.messages.map((msg) =>
-            msg.role === "user" ? (
-              <div key={msg.id} className="message user">
-                <div className="message-text">{msg.content}</div>
-                {msg.attachments && msg.attachments.length > 0 && (
-                  <UserAttachments attachments={msg.attachments} />
-                )}
-              </div>
-            ) : (
-              <AssistantTurn
-                key={msg.id}
-                blocks={msg.blocks ?? []}
-                expandedBlocks={expandedBlocks}
-                onToggleBlock={toggleBlock}
-                terminals={agent.terminals}
-                isLive={false}
-                stopReason={msg.stopReason}
-              />
-            ),
-          )}
-
-          {agent.currentTurnBlocks.length > 0 && (
-            <AssistantTurn
-              blocks={agent.currentTurnBlocks}
-              expandedBlocks={expandedBlocks}
-              onToggleBlock={toggleBlock}
-              terminals={agent.terminals}
-              isLive={agent.isAgentTurn}
-            />
-          )}
-
-          {agent.pendingControlRequest && (
-            <ControlRequestPrompt
-              request={agent.pendingControlRequest}
-              onRespond={agent.sendControlResponse}
-            />
-          )}
-
-          {agent.pendingPermission && (
-            <PermissionDialog
-              permission={agent.pendingPermission}
-              onAllow={agent.respondToPermission}
-              onCancel={agent.cancelPermission}
-            />
-          )}
-
-          {agent.pendingElicitation && (
-            <ElicitationForm
-              elicitation={agent.pendingElicitation}
-              onRespond={agent.respondToElicitation}
-            />
-          )}
-
-          <div ref={chatEndRef} />
-        </div>
-
-        <div className="input-bar">
-          {showCommandPicker && filteredCommands.length > 0 && (
-            <CommandPicker
-              commands={filteredCommands}
-              selectedIndex={commandPickerIndex}
-              onSelect={selectCommand}
-              onHover={setCommandPickerIndex}
-            />
-          )}
-          <div className="input-row">
-            <textarea
-              ref={textareaRef}
-              value={inputText}
-              onChange={handleTextareaInput}
-              onKeyDown={handleKeyDown}
-              placeholder="Send a message..."
-              rows={1}
-              disabled={agent.connectionPhase !== "ready" || agent.isAgentTurn || agent.isSendingPrompt}
-            />
-            {agent.isAgentTurn ? (
-              <button className="btn btn-cancel" onClick={agent.cancel}>Cancel</button>
-            ) : (
-              <button
-                className="btn-send"
-                onClick={handleSend}
-                disabled={!inputText.trim() || agent.connectionPhase !== "ready" || agent.isSendingPrompt}
-              >
-                {agent.isSendingPrompt ? "Sending\u2026" : "Send"}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="events-sidebar">
-        <div className="sidebar-tabs">
-          <button
-            className={`sidebar-tab ${rightTab === "activity" ? "active" : ""}`}
-            onClick={() => setRightTab("activity")}
-          >
-            Activity
-            {agent.messages.length + agent.currentTurnBlocks.length > 0 && (
-              <span className="tab-count">
-                {agent.messages.reduce((s, m) => s + (m.blocks?.length ?? 0), 0) + agent.currentTurnBlocks.length}
-              </span>
-            )}
-          </button>
-          <button
-            className={`sidebar-tab ${rightTab === "axon" ? "active" : ""}`}
-            onClick={() => setRightTab("axon")}
-          >
-            Axon
-            {agent.axonEvents.length > 0 && (
-              <span className="tab-count">{agent.axonEvents.length}</span>
-            )}
-          </button>
-        </div>
-
-        {rightTab === "activity" ? (
-          <div className="events-list">
-            <TurnBlocksInspector
-              messages={agent.messages}
-              currentTurnBlocks={agent.currentTurnBlocks}
-              isAgentTurn={agent.isAgentTurn}
-            />
-          </div>
-        ) : (
-          <div className="events-list">
-            {agent.axonEvents.length > 0 && (
-              <div className="events-list-toolbar">
-                <button className="btn btn-ghost btn-copy-all" onClick={copyAllAxonEvents}>Copy All</button>
-              </div>
-            )}
-            {agent.axonEvents.length === 0 && (
-              <div className="empty-state">No axon events yet</div>
-            )}
-            {agent.axonEvents.map((event, i) => (
-              <AxonEventItem
-                key={i}
-                event={event}
-                expanded={expandedAxonEvents.has(i)}
-                onToggle={() =>
-                  setExpandedAxonEvents((prev) => {
-                    const next = new Set(prev);
-                    next.has(i) ? next.delete(i) : next.add(i);
-                    return next;
-                  })
-                }
-                onCopy={() => copyAxonEvent(event)}
-              />
-            ))}
-            <div ref={axonEndRef} />
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

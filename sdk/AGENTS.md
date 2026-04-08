@@ -127,9 +127,10 @@ const devbox = await sdk.devbox.create({
   }],
 });
 
-// 2. Initialize
+// 2. Connect and initialize
 const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
-await conn.initialize();
+await conn.connect();      // open transport + start read loop
+await conn.initialize();   // protocol handshake + set model
 
 // 3. Send and receive
 await conn.send("What files are in this directory?");
@@ -145,7 +146,8 @@ await conn.disconnect();
 
 | Method | Purpose |
 |--------|---------|
-| `initialize()` | Open transport and initialize protocol |
+| `connect()` | Open transport and start the read loop (call before `initialize()`) |
+| `initialize()` | Protocol handshake + optional model set (requires `connect()` first) |
 | `send(prompt)` | Send a user message (`string` or `SDKUserMessage`) |
 | `receiveResponse()` | Async iterator yielding messages until `result` |
 | `receiveMessages()` | Async iterator yielding all messages indefinitely |

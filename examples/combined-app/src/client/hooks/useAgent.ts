@@ -6,13 +6,11 @@ import type { AgentType, StartConfig, UseAgentReturn } from "../types.js";
 const NOOP_ASYNC = async () => {};
 const NOOP = () => {};
 
-export function useAgent(): UseAgentReturn {
-  const [activeAgentType, setActiveAgentType] = useState<AgentType | null>(null);
-  const claude = useClaudeAgent();
-  const acp = useACPAgent();
+export function useAgent(agentId: string | null, agentType: AgentType | null): UseAgentReturn {
+  const claude = useClaudeAgent(agentType === "claude" ? agentId : null);
+  const acp = useACPAgent(agentType === "acp" ? agentId : null);
 
   const start = useCallback(async (params: StartConfig) => {
-    setActiveAgentType(params.agentType);
     if (params.agentType === "claude") {
       await claude.start(params.config);
     } else {
@@ -21,18 +19,17 @@ export function useAgent(): UseAgentReturn {
   }, [claude.start, acp.start]);
 
   const shutdown = useCallback(async () => {
-    if (activeAgentType === "claude") {
+    if (agentType === "claude") {
       await claude.shutdown();
-    } else if (activeAgentType === "acp") {
+    } else if (agentType === "acp") {
       await acp.shutdown();
     }
-    setActiveAgentType(null);
-  }, [activeAgentType, claude.shutdown, acp.shutdown]);
+  }, [agentType, claude.shutdown, acp.shutdown]);
 
-  if (activeAgentType === "claude") {
+  if (agentType === "claude") {
     return { ...mapClaude(claude), start, shutdown };
   }
-  if (activeAgentType === "acp") {
+  if (agentType === "acp") {
     return { ...mapACP(acp), start, shutdown };
   }
 

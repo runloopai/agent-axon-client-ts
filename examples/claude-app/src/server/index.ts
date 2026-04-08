@@ -166,6 +166,7 @@ app.post("/api/start", async (req, res) => {
     });
 
     ws.broadcast({ type: "connection_progress", step: "Connecting to Claude Code..." });
+    await conn.connect();
     await conn.initialize();
 
     // Start the background read loop

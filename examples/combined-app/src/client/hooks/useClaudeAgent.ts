@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { WsEvent } from "../../server/ws.js";
 import type {
   TurnBlock,
@@ -45,7 +45,7 @@ export interface UseClaudeAgentReturn {
   shutdown: () => Promise<void>;
 }
 
-export function useClaudeAgent(): UseClaudeAgentReturn {
+export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
   const [connectionPhase, setConnectionPhase] = useState<"idle" | "connecting" | "ready" | "error">("idle");
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +69,29 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
   const blocksRef = useRef<TurnBlock[]>([]);
   const thinkingStartRef = useRef<number | null>(null);
   const activeBlockIndexRef = useRef<Map<number, string>>(new Map());
+
+  function resetAllState() {
+    setConnectionStatus(null);
+    setError(null);
+    setIsSendingPrompt(false);
+    setMessages([]);
+    setCurrentTurnBlocks([]);
+    setIsAgentTurn(false);
+    setIsStreaming(false);
+    setUsage(null);
+    setInitInfo(null);
+    setDevboxId(null);
+    setAxonId(null);
+    setRunloopUrl(null);
+    setPermissionMode(null);
+    setCurrentModel(null);
+    setPendingControlRequest(null);
+    setAutoApprovePermissionsState(true);
+    setAxonEvents([]);
+    blocksRef.current = [];
+    thinkingStartRef.current = null;
+    activeBlockIndexRef.current.clear();
+  }
 
   function pushBlock(block: TurnBlock) {
     blocksRef.current = [...blocksRef.current, block];
@@ -530,7 +553,18 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     });
   }
 
-  const connectWs = useCallback(() => {
+  useEffect(() => {
+    resetAllState();
+
+    if (!agentId) {
+      wsRef.current?.close();
+      wsRef.current = null;
+      setConnectionPhase("idle");
+      return;
+    }
+
+    setConnectionPhase("connecting");
+
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     const socket = new WebSocket(wsUrl);
@@ -543,6 +577,8 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
       } catch {
         return;
       }
+
+      if (parsed.agentId !== agentId) return;
 
       if (parsed.type === "axon_event") {
         setAxonEvents((prev) => [...prev, parsed.event as AxonEventView]);
@@ -564,37 +600,25 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
       }
     };
 
+    socket.onopen = () => {
+      setConnectionPhase("ready");
+      api("/api/subscribe", { agentId }).catch(() => {});
+    };
+
     socket.onclose = () => {
       wsRef.current = null;
     };
+
+    return () => {
+      socket.close();
+      wsRef.current = null;
+    };
+  }, [agentId]);
+
+  const start = useCallback(async (_config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; autoApprovePermissions?: boolean }) => {
+    // Start is handled by App.tsx directly via /api/start
+    // This hook auto-connects WS when agentId is set
   }, []);
-
-  const start = useCallback(async (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; autoApprovePermissions?: boolean }) => {
-    try {
-      setError(null);
-      setConnectionPhase("connecting");
-      if (config.autoApprovePermissions !== undefined) {
-        setAutoApprovePermissionsState(config.autoApprovePermissions);
-      }
-      connectWs();
-
-      const resp = await api<{
-        devboxId: string;
-        axonId: string;
-        runloopUrl?: string;
-      }>("/api/start", { agentType: "claude", ...config });
-
-      setDevboxId(resp.devboxId);
-      setAxonId(resp.axonId);
-      if (resp.runloopUrl) setRunloopUrl(resp.runloopUrl);
-      setConnectionPhase("ready");
-      setConnectionStatus(null);
-    } catch (err) {
-      setConnectionPhase("error");
-      setConnectionStatus(null);
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [connectWs]);
 
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
     if (!text.trim() && (!content || content.length === 0)) return;
@@ -628,73 +652,58 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     setIsSendingPrompt(true);
     try {
       if (content && content.length > 0) {
-        await api("/api/prompt", { content });
+        await api("/api/prompt", { agentId, content });
       } else {
-        await api("/api/prompt", { text });
+        await api("/api/prompt", { agentId, text });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsSendingPrompt(false);
     }
-  }, []);
+  }, [agentId]);
 
   const cancel = useCallback(async () => {
-    try { await api("/api/cancel", {}); } catch (err) {
+    try { await api("/api/cancel", { agentId }); } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const setModelAction = useCallback(async (model: string) => {
-    try { await api("/api/set-model", { model }); } catch (err) {
+    try { await api("/api/set-model", { agentId, model }); } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const setPermissionModeAction = useCallback(async (mode: string) => {
-    try { await api("/api/set-permission-mode", { mode }); } catch (err) {
+    try { await api("/api/set-permission-mode", { agentId, mode }); } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const setAutoApprovePermissions = useCallback(async (enabled: boolean) => {
     setAutoApprovePermissionsState(enabled);
-    try { await api("/api/set-auto-approve-permissions", { enabled }); } catch (err) {
+    try { await api("/api/set-auto-approve-permissions", { agentId, enabled }); } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const sendControlResponse = useCallback(async (requestId: string, response: Record<string, unknown>) => {
     try {
-      await api("/api/control-response", { requestId, response });
+      await api("/api/control-response", { agentId, requestId, response });
       setPendingControlRequest(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const shutdown = useCallback(async () => {
-    try { await api("/api/shutdown", {}); } catch { /* ignore */ }
+    try { await api("/api/shutdown", { agentId }); } catch { /* ignore */ }
     wsRef.current?.close();
     wsRef.current = null;
     setConnectionPhase("idle");
-    setConnectionStatus(null);
-    setIsSendingPrompt(false);
-    setDevboxId(null);
-    setAxonId(null);
-    setPendingControlRequest(null);
-    setAutoApprovePermissionsState(true);
-    setAxonEvents([]);
-    setUsage(null);
-    setInitInfo(null);
-    blocksRef.current = [];
-    thinkingStartRef.current = null;
-    activeBlockIndexRef.current.clear();
-    setCurrentTurnBlocks([]);
-    setMessages([]);
-    setIsAgentTurn(false);
-    setIsStreaming(false);
-  }, []);
+    resetAllState();
+  }, [agentId]);
 
   return {
     connectionPhase,

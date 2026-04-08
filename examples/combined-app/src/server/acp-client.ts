@@ -24,12 +24,12 @@ import type {
   ElicitationResponse,
 } from "@runloop/agent-axon-client/acp";
 import { CLIENT_METHODS } from "@runloop/agent-axon-client/acp";
-import type { WsEvent } from "./ws.ts";
+import type { BaseWsEvent } from "./ws.ts";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { TerminalManager } from "./terminal-manager.ts";
 
-export type ClientEventListener = (event: WsEvent) => void;
+export type ClientEventListener = (event: BaseWsEvent) => void;
 
 export class NodeACPClient implements Client {
   private terminalManager = new TerminalManager();
@@ -59,7 +59,7 @@ export class NodeACPClient implements Client {
     };
   }
 
-  private emit(event: WsEvent): void {
+  private emit(event: BaseWsEvent): void {
     for (const listener of this.listeners) {
       try {
         listener(event);

@@ -17,7 +17,6 @@ import type { WsEvent } from "../../server/ws.js";
 import type {
   TurnBlock,
   ChatMessage,
-  UserAttachment,
   PlanEntry,
   UsageState,
   PendingPermission,
@@ -30,13 +29,10 @@ import type {
   AvailableCommand,
   SessionConfigOption,
   AgentInfo,
-  AgentCapabilities,
-  ClientCapabilities,
   ConnectionDetails,
   SessionListEntry,
   AxonEventView,
   ToolCallBlock,
-  ACPInitExtensions,
 } from "../types.js";
 import { parseToolCallContent, extractOutputText, nextBlockId } from "./parsers.js";
 import { api } from "./api.js";
@@ -99,7 +95,11 @@ export interface UseACPAgentReturn {
   refreshSessions: () => Promise<void>;
 }
 
-export function useACPAgent(): UseACPAgentReturn {
+const EMPTY_CONNECTION_DETAILS: ConnectionDetails = {
+  protocolVersion: null, agentCapabilities: null, clientCapabilities: null, sessionMeta: null,
+};
+
+export function useACPAgent(agentId: string | null): UseACPAgentReturn {
   const [connectionPhase, setConnectionPhase] = useState<"idle" | "connecting" | "ready" | "error">("idle");
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,9 +109,7 @@ export function useACPAgent(): UseACPAgentReturn {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [runloopUrl, setRunloopUrl] = useState<string | null>(null);
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
-  const [connectionDetails, setConnectionDetails] = useState<ConnectionDetails>({
-    protocolVersion: null, agentCapabilities: null, clientCapabilities: null, sessionMeta: null,
-  });
+  const [connectionDetails, setConnectionDetails] = useState<ConnectionDetails>(EMPTY_CONNECTION_DETAILS);
   const [authMethods, setAuthMethods] = useState<AuthMethod[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authDismissed, setAuthDismissed] = useState(false);
@@ -148,6 +146,44 @@ export function useACPAgent(): UseACPAgentReturn {
   const [availableCommands, setAvailableCommands] = useState<AvailableCommand[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
+
+  function resetAllState() {
+    blocksRef.current = [];
+    thinkingStartRef.current = null;
+    lastStopReasonRef.current = undefined;
+    setConnectionStatus(null);
+    setError(null);
+    setIsSendingPrompt(false);
+    setMessages([]);
+    setCurrentTurnBlocks([]);
+    setIsAgentTurn(false);
+    setIsStreaming(false);
+    setPlan(null);
+    setToolActivity([]);
+    setFileOps([]);
+    setTerminals(new Map());
+    setUsage(null);
+    setAxonEvents([]);
+    setDevboxId(null);
+    setAxonId(null);
+    setSessionId(null);
+    setRunloopUrl(null);
+    setAgentInfo(null);
+    setConnectionDetails(EMPTY_CONNECTION_DETAILS);
+    setAuthMethods([]);
+    setIsAuthenticated(false);
+    setAuthDismissed(false);
+    setPendingPermission(null);
+    setAutoApprovePermissionsState(true);
+    setPendingElicitation(null);
+    setSessions([]);
+    setCurrentMode(null);
+    setAvailableModes([]);
+    setConfigOptions([]);
+    setAvailableModels([]);
+    setCurrentModelId(null);
+    setAvailableCommands([]);
+  }
 
   function pushBlock(block: TurnBlock) {
     blocksRef.current = [...blocksRef.current, block];
@@ -473,7 +509,18 @@ export function useACPAgent(): UseACPAgentReturn {
     }
   }
 
-  const connectWs = useCallback(() => {
+  useEffect(() => {
+    resetAllState();
+
+    if (!agentId) {
+      wsRef.current?.close();
+      wsRef.current = null;
+      setConnectionPhase("idle");
+      return;
+    }
+
+    setConnectionPhase("connecting");
+
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     const socket = new WebSocket(wsUrl);
@@ -482,6 +529,8 @@ export function useACPAgent(): UseACPAgentReturn {
     socket.onmessage = (ev) => {
       let data: WsEvent;
       try { data = JSON.parse(ev.data); } catch { return; }
+
+      if (data.agentId !== agentId) return;
 
       if (data.type === "axon_event") {
         setAxonEvents((prev) => [...prev, data.event as AxonEventView]);
@@ -535,92 +584,23 @@ export function useACPAgent(): UseACPAgentReturn {
       }
     };
 
-    socket.onclose = () => { wsRef.current = null; };
-  }, []);
-
-  useEffect(() => {
-    return () => { wsRef.current?.close(); };
-  }, []);
-
-  const resetAll = useCallback(() => {
-    blocksRef.current = [];
-    thinkingStartRef.current = null;
-    lastStopReasonRef.current = undefined;
-    setCurrentTurnBlocks([]);
-    setMessages([]);
-    setIsAgentTurn(false);
-    setIsStreaming(false);
-    setPlan(null);
-    setError(null);
-    setToolActivity([]);
-    setFileOps([]);
-    setTerminals(new Map());
-    setUsage(null);
-  }, []);
-
-  const start = useCallback(async (config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string; autoApprovePermissions?: boolean }) => {
-    try {
-      setError(null);
-      setConnectionPhase("connecting");
-      if (config.autoApprovePermissions !== undefined) {
-        setAutoApprovePermissionsState(config.autoApprovePermissions);
-      }
-      connectWs();
-
-      const resp = await api<Record<string, unknown>>("/api/start", { agentType: "acp", ...config });
-
-      setDevboxId(resp.devboxId as string);
-      setAxonId(resp.axonId as string);
-      setSessionId(resp.sessionId as string);
-      if (resp.runloopUrl) setRunloopUrl(resp.runloopUrl as string);
-      if (resp.authMethods) setAuthMethods(resp.authMethods as AuthMethod[]);
-      if (resp.agentInfo) setAgentInfo(resp.agentInfo as AgentInfo);
-      setConnectionDetails({
-        protocolVersion: (resp.protocolVersion as number) ?? null,
-        agentCapabilities: (resp.agentCapabilities as AgentCapabilities) ?? null,
-        clientCapabilities: (resp.clientCapabilities as ClientCapabilities) ?? null,
-        sessionMeta: (resp.sessionMeta as Record<string, unknown>) ?? null,
-      });
-      applySessionResponse(resp);
-      setSessions([{ sessionId: resp.sessionId as string, cwd: "." }]);
-      resetAll();
-
-      const info = resp.agentInfo as AgentInfo | undefined;
-      const modes = resp.modes as { availableModes?: SessionMode[] } | undefined;
-      const models = resp.models as { availableModels?: ModelInfo[]; currentModelId?: string } | undefined;
-      const opts = resp.configOptions as SessionConfigOption[] | undefined;
-      const cmds = resp.availableCommands as AvailableCommand[] | undefined;
-      const extensions: ACPInitExtensions = {
-        protocol: "acp",
-        protocolVersion: (resp.protocolVersion as number) ?? null,
-        modes: modes?.availableModes ?? [],
-        models: models?.availableModels ?? [],
-        configOptions: opts ?? [],
-        agentCapabilities: (resp.agentCapabilities as AgentCapabilities) ?? null,
-        clientCapabilities: (resp.clientCapabilities as ClientCapabilities) ?? null,
-        authMethods: (resp.authMethods as unknown[]) ?? [],
-      };
-      const modelName = models?.availableModels?.find((m) => m.modelId === models.currentModelId)?.name
-        ?? models?.currentModelId ?? null;
-      pushBlock({
-        type: "system_init",
-        id: nextBlockId("init"),
-        agentName: info?.name ?? null,
-        agentVersion: info?.version ?? null,
-        model: modelName,
-        commands: cmds?.map((c) => c.name) ?? [],
-        extensions,
-        extra: { ...resp },
-      });
-
-      setConnectionStatus(null);
+    socket.onopen = () => {
       setConnectionPhase("ready");
-    } catch (err) {
-      setConnectionPhase("error");
-      setConnectionStatus(null);
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [connectWs, resetAll]);
+      api("/api/subscribe", { agentId }).catch(() => {});
+    };
+
+    socket.onclose = () => { wsRef.current = null; };
+
+    return () => {
+      socket.close();
+      wsRef.current = null;
+    };
+  }, [agentId]);
+
+  const start = useCallback(async (_config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string; autoApprovePermissions?: boolean }) => {
+    // Start is handled by App.tsx directly via /api/start
+    // This hook auto-connects WS when agentId is set
+  }, []);
 
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
     if (!text.trim() && (!content || content.length === 0)) return;
@@ -650,143 +630,131 @@ export function useACPAgent(): UseACPAgentReturn {
     setIsSendingPrompt(true);
     try {
       if (content && content.length > 0) {
-        await api("/api/prompt", { content });
+        await api("/api/prompt", { agentId, content });
       } else {
-        await api("/api/prompt", { text });
+        await api("/api/prompt", { agentId, text });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsSendingPrompt(false);
     }
-  }, []);
+  }, [agentId]);
 
   const cancel = useCallback(async () => {
-    try { await api("/api/cancel", {}); } catch (err) {
+    try { await api("/api/cancel", { agentId }); } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const setMode = useCallback(async (modeId: string) => {
     setCurrentMode(modeId);
-    try { await api("/api/set-mode", { modeId }); } catch (err) {
+    try { await api("/api/set-mode", { agentId, modeId }); } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const setModel = useCallback(async (modelId: string) => {
     setCurrentModelId(modelId);
-    try { await api("/api/set-model", { modelId }); } catch (err) {
+    try { await api("/api/set-model", { agentId, modelId }); } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const setConfigOption = useCallback(async (optionId: string, valueId: string) => {
     try {
-      const resp = await api<{ configOptions?: SessionConfigOption[] }>("/api/set-config-option", { configId: optionId, value: valueId });
+      const resp = await api<{ configOptions?: SessionConfigOption[] }>("/api/set-config-option", { agentId, configId: optionId, value: valueId });
       if (resp.configOptions) setConfigOptions(resp.configOptions);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const authenticate = useCallback(async (methodId: string) => {
-    try { await api("/api/authenticate", { methodId }); setIsAuthenticated(true); } catch (err) {
+    try { await api("/api/authenticate", { agentId, methodId }); setIsAuthenticated(true); } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const dismissAuth = useCallback(() => { setAuthDismissed(true); }, []);
 
   const respondToPermission = useCallback(async (requestId: string, optionId: string) => {
     setPendingPermission(null);
     try {
-      await api("/api/permission-response", { requestId, outcome: { outcome: "selected", optionId } });
+      await api("/api/permission-response", { agentId, requestId, outcome: { outcome: "selected", optionId } });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const cancelPermission = useCallback(async (requestId: string) => {
     setPendingPermission(null);
     try {
-      await api("/api/permission-response", { requestId, outcome: { outcome: "cancelled" } });
+      await api("/api/permission-response", { agentId, requestId, outcome: { outcome: "cancelled" } });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const setAutoApprovePermissions = useCallback(async (enabled: boolean) => {
     setAutoApprovePermissionsState(enabled);
-    try { await api("/api/set-auto-approve-permissions", { enabled }); } catch (err) {
+    try { await api("/api/set-auto-approve-permissions", { agentId, enabled }); } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const respondToElicitation = useCallback(async (requestId: string, action: ElicitationAction) => {
     setPendingElicitation(null);
-    try { await api("/api/elicitation-response", { requestId, action }); } catch (err) {
+    try { await api("/api/elicitation-response", { agentId, requestId, action }); } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [agentId]);
 
   const createNewSession = useCallback(async () => {
     try {
-      const resp = await api<{ sessionId: string; modes?: unknown; configOptions?: unknown }>("/api/new-session", {});
+      const resp = await api<{ sessionId: string; modes?: unknown; configOptions?: unknown }>("/api/new-session", { agentId });
       setSessionId(resp.sessionId);
       applySessionResponse(resp as Record<string, unknown>);
       setSessions((prev) => {
         if (prev.some((s) => s.sessionId === resp.sessionId)) return prev;
         return [...prev, { sessionId: resp.sessionId, cwd: "." }];
       });
-      resetAll();
+      resetAllState();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [resetAll]);
+  }, [agentId]);
 
   const switchSession = useCallback(async (targetSessionId: string) => {
     try {
-      const resp = await api<Record<string, unknown>>("/api/switch-session", { sessionId: targetSessionId });
+      const resp = await api<Record<string, unknown>>("/api/switch-session", { agentId, sessionId: targetSessionId });
       setSessionId(targetSessionId);
       applySessionResponse(resp);
-      resetAll();
+      resetAllState();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [resetAll]);
+  }, [agentId]);
 
   const refreshSessions = useCallback(async () => {
     setIsLoadingSessions(true);
     try {
-      const resp = await api<{ sessions?: SessionListEntry[] }>("/api/sessions");
+      const resp = await api<{ sessions?: SessionListEntry[] }>(`/api/sessions?agentId=${agentId}`);
       if (resp.sessions) setSessions(resp.sessions);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsLoadingSessions(false);
     }
-  }, []);
+  }, [agentId]);
 
   const shutdown = useCallback(async () => {
-    try { await api("/api/shutdown", {}); } catch { /* ignore */ }
+    try { await api("/api/shutdown", { agentId }); } catch { /* ignore */ }
     wsRef.current?.close();
     wsRef.current = null;
     setConnectionPhase("idle");
-    setConnectionStatus(null);
-    resetAll();
-    setDevboxId(null);
-    setAxonId(null);
-    setSessionId(null);
-    setSessions([]);
-    setAgentInfo(null);
-    setAuthMethods([]);
-    setIsAuthenticated(false);
-    setAuthDismissed(false);
-    setPendingPermission(null);
-    setAutoApprovePermissionsState(true);
-    setAxonEvents([]);
-  }, [resetAll]);
+    resetAllState();
+  }, [agentId]);
 
   return {
     connectionPhase, connectionStatus, error,

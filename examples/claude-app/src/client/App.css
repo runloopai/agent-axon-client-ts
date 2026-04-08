@@ -132,7 +132,6 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 20px;
   padding: 40px 20px;
   grid-column: 1 / -1;
@@ -142,6 +141,8 @@ html, body, #root {
 .setup-card {
   width: 100%;
   max-width: 560px;
+  margin-block: auto;
+  flex-shrink: 0;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 10px;

@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
 
-export type WsEvent =
+export type BaseWsEvent =
   | { type: "sdk_message"; message: Record<string, unknown> }
   | { type: "control_request"; controlRequest: Record<string, unknown> }
   | { type: "session_update"; sessionId: string | null; update: unknown }
@@ -21,6 +21,8 @@ export type WsEvent =
   | { type: "turn_complete"; [key: string]: unknown }
   | { type: "turn_error"; error: string }
   | { type: "connection_progress"; step: string };
+
+export type WsEvent = BaseWsEvent & { agentId: string };
 
 export class WsBroadcaster {
   private wss: WebSocketServer;

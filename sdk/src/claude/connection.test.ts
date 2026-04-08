@@ -135,6 +135,7 @@ async function createConnectedClient(
     }
   });
 
+  await conn.connect();
   await conn.initialize();
   return conn;
 }
@@ -629,10 +630,40 @@ describe("ClaudeAxonConnection", () => {
     });
   });
 
-  describe("initialize() double-initialize guard", () => {
+  describe("connect() / initialize() guards", () => {
+    it("throws if connect() is called while already connected", async () => {
+      const conn = await createConnectedClient(transport);
+      await expect(conn.connect()).rejects.toThrow("Already connected");
+    });
+
     it("throws if initialize() is called while already initialized", async () => {
       const conn = await createConnectedClient(transport);
       await expect(conn.initialize()).rejects.toThrow("Already initialized");
+    });
+
+    it("connect() throws on a disconnected instance", async () => {
+      const conn = await createConnectedClient(transport);
+      await conn.disconnect();
+      await expect(conn.connect()).rejects.toThrow("already been disconnected");
+    });
+
+    it("connect() alone does not complete the handshake", async () => {
+      const axon = createMockAxon();
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never);
+      (conn as unknown as { transport: MockTransport }).transport = transport;
+
+      await conn.connect();
+
+      expect(conn.isConnected).toBe(true);
+      expect(conn.isInitialized).toBe(false);
+    });
+
+    it("initialize() throws when connect() has not been called", async () => {
+      const axon = createMockAxon();
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never);
+      (conn as unknown as { transport: MockTransport }).transport = transport;
+
+      await expect(conn.initialize()).rejects.toThrow("Not connected. Call connect()");
     });
   });
 
@@ -789,6 +820,7 @@ describe("ClaudeAxonConnection", () => {
         }
       });
 
+      await conn.connect();
       await conn.initialize();
 
       const initCall = transport._written.find((w) => {
@@ -822,6 +854,7 @@ describe("ClaudeAxonConnection", () => {
         }
       });
 
+      await conn.connect();
       await conn.initialize();
 
       const initCall = transport._written.find((w) => {
@@ -899,7 +932,7 @@ describe("ClaudeAxonConnection", () => {
   });
 
   describe("auto-reconnect", () => {
-    it("re-subscribes and re-initializes when the stream ends unexpectedly", async () => {
+    it("re-subscribes when the stream ends unexpectedly", async () => {
       await createConnectedClient(transport);
 
       transport._end();
@@ -916,27 +949,11 @@ describe("ClaudeAxonConnection", () => {
 
       expect(transport.reconnect).toHaveBeenCalledOnce();
 
-      const reconnectInitCalls = transport._written.filter((w) => {
+      const initCalls = transport._written.filter((w) => {
         const p = JSON.parse(w);
         return p.type === "control_request" && p.request?.subtype === "initialize";
       });
-      expect(reconnectInitCalls.length).toBe(2);
-    });
-
-    it("re-sends set_model after reconnect when model option was provided", async () => {
-      await createConnectedClient(transport, { model: "claude-sonnet-4-5" });
-
-      transport._end();
-
-      await vi.waitFor(() => {
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
-      });
-
-      const modelCalls = transport._written.filter((w) => {
-        const p = JSON.parse(w);
-        return p.type === "control_request" && p.request?.subtype === "set_model";
-      });
-      expect(modelCalls.length).toBe(2);
+      expect(initCalls.length).toBe(1);
     });
 
     it("does not reconnect when disconnect() was called", async () => {

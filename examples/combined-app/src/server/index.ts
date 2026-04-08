@@ -3,16 +3,14 @@ import { createServer } from "node:http";
 import { WsBroadcaster } from "./ws.ts";
 import { ClaudeConnectionManager } from "./claude-manager.ts";
 import { ACPConnectionManager } from "./acp-manager.ts";
+import { AgentRegistry } from "./agent-registry.ts";
 
 const app = express();
 app.use(express.json());
 
 const server = createServer(app);
 const ws = new WsBroadcaster(server);
-
-let activeAgentType: "claude" | "acp" | null = null;
-let claudeManager: ClaudeConnectionManager | null = null;
-let acpManager: ACPConnectionManager | null = null;
+const registry = new AgentRegistry();
 
 type AsyncHandler = (req: Request, res: Response) => Promise<void>;
 
@@ -27,49 +25,92 @@ function asyncHandler(fn: AsyncHandler): (req: Request, res: Response) => void {
   };
 }
 
+function requireAgent(req: Request, res: Response) {
+  const agentId = req.body?.agentId ?? req.query?.agentId;
+  if (!agentId) {
+    res.status(400).json({ error: "agentId is required" });
+    return null;
+  }
+  const entry = registry.get(agentId as string);
+  if (!entry) {
+    res.status(404).json({ error: `Agent ${agentId} not found` });
+    return null;
+  }
+  return entry;
+}
+
+// --- Agent list ---
+
+app.get("/api/agents", (_req, res) => {
+  res.json({ agents: registry.list() });
+});
+
+// --- Subscribe (reconnect to existing agent's event stream) ---
+
+app.post(
+  "/api/subscribe",
+  asyncHandler(async (req, res) => {
+    const entry = requireAgent(req, res);
+    if (!entry) return;
+
+    if (entry.agentType === "claude" && entry.claudeManager) {
+      await entry.claudeManager.subscribe();
+    } else if (entry.agentType === "acp" && entry.acpManager) {
+      entry.acpManager.subscribe();
+    }
+    res.json({ ok: true });
+  }),
+);
+
 // --- Lifecycle ---
 
 app.post(
   "/api/start",
   asyncHandler(async (req, res) => {
     const { agentType, ...config } = req.body;
-
-    // Shutdown any existing connection
-    if (claudeManager) {
-      await claudeManager.shutdown();
-      claudeManager = null;
-    }
-    if (acpManager) {
-      await acpManager.shutdown();
-      acpManager = null;
-    }
+    const agentId = registry.generateId();
 
     if (agentType === "claude") {
-      activeAgentType = "claude";
-      claudeManager = new ClaudeConnectionManager(ws);
-      const result = await claudeManager.start(config);
-      res.json({ agentType: "claude", ...result });
+      const manager = new ClaudeConnectionManager(ws, agentId);
+      const result = await manager.start(config);
+      registry.add({
+        id: agentId,
+        agentType: "claude",
+        name: config.blueprintName ?? "Claude Agent",
+        axonId: result.axonId,
+        devboxId: result.devboxId,
+        createdAt: Date.now(),
+        claudeManager: manager,
+      });
+      res.json({ agentId, agentType: "claude", ...result });
     } else {
-      activeAgentType = "acp";
-      acpManager = new ACPConnectionManager(ws);
-      const result = await acpManager.start(config);
-      res.json({ agentType: "acp", ...result });
+      const manager = new ACPConnectionManager(ws, agentId);
+      const result = await manager.start(config);
+      registry.add({
+        id: agentId,
+        agentType: "acp",
+        name: config.agentBinary ?? "ACP Agent",
+        axonId: result.axonId,
+        devboxId: result.devboxId,
+        createdAt: Date.now(),
+        acpManager: manager,
+      });
+      res.json({ agentId, agentType: "acp", ...result });
     }
   }),
 );
 
 app.post(
   "/api/shutdown",
-  asyncHandler(async (_req, res) => {
-    if (claudeManager) {
-      await claudeManager.shutdown();
-      claudeManager = null;
+  asyncHandler(async (req, res) => {
+    const { agentId } = req.body;
+    if (!agentId) {
+      // Shutdown all agents
+      await registry.shutdownAll();
+      res.json({ ok: true });
+      return;
     }
-    if (acpManager) {
-      await acpManager.shutdown();
-      acpManager = null;
-    }
-    activeAgentType = null;
+    await registry.shutdown(agentId);
     res.json({ ok: true });
   }),
 );
@@ -79,8 +120,12 @@ app.post(
 app.post(
   "/api/prompt",
   asyncHandler(async (req, res) => {
-    if (activeAgentType === "claude") {
-      if (!claudeManager?.connection) {
+    const entry = requireAgent(req, res);
+    if (!entry) return;
+
+    if (entry.agentType === "claude") {
+      const manager = entry.claudeManager!;
+      if (!manager.connection) {
         res.status(400).json({ error: "Not connected" });
         return;
       }
@@ -111,16 +156,23 @@ app.post(
         prompt = text ?? content?.[0]?.text ?? "";
       }
 
-      claudeManager.send(prompt).catch((err: unknown) => {
+      manager.send(prompt).catch((err: unknown) => {
         ws.broadcast({
           type: "turn_error",
+          agentId: entry.id,
           error: err instanceof Error ? err.message : String(err),
         });
       });
 
       res.json({ ok: true });
-    } else if (activeAgentType === "acp") {
-      const { connection, sessionId } = acpManager!.requireSession();
+    } else {
+      const manager = entry.acpManager!;
+      const connection = manager.requireConnection();
+      const sessionId = manager.activeSessionId;
+      if (!sessionId) {
+        res.status(400).json({ error: "No active session" });
+        return;
+      }
       const { content, text } = req.body;
 
       const contentItems: Record<string, unknown>[] =
@@ -144,34 +196,33 @@ app.post(
         .prompt({ sessionId, prompt })
         .then((resp) => {
           console.log("[prompt] turn complete, stopReason:", resp.stopReason);
-          ws.broadcast({ type: "turn_complete", ...resp } as any);
+          ws.broadcast({ type: "turn_complete", agentId: entry.id, ...resp } as any);
         })
         .catch((err) => {
           console.error("[prompt] turn error:", err);
           ws.broadcast({
             type: "turn_error",
+            agentId: entry.id,
             error: err instanceof Error ? err.message : String(err),
           });
         });
 
       res.json({ ok: true });
-    } else {
-      res.status(400).json({ error: "Not connected" });
     }
   }),
 );
 
 app.post(
   "/api/cancel",
-  asyncHandler(async (_req, res) => {
-    if (activeAgentType === "claude") {
-      await claudeManager!.interrupt();
-    } else if (activeAgentType === "acp") {
-      const { connection, sessionId } = acpManager!.requireSession();
-      await connection.cancel({ sessionId });
+  asyncHandler(async (req, res) => {
+    const entry = requireAgent(req, res);
+    if (!entry) return;
+
+    if (entry.agentType === "claude") {
+      await entry.claudeManager!.interrupt();
     } else {
-      res.status(400).json({ error: "Not connected" });
-      return;
+      const { connection, sessionId } = entry.acpManager!.requireSession();
+      await connection.cancel({ sessionId });
     }
     res.json({ ok: true });
   }),
@@ -182,7 +233,9 @@ app.post(
 app.post(
   "/api/control-response",
   asyncHandler(async (req, res) => {
-    if (activeAgentType !== "claude" || !claudeManager) {
+    const entry = requireAgent(req, res);
+    if (!entry) return;
+    if (entry.agentType !== "claude" || !entry.claudeManager) {
       res.status(400).json({ error: "Not a Claude session" });
       return;
     }
@@ -191,7 +244,7 @@ app.post(
       res.status(400).json({ error: "requestId is required" });
       return;
     }
-    if (!claudeManager.resolveControlResponse(requestId, response)) {
+    if (!entry.claudeManager.resolveControlResponse(requestId, response)) {
       res.status(404).json({ error: `No pending control request with id ${requestId}` });
       return;
     }
@@ -200,32 +253,38 @@ app.post(
 );
 
 app.post("/api/set-model", asyncHandler(async (req, res) => {
-  if (activeAgentType === "claude") {
-    await claudeManager!.setModel(req.body.model ?? req.body.modelId);
+  const entry = requireAgent(req, res);
+  if (!entry) return;
+
+  if (entry.agentType === "claude") {
+    await entry.claudeManager!.setModel(req.body.model ?? req.body.modelId);
     res.json({ ok: true });
-  } else if (activeAgentType === "acp") {
-    const { connection, sessionId } = acpManager!.requireSession();
-    res.json(await connection.unstable_setSessionModel({ sessionId, modelId: req.body.modelId }));
   } else {
-    res.status(400).json({ error: "Not connected" });
+    const { connection, sessionId } = entry.acpManager!.requireSession();
+    res.json(await connection.unstable_setSessionModel({ sessionId, modelId: req.body.modelId }));
   }
 }));
 
 app.post("/api/set-permission-mode", asyncHandler(async (req, res) => {
-  if (activeAgentType !== "claude" || !claudeManager) {
+  const entry = requireAgent(req, res);
+  if (!entry) return;
+  if (entry.agentType !== "claude" || !entry.claudeManager) {
     res.status(400).json({ error: "Not a Claude session" });
     return;
   }
-  await claudeManager.setPermissionMode(req.body.mode);
+  await entry.claudeManager.setPermissionMode(req.body.mode);
   res.json({ ok: true });
 }));
 
 app.post("/api/set-auto-approve-permissions", (req, res) => {
+  const entry = requireAgent(req, res);
+  if (!entry) return;
+
   const { enabled } = req.body;
-  if (activeAgentType === "claude" && claudeManager) {
-    claudeManager.autoApprovePermissions = !!enabled;
-  } else if (activeAgentType === "acp" && acpManager?.nodeClient) {
-    acpManager.nodeClient.autoApprovePermissions = !!enabled;
+  if (entry.agentType === "claude" && entry.claudeManager) {
+    entry.claudeManager.autoApprovePermissions = !!enabled;
+  } else if (entry.agentType === "acp" && entry.acpManager?.nodeClient) {
+    entry.acpManager.nodeClient.autoApprovePermissions = !!enabled;
   }
   res.json({ ok: true, autoApprovePermissions: !!enabled });
 });
@@ -233,90 +292,112 @@ app.post("/api/set-auto-approve-permissions", (req, res) => {
 // --- ACP-specific ---
 
 app.post("/api/set-mode", asyncHandler(async (req, res) => {
-  if (activeAgentType !== "acp") {
+  const entry = requireAgent(req, res);
+  if (!entry) return;
+  if (entry.agentType !== "acp") {
     res.status(400).json({ error: "Not an ACP session" });
     return;
   }
-  const { connection, sessionId } = acpManager!.requireSession();
+  const { connection, sessionId } = entry.acpManager!.requireSession();
   res.json(await connection.setSessionMode({ sessionId, modeId: req.body.modeId }));
 }));
 
 app.post("/api/set-config-option", asyncHandler(async (req, res) => {
-  if (activeAgentType !== "acp") {
+  const entry = requireAgent(req, res);
+  if (!entry) return;
+  if (entry.agentType !== "acp") {
     res.status(400).json({ error: "Not an ACP session" });
     return;
   }
-  const { connection, sessionId } = acpManager!.requireSession();
+  const { connection, sessionId } = entry.acpManager!.requireSession();
   res.json(await connection.setSessionConfigOption({ sessionId, configId: req.body.configId, value: req.body.value }));
 }));
 
 app.post("/api/permission-response", asyncHandler(async (req, res) => {
-  if (activeAgentType !== "acp") {
+  const entry = requireAgent(req, res);
+  if (!entry) return;
+  if (entry.agentType !== "acp") {
     res.status(400).json({ error: "Not an ACP session" });
     return;
   }
-  const client = acpManager!.requireClient();
-  client.resolvePermission(req.body.requestId, { outcome: req.body.outcome });
+  entry.acpManager!.requireClient().resolvePermission(req.body.requestId, { outcome: req.body.outcome });
   res.json({ ok: true });
 }));
 
 app.post("/api/elicitation-response", asyncHandler(async (req, res) => {
-  if (activeAgentType !== "acp") {
+  const entry = requireAgent(req, res);
+  if (!entry) return;
+  if (entry.agentType !== "acp") {
     res.status(400).json({ error: "Not an ACP session" });
     return;
   }
-  const client = acpManager!.requireClient();
-  client.resolveElicitation(req.body.requestId, { action: req.body.action });
+  entry.acpManager!.requireClient().resolveElicitation(req.body.requestId, { action: req.body.action });
   res.json({ ok: true });
 }));
 
 app.post("/api/authenticate", asyncHandler(async (req, res) => {
-  if (activeAgentType !== "acp") {
+  const entry = requireAgent(req, res);
+  if (!entry) return;
+  if (entry.agentType !== "acp") {
     res.status(400).json({ error: "Not an ACP session" });
     return;
   }
-  const connection = acpManager!.requireConnection();
-  res.json(await connection.authenticate({ methodId: req.body.methodId }));
+  res.json(await entry.acpManager!.requireConnection().authenticate({ methodId: req.body.methodId }));
 }));
 
-app.post("/api/new-session", asyncHandler(async (_req, res) => {
-  if (activeAgentType !== "acp") {
+app.post("/api/new-session", asyncHandler(async (req, res) => {
+  const entry = requireAgent(req, res);
+  if (!entry) return;
+  if (entry.agentType !== "acp") {
     res.status(400).json({ error: "Not an ACP session" });
     return;
   }
-  const connection = acpManager!.requireConnection();
+  const connection = entry.acpManager!.requireConnection();
   const resp = await connection.newSession({ cwd: "/home/user", mcpServers: [] });
-  acpManager!.activeSessionId = resp.sessionId;
+  entry.acpManager!.activeSessionId = resp.sessionId;
   const raw = resp as Record<string, unknown>;
   res.json({ sessionId: resp.sessionId, modes: raw.modes, configOptions: raw.configOptions, models: raw.models });
 }));
 
 app.post("/api/switch-session", asyncHandler(async (req, res) => {
-  if (activeAgentType !== "acp") {
+  const entry = requireAgent(req, res);
+  if (!entry) return;
+  if (entry.agentType !== "acp") {
     res.status(400).json({ error: "Not an ACP session" });
     return;
   }
-  const connection = acpManager!.requireConnection();
+  const connection = entry.acpManager!.requireConnection();
   const resp = await connection.loadSession({ sessionId: req.body.sessionId, cwd: "/home/user", mcpServers: [] });
-  acpManager!.activeSessionId = req.body.sessionId;
+  entry.acpManager!.activeSessionId = req.body.sessionId;
   res.json(resp);
 }));
 
-app.get("/api/sessions", asyncHandler(async (_req, res) => {
-  if (activeAgentType !== "acp") {
+app.get("/api/sessions", asyncHandler(async (req, res) => {
+  const entry = requireAgent(req, res);
+  if (!entry) return;
+  if (entry.agentType !== "acp") {
     res.status(400).json({ error: "Not an ACP session" });
     return;
   }
-  const connection = acpManager!.requireConnection();
-  res.json(await connection.listSessions({}));
+  res.json(await entry.acpManager!.requireConnection().listSessions({}));
 }));
 
 // --- Debug ---
 
-app.get("/api/axon-events", (_req, res) => {
-  const events = activeAgentType === "claude"
-    ? claudeManager?.axonEvents ?? []
-    : acpManager?.axonEvents ?? [];
+app.get("/api/axon-events", (req, res) => {
+  const agentId = req.query.agentId as string | undefined;
+  if (!agentId) {
+    res.json([]);
+    return;
+  }
+  const entry = registry.get(agentId);
+  if (!entry) {
+    res.json([]);
+    return;
+  }
+  const events = entry.agentType === "claude"
+    ? entry.claudeManager?.axonEvents ?? []
+    : entry.acpManager?.axonEvents ?? [];
   res.json(events);
 });
 

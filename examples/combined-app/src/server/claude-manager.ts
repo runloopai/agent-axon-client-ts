@@ -1,7 +1,8 @@
 import { RunloopSDK } from "@runloop/api-client";
+import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { ClaudeAxonConnection, type AxonEventView } from "@runloop/agent-axon-client/claude";
-import type { SDKControlResponse, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { WsBroadcaster, WsEvent } from "./ws.ts";
+import type { SDKControlResponse } from "@anthropic-ai/claude-agent-sdk";
+import type { WsBroadcaster, WsEvent, BaseWsEvent } from "./ws.ts";
 
 export interface ClaudeStartOptions {
   blueprintName?: string;
@@ -16,13 +17,22 @@ export class ClaudeConnectionManager {
   axonEvents: AxonEventView[] = [];
   autoApprovePermissions = true;
 
+  private axon: Axon | null = null;
+  private devbox: Devbox | null = null;
   private abortController: AbortController | null = null;
   private pendingControlResponses = new Map<
     string,
     { resolve: (data: unknown) => void; reject: (err: Error) => void }
   >();
 
-  constructor(private ws: WsBroadcaster) {}
+  constructor(
+    private ws: WsBroadcaster,
+    private agentId: string,
+  ) {}
+
+  private tag(event: BaseWsEvent): WsEvent {
+    return { ...event, agentId: this.agentId } as WsEvent;
+  }
 
   async start(opts: ClaudeStartOptions) {
     this.autoApprovePermissions = opts.autoApprovePermissions !== false;
@@ -38,10 +48,11 @@ export class ClaudeConnectionManager {
       ...(baseUrl ? { baseURL: baseUrl } : {}),
     });
 
-    this.ws.broadcast({ type: "connection_progress", step: "Creating Axon channel..." });
+    this.ws.broadcast(this.tag({ type: "connection_progress", step: "Creating Axon channel..." }));
     const axon = await sdk.axon.create({ name: "combined-app-claude" });
+    this.axon = axon;
 
-    this.ws.broadcast({ type: "connection_progress", step: "Provisioning sandbox..." });
+    this.ws.broadcast(this.tag({ type: "connection_progress", step: "Provisioning sandbox..." }));
     const devbox = await sdk.devbox.create({
       name: "combined-app-claude",
       blueprint_name: opts.blueprintName ?? "runloop/agents",
@@ -61,23 +72,49 @@ export class ClaudeConnectionManager {
         : undefined,
     });
 
-    this.abortController = new AbortController();
+    this.devbox = devbox;
+
+    this.ws.broadcast(this.tag({ type: "connection_progress", step: "Connecting to Claude Code..." }));
+    const conn = this.wireConnection(axon, devbox, {
+      onDisconnect: async () => { await devbox.shutdown(); },
+      systemPrompt: opts.systemPrompt,
+      model: opts.model,
+    });
+    await conn.connect();
+    await conn.initialize();
+
+    this.runReadLoop(conn);
+
+    return {
+      devboxId: devbox.id,
+      axonId: axon.id,
+      runloopUrl: baseUrl ?? "https://platform.runloop.ai",
+    };
+  }
+
+  private wireConnection(
+    axon: Axon,
+    devbox: Devbox,
+    opts?: {
+      onDisconnect?: () => Promise<void>;
+      systemPrompt?: string;
+      model?: string;
+    },
+  ): ClaudeAxonConnection {
     this.axonEvents = [];
 
     const conn = new ClaudeAxonConnection(axon, devbox, {
-      onDisconnect: async () => {
-        await devbox.shutdown();
-      },
       verbose: true,
-      ...(opts.systemPrompt ? { systemPrompt: opts.systemPrompt } : {}),
-      ...(opts.model ? { model: opts.model } : {}),
+      ...(opts?.onDisconnect ? { onDisconnect: opts.onDisconnect } : {}),
+      ...(opts?.systemPrompt ? { systemPrompt: opts.systemPrompt } : {}),
+      ...(opts?.model ? { model: opts.model } : {}),
     });
 
     this.connection = conn;
 
     conn.onAxonEvent((ev) => {
       this.axonEvents.push(ev);
-      this.ws.broadcast({ type: "axon_event", event: ev });
+      this.ws.broadcast(this.tag({ type: "axon_event", event: ev }));
     });
 
     conn.onControlRequest("can_use_tool", async (message) => {
@@ -98,7 +135,7 @@ export class ClaudeConnectionManager {
         };
       }
 
-      this.ws.broadcast({ type: "control_request", controlRequest: message as unknown as Record<string, unknown> });
+      this.ws.broadcast(this.tag({ type: "control_request", controlRequest: message as unknown as Record<string, unknown> }));
 
       return new Promise<SDKControlResponse>((resolve, reject) => {
         this.pendingControlResponses.set(requestId, {
@@ -117,16 +154,17 @@ export class ClaudeConnectionManager {
       });
     });
 
-    this.ws.broadcast({ type: "connection_progress", step: "Connecting to Claude Code..." });
-    await conn.initialize();
+    return conn;
+  }
 
+  async subscribe(): Promise<void> {
+    if (!this.axon || !this.devbox) throw new Error("No axon/devbox — agent not started");
+    if (this.connection) {
+      this.connection.abortStream();
+    }
+    const conn = this.wireConnection(this.axon, this.devbox);
+    await conn.connect();
     this.runReadLoop(conn);
-
-    return {
-      devboxId: devbox.id,
-      axonId: axon.id,
-      runloopUrl: baseUrl ?? "https://platform.runloop.ai",
-    };
   }
 
   private async runReadLoop(conn: ClaudeAxonConnection): Promise<void> {
@@ -137,19 +175,19 @@ export class ClaudeConnectionManager {
         const msgSubtype = (msg as Record<string, unknown>).subtype;
         console.log(`[read-loop] received: type=${msgType} subtype=${msgSubtype}`);
 
-        this.ws.broadcast({ type: "sdk_message", message: msg as unknown as Record<string, unknown> });
+        this.ws.broadcast(this.tag({ type: "sdk_message", message: msg as unknown as Record<string, unknown> }));
 
         if (msg.type === "result") {
-          this.ws.broadcast({ type: "turn_complete", result: msg } as WsEvent);
+          this.ws.broadcast(this.tag({ type: "turn_complete", result: msg } as BaseWsEvent));
         }
       }
       console.log("[read-loop] ended (generator returned)");
     } catch (err) {
       console.error("[read-loop] error:", err);
-      this.ws.broadcast({
+      this.ws.broadcast(this.tag({
         type: "turn_error",
         error: err instanceof Error ? err.message : String(err),
-      });
+      }));
     }
   }
 
@@ -188,6 +226,8 @@ export class ClaudeConnectionManager {
     }
     this.connection = null;
     this.abortController = null;
+    this.axon = null;
+    this.devbox = null;
     this.axonEvents = [];
     this.autoApprovePermissions = true;
     for (const [, pending] of this.pendingControlResponses) {
