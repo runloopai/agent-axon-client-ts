@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react";
 import type { AvailableCommand } from "../types.js";
+import { MarkdownContent } from "./shared.js";
 
 export function CommandPicker({
   commands, selectedIndex, onSelect, onHover,
@@ -26,7 +27,7 @@ export function CommandPicker({
           onMouseEnter={() => onHover(i)}
         >
           <span className="command-name">/{cmd.name}</span>
-          <span className="command-description">{cmd.description}</span>
+          <MarkdownContent text={cmd.description ?? ""} className="command-description" />
         </div>
       ))}
     </div>

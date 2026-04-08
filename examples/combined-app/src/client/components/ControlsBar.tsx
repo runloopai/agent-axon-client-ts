@@ -3,7 +3,7 @@ import type { ModelInfo } from "../types.js";
 export function ControlsBar({
   availableModes, currentMode, configOptions, availableModels, currentModelId, autoApprovePermissions, onSetMode, onSetModel, onSetConfigOption, onSetAutoApprovePermissions,
 }: {
-  availableModes: Array<{ modeId: string; name?: string }>;
+  availableModes: Array<{ id: string; name?: string }>;
   currentMode: string | null;
   configOptions: Array<{ id: string; type: string; name: string; currentValue?: string; options?: Array<{ value?: string; name: string; options?: Array<{ value?: string; name: string }> }> }>;
   availableModels: ModelInfo[];
@@ -20,11 +20,11 @@ export function ControlsBar({
         <div className="mode-switcher">
           {availableModes.map((mode) => (
             <button
-              key={mode.modeId}
-              className={`mode-btn ${currentMode === mode.modeId ? "active" : ""}`}
-              onClick={() => onSetMode(mode.modeId)}
+              key={mode.id}
+              className={`mode-btn ${currentMode === mode.id ? "active" : ""}`}
+              onClick={() => onSetMode(mode.id)}
             >
-              {mode.name ?? mode.modeId}
+              {mode.name ?? mode.id}
             </button>
           ))}
         </div>

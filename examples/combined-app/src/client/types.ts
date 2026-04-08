@@ -141,6 +141,37 @@ export interface EmbeddedResourceBlock {
   extra?: Record<string, unknown>;
 }
 
+// --- System init block (unified agent initialization) ---
+
+export interface ClaudeInitExtensions {
+  protocol: "claude";
+  tools: string[];
+  mcpServers: Array<{ name: string; status: string }>;
+  permissionMode: string;
+}
+
+export interface ACPInitExtensions {
+  protocol: "acp";
+  protocolVersion: number | null;
+  modes: SessionMode[];
+  models: ModelInfo[];
+  configOptions: SessionConfigOption[];
+  agentCapabilities: AgentCapabilities | null;
+  clientCapabilities: ClientCapabilities | null;
+  authMethods: unknown[];
+}
+
+export interface SystemInitBlock {
+  type: "system_init";
+  id: string;
+  agentName: string | null;
+  agentVersion: string | null;
+  model: string | null;
+  commands: string[];
+  extensions: ClaudeInitExtensions | ACPInitExtensions | null;
+  extra: Record<string, unknown>;
+}
+
 export type TurnBlock =
   | ThinkingBlock
   | ToolCallBlock
@@ -150,7 +181,8 @@ export type TurnBlock =
   | ResourceLinkBlock
   | ImageBlock
   | AudioBlock
-  | EmbeddedResourceBlock;
+  | EmbeddedResourceBlock
+  | SystemInitBlock;
 
 // --- Chat message ---
 
@@ -254,7 +286,7 @@ export interface PendingElicitation {
 // --- ACP-specific: session config ---
 
 export interface SessionMode {
-  modeId: string;
+  id: string;
   name: string;
   description?: string;
 }
@@ -264,9 +296,14 @@ export interface ModelInfo {
   name: string;
 }
 
+export interface AvailableCommandInput {
+  hint: string;
+}
+
 export interface AvailableCommand {
   name: string;
   description?: string;
+  input?: AvailableCommandInput | null;
 }
 
 export interface SessionConfigOption {
@@ -373,6 +410,9 @@ export interface AxonEventView {
   origin: string;
   payload: string;
   created_at: string;
+  sequence: number;
+  source: string;
+  timestamp_ms: number;
   [key: string]: unknown;
 }
 

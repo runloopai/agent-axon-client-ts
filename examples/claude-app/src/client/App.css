@@ -2051,7 +2051,10 @@ html, body, #root {
 /* ── Axon Event Items ────────────────────────────────────── */
 
 .event-item {
-  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 8px;
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-left: 3px solid var(--border);
@@ -2076,8 +2079,9 @@ html, body, #root {
 .axon-event-header {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 6px;
-  margin-bottom: 0;
+  width: 100%;
 }
 
 .axon-event-icon { font-size: 12px; flex-shrink: 0; }
@@ -2121,7 +2125,8 @@ html, body, #root {
   font-family: var(--font-mono);
   font-size: 9px;
   color: var(--text-muted);
-  margin-left: auto;
+  min-width: 24px;
+  text-align: right;
   flex-shrink: 0;
 }
 
@@ -2149,11 +2154,11 @@ html, body, #root {
   white-space: nowrap;
 }
 
-.axon-event-time {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-left: auto;
+.axon-event-sub-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
 }
 
 .axon-event-summary {
@@ -2163,8 +2168,17 @@ html, body, #root {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
+  min-width: 0;
+  flex: 1;
   line-height: 1.4;
+}
+
+.axon-event-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: auto;
   padding-left: 22px;
   margin-top: 2px;
 }
@@ -2271,10 +2285,16 @@ html, body, #root {
   word-break: break-all;
 }
 
-.axon-raw-toggle {
+.axon-detail-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.axon-raw-toggle,
+.axon-detail-actions .axon-copy-btn {
   font-size: 10px !important;
   padding: 2px 8px !important;
-  margin-bottom: 4px;
 }
 
 .axon-event-raw {

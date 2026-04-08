@@ -11,6 +11,7 @@ import type {
   PlanEntry,
   AxonEventView,
   ToolCallBlock,
+  ClaudeInitExtensions,
 } from "../types.js";
 import { nextBlockId, inferToolKind } from "./parsers.js";
 import { api } from "./api.js";
@@ -278,15 +279,32 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
         const subtype = msg.subtype as string;
         switch (subtype) {
           case "init": {
-            setInitInfo({
-              model: (msg.model as string) ?? "unknown",
-              tools: (msg.tools as string[]) ?? [],
-              mcpServers: (msg.mcp_servers as Array<{ name: string; status: string }>) ?? [],
-              permissionMode: (msg.permissionMode as string) ?? "default",
-              slashCommands: (msg.slash_commands as string[]) ?? [],
+            const tools = (msg.tools as string[]) ?? [];
+            const mcpServers = (msg.mcp_servers as Array<{ name: string; status: string }>) ?? [];
+            const initPermissionMode = (msg.permissionMode as string) ?? "default";
+            const slashCommands = (msg.slash_commands as string[]) ?? [];
+            const initModel = (msg.model as string) ?? "unknown";
+
+            setInitInfo({ model: initModel, tools, mcpServers, permissionMode: initPermissionMode, slashCommands });
+            setCurrentModel(initModel ?? null);
+            setPermissionMode(initPermissionMode ?? null);
+
+            const extensions: ClaudeInitExtensions = {
+              protocol: "claude",
+              tools,
+              mcpServers,
+              permissionMode: initPermissionMode,
+            };
+            pushBlock({
+              type: "system_init",
+              id: nextBlockId("init"),
+              agentName: "Claude Code",
+              agentVersion: null,
+              model: initModel,
+              commands: slashCommands,
+              extensions,
+              extra: { ...msg },
             });
-            setCurrentModel((msg.model as string) ?? null);
-            setPermissionMode((msg.permissionMode as string) ?? null);
             break;
           }
           case "status": {

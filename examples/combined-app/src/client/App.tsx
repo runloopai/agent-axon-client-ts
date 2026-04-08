@@ -119,9 +119,16 @@ export default function App() {
   };
 
   const selectCommand = (cmd: AvailableCommand) => {
-    setInputText(`/${cmd.name} `);
-    setShowCommandPicker(false);
-    textareaRef.current?.focus();
+    if (cmd.input) {
+      setInputText(`/${cmd.name} `);
+      setShowCommandPicker(false);
+      textareaRef.current?.focus();
+    } else {
+      setInputText("");
+      setShowCommandPicker(false);
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      agent.sendMessage(`/${cmd.name}`);
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {

@@ -13,6 +13,7 @@ import type {
   ImageBlock,
   AudioBlock,
   EmbeddedResourceBlock,
+  SystemInitBlock,
   TerminalState,
   ContentItem,
 } from "../types.js";
@@ -415,7 +416,7 @@ function PlanEntryView({ entry }: { entry: PlanEntry }) {
   return (
     <div className={`plan-entry plan-entry-${entry.status}`}>
       {planStatusIcon(entry.status)}
-      <span className="plan-entry-text">{entry.content}</span>
+      <MarkdownContent text={entry.content} className="plan-entry-text" />
       {entry.priority && (
         <span className={`plan-priority plan-priority-${entry.priority}`}>{entry.priority}</span>
       )}
@@ -435,15 +436,130 @@ export function TaskBlockView({ block }: { block: TaskBlock }) {
         ) : (
           <span className="tc-status-fail">{"\u2717"}</span>
         )}
-        <span className="task-description">{block.description}</span>
+        <MarkdownContent text={block.description} className="task-description" />
         {block.toolUses != null && (
           <span className="task-meta">{block.toolUses} tools</span>
         )}
       </div>
       {block.summary && (
-        <div className="task-summary">{block.summary}</div>
+        <MarkdownContent text={block.summary} className="task-summary" />
       )}
       <ExtraDataView extra={block.extra} />
+    </div>
+  );
+}
+
+function InitSection({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="init-section">
+      <div className="init-section-header" onClick={() => setOpen(!open)}>
+        <span className={`chevron init-chevron ${open ? "expanded" : ""}`}>{"\u25B6"}</span>
+        <span className="init-section-label">{label}</span>
+      </div>
+      {open && <div className="init-section-body">{children}</div>}
+    </div>
+  );
+}
+
+function InitTagList({ items }: { items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="init-tag-list">
+      {items.map((item, i) => (
+        <span key={i} className="init-tag">{item}</span>
+      ))}
+    </div>
+  );
+}
+
+export function SystemInitBlockView({ block, expanded, onToggle }: { block: SystemInitBlock; expanded: boolean; onToggle: () => void }) {
+  const ext = block.extensions;
+  const title = [block.agentName, block.agentVersion ? `v${block.agentVersion}` : null].filter(Boolean).join(" ");
+
+  return (
+    <div className="turn-block system-init-block">
+      <div className="init-header" onClick={onToggle} style={{ cursor: "pointer" }}>
+        <span className="init-icon">{"\u26A1"}</span>
+        <span className="init-title">{title || "Agent Initialized"}</span>
+        {block.model && <span className="init-model-badge">{block.model}</span>}
+        <span className={`chevron init-chevron ${expanded ? "expanded" : ""}`}>{"\u25B6"}</span>
+      </div>
+      {expanded && (
+        <div className="init-body">
+          {block.commands.length > 0 && (
+            <InitSection label={`Commands (${block.commands.length})`}>
+              <InitTagList items={block.commands} />
+            </InitSection>
+          )}
+
+          {ext?.protocol === "claude" && (
+            <>
+              {ext.tools.length > 0 && (
+                <InitSection label={`Tools (${ext.tools.length})`}>
+                  <InitTagList items={ext.tools} />
+                </InitSection>
+              )}
+              {ext.mcpServers.length > 0 && (
+                <InitSection label={`MCP Servers (${ext.mcpServers.length})`}>
+                  <div className="init-mcp-list">
+                    {ext.mcpServers.map((s, i) => (
+                      <div key={i} className="init-mcp-item">
+                        <span className={`init-mcp-status init-mcp-${s.status}`}>{"\u25CF"}</span>
+                        <span>{s.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </InitSection>
+              )}
+              <div className="init-kv">
+                <span className="init-kv-label">Permission Mode</span>
+                <span className="init-kv-value">{ext.permissionMode}</span>
+              </div>
+            </>
+          )}
+
+          {ext?.protocol === "acp" && (
+            <>
+              {ext.modes.length > 0 && (
+                <InitSection label={`Modes (${ext.modes.length})`}>
+                  <InitTagList items={ext.modes.map((m) => m.name ?? m.id)} />
+                </InitSection>
+              )}
+              {ext.models.length > 0 && (
+                <InitSection label={`Models (${ext.models.length})`}>
+                  <InitTagList items={ext.models.map((m) => m.name ?? m.modelId)} />
+                </InitSection>
+              )}
+              {ext.configOptions.length > 0 && (
+                <InitSection label={`Config Options (${ext.configOptions.length})`}>
+                  <div className="init-config-list">
+                    {ext.configOptions.map((opt) => (
+                      <div key={opt.id} className="init-kv">
+                        <span className="init-kv-label">{opt.name}</span>
+                        <span className="init-kv-value">{opt.currentValue ?? "-"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </InitSection>
+              )}
+              {ext.agentCapabilities && (
+                <InitSection label="Capabilities">
+                  <pre className="init-capabilities-pre">{JSON.stringify(ext.agentCapabilities, null, 2)}</pre>
+                </InitSection>
+              )}
+              {ext.protocolVersion != null && (
+                <div className="init-kv">
+                  <span className="init-kv-label">Protocol Version</span>
+                  <span className="init-kv-value">{ext.protocolVersion}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          <ExtraDataView extra={block.extra} />
+        </div>
+      )}
     </div>
   );
 }

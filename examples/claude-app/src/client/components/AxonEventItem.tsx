@@ -66,16 +66,14 @@ function summarizeAxonEvent(event: AxonEventView): AxonEventSummary {
       }
       return { icon: "\u{2139}\uFE0F", label: "System", summary: subtype, colorClass: "origin-system" };
     }
-    default: {
-      const preview = event.payload.length > 60 ? event.payload.slice(0, 60) + "\u2026" : event.payload;
-      return { icon: "\u{1F4E6}", label: event.event_type, summary: preview, colorClass: baseColor };
-    }
+    default:
+      return { icon: "\u{1F4E6}", label: event.event_type, summary: "", colorClass: baseColor };
   }
 }
 
 function formatTime(timestampMs: number): string {
   const d = new Date(timestampMs);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3 } as Intl.DateTimeFormatOptions);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 function originLabel(origin: string): string {
@@ -179,27 +177,17 @@ export function AxonEventItem({
   return (
     <div className={`event-item ${summary.colorClass} ${expanded ? "event-item-expanded" : ""}`} onClick={onToggle}>
       <div className="axon-event-header">
+        <span className="axon-event-seq">#{event.sequence}</span>
         <span className="axon-event-icon">{summary.icon}</span>
         <span className="axon-event-label">{summary.label}</span>
         <span className={`axon-badge ${originBadgeClass(event.origin)}`}>{originLabel(event.origin)}</span>
         <span className="axon-event-source">{event.source}</span>
-        <span className="axon-event-seq">#{event.sequence}</span>
-        <button
-          className="btn btn-ghost axon-copy-btn"
-          onClick={(e) => { e.stopPropagation(); onCopy(); }}
-        >
-          copy
-        </button>
       </div>
 
-      <div className="axon-event-meta-row">
-        <span className="axon-event-type-chip">{event.event_type}</span>
+      <div className="axon-event-sub-row">
+        <span className="axon-event-summary">{summary.summary}</span>
         <span className="axon-event-time">{formatTime(event.timestamp_ms)}</span>
       </div>
-
-      {summary.summary && (
-        <div className="axon-event-summary">{summary.summary}</div>
-      )}
 
       {expanded && (
         <div className="axon-event-detail" onClick={(e) => e.stopPropagation()}>
@@ -221,12 +209,20 @@ export function AxonEventItem({
             </div>
           </div>
 
-          <button
-            className="btn btn-ghost axon-raw-toggle"
-            onClick={() => setShowRaw(!showRaw)}
-          >
-            {showRaw ? "Hide" : "Show"} Raw JSON
-          </button>
+          <div className="axon-detail-actions">
+            <button
+              className="btn btn-ghost axon-raw-toggle"
+              onClick={() => setShowRaw(!showRaw)}
+            >
+              {showRaw ? "Hide" : "Show"} Raw JSON
+            </button>
+            <button
+              className="btn btn-ghost axon-copy-btn"
+              onClick={(e) => { e.stopPropagation(); onCopy(); }}
+            >
+              Copy
+            </button>
+          </div>
           {showRaw && (
             <div className="axon-event-raw">
               <pre>{prettyPayload}</pre>
