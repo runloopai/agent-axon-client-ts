@@ -116,10 +116,7 @@ function createReadable(
             onAxonEvent?.(axonEvent);
 
             // Handle broker errors: fail all pending requests so they reject immediately
-            if (
-              axonEvent.origin === "SYSTEM_EVENT" &&
-              axonEvent.event_type === "broker.error"
-            ) {
+            if (axonEvent.origin === "SYSTEM_EVENT" && axonEvent.event_type === "broker.error") {
               log?.("read", `#${totalEvents} BROKER_ERROR: ${axonEvent.payload}`);
               for (const [method, id] of pendingRequests) {
                 if (id !== undefined && id !== null) {
