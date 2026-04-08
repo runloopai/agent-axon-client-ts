@@ -90,7 +90,6 @@ export class NodeACPClient implements Client {
   ): Promise<RequestPermissionResponse> {
     if (this.autoApprovePermissions) {
       const option =
-        params.options.find((o) => o.kind === "allow_always") ??
         params.options.find((o) => o.kind === "allow_once") ??
         params.options[0];
 

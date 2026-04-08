@@ -558,10 +558,13 @@ export function useACPAgent(): UseACPAgentReturn {
     setUsage(null);
   }, []);
 
-  const start = useCallback(async (config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string }) => {
+  const start = useCallback(async (config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string; autoApprovePermissions?: boolean }) => {
     try {
       setError(null);
       setConnectionPhase("connecting");
+      if (config.autoApprovePermissions !== undefined) {
+        setAutoApprovePermissionsState(config.autoApprovePermissions);
+      }
       connectWs();
 
       const resp = await api<Record<string, unknown>>("/api/start", { agentType: "acp", ...config });

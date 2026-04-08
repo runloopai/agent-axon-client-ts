@@ -119,6 +119,7 @@ export default function App() {
   const [launchCommands, setLaunchCommands] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [startModel, setStartModel] = useState("claude-haiku-4-5");
+  const [startAutoApprove, setStartAutoApprove] = useState(true);
   const [inputText, setInputText] = useState("");
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [rightTab, setRightTab] = useState<"activity" | "axon">("activity");
@@ -161,6 +162,7 @@ export default function App() {
         : undefined,
       systemPrompt: systemPrompt || undefined,
       model: startModel || undefined,
+      autoApprovePermissions: startAutoApprove,
     });
   };
 
@@ -258,6 +260,8 @@ export default function App() {
             setSystemPrompt={setSystemPrompt}
             startModel={startModel}
             setStartModel={setStartModel}
+            autoApprovePermissions={startAutoApprove}
+            setAutoApprovePermissions={setStartAutoApprove}
             onStart={handleStart}
             connectionPhase={agent.connectionPhase}
             connectionStatus={agent.connectionStatus}
@@ -1096,6 +1100,8 @@ function SetupCard({
   setSystemPrompt,
   startModel,
   setStartModel,
+  autoApprovePermissions,
+  setAutoApprovePermissions,
   onStart,
   connectionPhase,
   connectionStatus,
@@ -1109,6 +1115,8 @@ function SetupCard({
   setSystemPrompt: (v: string) => void;
   startModel: string;
   setStartModel: (v: string) => void;
+  autoApprovePermissions: boolean;
+  setAutoApprovePermissions: (v: boolean) => void;
   onStart: () => void;
   connectionPhase: ConnectionPhase;
   connectionStatus: string | null;
@@ -1189,7 +1197,7 @@ function SetupCard({
           <input
             value={startModel}
             onChange={(e) => setStartModel(e.target.value)}
-            placeholder="claude-sonnet-4-20250514"
+            placeholder="claude-haiku-4-5"
             disabled={connecting}
           />
         </div>
@@ -1221,6 +1229,15 @@ function SetupCard({
             rows={3}
           />
         </div>
+        <label className="config-toggle">
+          <input
+            type="checkbox"
+            checked={autoApprovePermissions}
+            onChange={(e) => setAutoApprovePermissions(e.target.checked)}
+            disabled={connecting}
+          />
+          <span className="config-toggle-label">Auto-approve permissions</span>
+        </label>
       </div>
 
       <button

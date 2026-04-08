@@ -146,7 +146,7 @@ export interface UseClaudeAgentReturn {
   axonEvents: AxonEventView[];
   /** A pending control request awaiting user input (e.g. AskUserQuestion), or null. */
   pendingControlRequest: PendingControlRequest | null;
-  start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => Promise<void>;
+  start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; autoApprovePermissions?: boolean }) => Promise<void>;
   sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
   cancel: () => Promise<void>;
   setModel: (model: string) => Promise<void>;
@@ -739,10 +739,13 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
   // ---------------------------------------------------------------------------
 
   const start = useCallback(
-    async (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => {
+    async (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; autoApprovePermissions?: boolean }) => {
       try {
         setError(null);
         setConnectionPhase("connecting");
+        if (config.autoApprovePermissions !== undefined) {
+          setAutoApprovePermissionsState(config.autoApprovePermissions);
+        }
 
         connectWs();
 
@@ -755,6 +758,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
           launchCommands: config.launchCommands,
           systemPrompt: config.systemPrompt,
           model: config.model,
+          autoApprovePermissions: config.autoApprovePermissions,
         });
 
         setDevboxId(resp.devboxId);

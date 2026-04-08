@@ -8,6 +8,7 @@ export interface ClaudeStartOptions {
   launchCommands?: string[];
   systemPrompt?: string;
   model?: string;
+  autoApprovePermissions?: boolean;
 }
 
 export class ClaudeConnectionManager {
@@ -24,6 +25,8 @@ export class ClaudeConnectionManager {
   constructor(private ws: WsBroadcaster) {}
 
   async start(opts: ClaudeStartOptions) {
+    this.autoApprovePermissions = opts.autoApprovePermissions !== false;
+
     const apiKey = process.env.RUNLOOP_API_KEY;
     const baseUrl = process.env.RUNLOOP_BASE_URL;
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY;

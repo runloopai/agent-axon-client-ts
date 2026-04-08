@@ -51,6 +51,7 @@ export default function App() {
   const [systemPrompt, setSystemPrompt] = useState("");
   const [blueprintName, setBlueprintName] = useState("");
   const [model, setModel] = useState("");
+  const [startAutoApprove, setStartAutoApprove] = useState(true);
   const [inputText, setInputText] = useState("");
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [expandedAxonEvents, setExpandedAxonEvents] = useState<Set<number>>(new Set());
@@ -95,6 +96,7 @@ export default function App() {
             ...sharedConfig,
             agentBinary,
             launchArgs: launchArgs ? launchArgs.split(/\s+/) : undefined,
+            autoApprovePermissions: startAutoApprove,
           },
         }
       : {
@@ -103,6 +105,7 @@ export default function App() {
             ...sharedConfig,
             blueprintName: blueprintName || undefined,
             model: model || undefined,
+            autoApprovePermissions: startAutoApprove,
           },
         };
 
@@ -228,6 +231,8 @@ export default function App() {
             setBlueprintName={setBlueprintName}
             model={model}
             setModel={setModel}
+            autoApprovePermissions={startAutoApprove}
+            setAutoApprovePermissions={setStartAutoApprove}
             onStart={handleStart}
             connectionPhase={agent.connectionPhase}
             connectionStatus={agent.connectionStatus}
