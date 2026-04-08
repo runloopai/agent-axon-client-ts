@@ -62,7 +62,8 @@ console.log(`Devbox ready: ${agent.devboxId}`);
 // Initialize + create session
 // ---------------------------------------------------------------------------
 
-// Log SYSTEM_EVENTs so broker errors (e.g. agent binary not found) are visible
+// Log SYSTEM_EVENTs for debugging (e.g. turn.started, turn.completed).
+// Broker errors like "agent binary not found" will also reject initialize() below.
 agent.onAxonEvent((ev) => {
   if (ev.origin === "SYSTEM_EVENT") {
     console.error(`[system] ${ev.event_type}: ${ev.payload}`);

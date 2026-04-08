@@ -33,6 +33,19 @@ export function makeUserEvent(
   };
 }
 
+export function makeSystemEvent(
+  eventType: string,
+  payload: string,
+  sequence?: number,
+): MockAxonEvent {
+  return {
+    event_type: eventType,
+    payload,
+    origin: "SYSTEM_EVENT",
+    ...(sequence != null ? { sequence } : {}),
+  };
+}
+
 export interface MockSseStream extends AsyncIterable<MockAxonEvent> {
   controller?: { abort: ReturnType<typeof vi.fn> };
 }

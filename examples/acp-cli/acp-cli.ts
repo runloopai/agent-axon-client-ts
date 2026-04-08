@@ -80,12 +80,30 @@ process.on("SIGINT", async () => {
 // Initialize + create session
 // ---------------------------------------------------------------------------
 
-console.log("Initializing ACP connection...");
-const initResp = await agent.initialize({
-  protocolVersion: PROTOCOL_VERSION,
-  clientInfo: { name: "acp-cli", version: "0.1.0" },
-  clientCapabilities: {},
+// Log SYSTEM_EVENTs for debugging (e.g. turn.started, turn.completed).
+// Broker errors like "agent binary not found" will also reject initialize() below.
+agent.onAxonEvent((ev) => {
+  if (ev.origin === "SYSTEM_EVENT") {
+    if (VERBOSE) {
+      console.error(`[system] ${ev.event_type}: ${ev.payload}`);
+    }
+  }
 });
+
+console.log("Initializing ACP connection...");
+
+let initResp;
+try {
+  initResp = await agent.initialize({
+    protocolVersion: PROTOCOL_VERSION,
+    clientInfo: { name: "acp-cli", version: "0.1.0" },
+    clientCapabilities: {},
+  });
+} catch (err) {
+  console.error("Failed to initialize agent:", err);
+  await agent.disconnect();
+  process.exit(1);
+}
 
 if (VERBOSE) {
   const agentInfo = initResp.agentInfo;
@@ -94,7 +112,14 @@ if (VERBOSE) {
   );
 }
 
-const session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
+let session;
+try {
+  session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
+} catch (err) {
+  console.error("Failed to create session:", err);
+  await agent.disconnect();
+  process.exit(1);
+}
 const sessionId = session.sessionId;
 console.log(`Session ready: ${sessionId}\n`);
 

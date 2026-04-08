@@ -5,6 +5,7 @@ import {
   createMockAxon,
   drain,
   makeAgentEvent,
+  makeSystemEvent,
   makeUserEvent,
   type PublishCall,
 } from "../__test-utils__/mock-axon.js";
@@ -250,6 +251,105 @@ describe("axonStream", () => {
 
       const second = await reader.read();
       expect(second.done).toBe(true);
+    });
+
+    it("converts broker.error SYSTEM_EVENT to JSON-RPC error for pending requests", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl.stream);
+
+      const { readable, writable } = axonStream({ axon: axon as never });
+
+      const writer = writable.getWriter();
+      await writer.write({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "session/initialize",
+        params: { protocolVersion: 1 },
+      } as never);
+      writer.releaseLock();
+
+      ctrl.push(
+        makeSystemEvent(
+          "broker.error",
+          "agent failed: agent binary 'nonexistent_binary' not found on PATH",
+        ),
+      );
+      ctrl.end();
+
+      const messages = await drain(readable);
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32000,
+          message: "agent failed: agent binary 'nonexistent_binary' not found on PATH",
+          data: { event_type: "broker.error" },
+        },
+      });
+    });
+
+    it("clears all pending requests when broker.error is received", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl.stream);
+
+      const { readable, writable } = axonStream({ axon: axon as never });
+
+      const writer = writable.getWriter();
+      await writer.write({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "session/initialize",
+        params: { protocolVersion: 1 },
+      } as never);
+      await writer.write({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "session/new",
+        params: {},
+      } as never);
+      writer.releaseLock();
+
+      ctrl.push(makeSystemEvent("broker.error", "agent crashed"));
+      ctrl.end();
+
+      const messages = await drain(readable);
+
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({ id: 1, error: { code: -32000 } });
+      expect(messages[1]).toMatchObject({ id: 2, error: { code: -32000 } });
+    });
+
+    it("calls onAxonEvent for broker.error before converting to JSON-RPC error", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl.stream);
+
+      const onAxonEvent = vi.fn();
+
+      const { readable, writable } = axonStream({ axon: axon as never, onAxonEvent });
+
+      const writer = writable.getWriter();
+      await writer.write({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "session/initialize",
+        params: {},
+      } as never);
+      writer.releaseLock();
+
+      ctrl.push(makeSystemEvent("broker.error", "agent failed"));
+      ctrl.end();
+
+      await drain(readable);
+
+      expect(onAxonEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          origin: "SYSTEM_EVENT",
+          event_type: "broker.error",
+          payload: "agent failed",
+        }),
+      );
     });
   });
 

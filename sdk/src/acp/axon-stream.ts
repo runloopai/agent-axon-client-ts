@@ -115,6 +115,29 @@ function createReadable(
 
             onAxonEvent?.(axonEvent);
 
+            // Handle broker errors: fail all pending requests so they reject immediately
+            if (
+              axonEvent.origin === "SYSTEM_EVENT" &&
+              axonEvent.event_type === "broker.error"
+            ) {
+              log?.("read", `#${totalEvents} BROKER_ERROR: ${axonEvent.payload}`);
+              for (const [method, id] of pendingRequests) {
+                if (id !== undefined && id !== null) {
+                  controller.enqueue({
+                    jsonrpc: "2.0",
+                    id,
+                    error: {
+                      code: -32000,
+                      message: axonEvent.payload,
+                      data: { event_type: axonEvent.event_type },
+                    },
+                  });
+                }
+                pendingRequests.delete(method);
+              }
+              continue;
+            }
+
             if (axonEvent.origin !== "AGENT_EVENT") {
               log?.("read", `#${totalEvents} SKIP ${axonEvent.origin} ${axonEvent.event_type}`);
               continue;

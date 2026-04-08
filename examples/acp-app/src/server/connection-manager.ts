@@ -140,20 +140,44 @@ export class ConnectionManager {
       stream,
     );
 
-    const initResp = await this.connection.initialize({
-      protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "node-demo", version: "0.1.0" },
-      clientCapabilities: CLIENT_CAPABILITIES,
-    });
+    let initResp;
+    try {
+      initResp = await this.connection.initialize({
+        protocolVersion: PROTOCOL_VERSION,
+        clientInfo: { name: "node-demo", version: "0.1.0" },
+        clientCapabilities: CLIENT_CAPABILITIES,
+      });
+    } catch (err) {
+      await this.shutdown();
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message: unknown }).message)
+            : String(err);
+      throw new HttpError(500, `Failed to initialize agent: ${message}`);
+    }
 
     const initData = initResp as Record<string, unknown>;
     this.authMethods = (initData.authMethods as unknown[]) ?? null;
 
     this.ws.broadcast({ type: "connection_progress", step: "Starting session..." });
-    const sessionResp = await this.connection.newSession({
-      cwd: "/home/user",
-      mcpServers: [],
-    });
+    let sessionResp;
+    try {
+      sessionResp = await this.connection.newSession({
+        cwd: "/home/user",
+        mcpServers: [],
+      });
+    } catch (err) {
+      await this.shutdown();
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message: unknown }).message)
+            : String(err);
+      throw new HttpError(500, `Failed to create session: ${message}`);
+    }
     this.activeSessionId = sessionResp.sessionId;
 
     const sessionRaw = sessionResp as Record<string, unknown>;
