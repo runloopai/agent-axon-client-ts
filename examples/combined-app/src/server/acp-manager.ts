@@ -125,24 +125,32 @@ export class ACPConnectionManager {
       stream,
     );
 
-    const initResp = await this.attempt("Failed to initialize agent", () =>
-      this.connection!.initialize({
+    let initResp;
+    try {
+      initResp = await this.connection!.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientInfo: { name: "combined-app", version: "0.1.0" },
         clientCapabilities: CLIENT_CAPABILITIES,
-      }),
-    );
+      });
+    } catch (err) {
+      await this.shutdown();
+      throw new Error(`Failed to initialize agent: ${this.extractMessage(err)}`);
+    }
 
     const initData = initResp as Record<string, unknown>;
     this.authMethods = (initData.authMethods as unknown[]) ?? null;
 
     this.ws.broadcast({ type: "connection_progress", step: "Starting session..." });
-    const sessionResp = await this.attempt("Failed to create session", () =>
-      this.connection!.newSession({
+    let sessionResp;
+    try {
+      sessionResp = await this.connection!.newSession({
         cwd: "/home/user",
         mcpServers: [],
-      }),
-    );
+      });
+    } catch (err) {
+      await this.shutdown();
+      throw new Error(`Failed to create session: ${this.extractMessage(err)}`);
+    }
     this.activeSessionId = sessionResp.sessionId;
 
     const sessionRaw = sessionResp as Record<string, unknown>;
@@ -188,15 +196,6 @@ export class ACPConnectionManager {
     if (typeof err === "object" && err !== null && "message" in err)
       return String((err as { message: unknown }).message);
     return String(err);
-  }
-
-  private async attempt<T>(label: string, fn: () => Promise<T>): Promise<T> {
-    try {
-      return await fn();
-    } catch (err) {
-      await this.shutdown();
-      throw new Error(`${label}: ${this.extractMessage(err)}`);
-    }
   }
 
   async shutdown(): Promise<void> {
