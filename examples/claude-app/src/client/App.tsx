@@ -1197,7 +1197,7 @@ function SetupCard({
           <input
             value={startModel}
             onChange={(e) => setStartModel(e.target.value)}
-            placeholder="claude-sonnet-4-20250514"
+            placeholder="claude-haiku-4-5"
             disabled={connecting}
           />
         </div>
