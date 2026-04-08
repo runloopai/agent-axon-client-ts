@@ -39,9 +39,7 @@ export interface ACPAxonConnectionOptions extends BaseConnectionOptions {
    * Defaults to auto-approving with preference:
    * `allow_always` > `allow_once` > first option.
    */
-  requestPermission?: (
-    params: RequestPermissionRequest,
-  ) => Promise<RequestPermissionResponse>;
+  requestPermission?: (params: RequestPermissionRequest) => Promise<RequestPermissionResponse>;
 }
 
 /**
@@ -53,7 +51,4 @@ export interface ACPAxonConnectionOptions extends BaseConnectionOptions {
  *
  * @category Configuration
  */
-export type SessionUpdateListener = (
-  sessionId: string | null,
-  update: SessionUpdate,
-) => void;
+export type SessionUpdateListener = (sessionId: string | null, update: SessionUpdate) => void;
