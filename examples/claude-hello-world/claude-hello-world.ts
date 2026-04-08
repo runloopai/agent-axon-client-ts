@@ -83,8 +83,22 @@ const client = new ClaudeAxonConnection(axon, devbox, {
   ...(MODEL && { model: MODEL }),
 });
 
+// Log SYSTEM_EVENTs for debugging (e.g. turn.started, turn.completed).
+// Broker errors like "agent binary not found" will also reject initialize() below.
+client.onAxonEvent((ev) => {
+  if (ev.origin === "SYSTEM_EVENT") {
+    console.error(`[system] ${ev.event_type}: ${ev.payload}`);
+  }
+});
+
 console.log("Connecting to Claude...");
-await client.initialize();
+try {
+  await client.initialize();
+} catch (err) {
+  console.error("Failed to initialize agent:", err);
+  await client.disconnect();
+  process.exit(1);
+}
 console.log("Connected.\n");
 
 // ---------------------------------------------------------------------------

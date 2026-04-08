@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createControllableStream,
   createMockAxon,
   makeAgentEvent,
+  makeSystemEvent,
   makeUserEvent,
 } from "../__test-utils__/mock-axon.js";
 import { AxonTransport, MESSAGE_TYPE_TO_EVENT_TYPE } from "./transport.js";
@@ -188,6 +189,46 @@ describe("AxonTransport", () => {
 
       const second = await gen.next();
       expect(second.done).toBe(true);
+    });
+
+    it("throws on broker.error SYSTEM_EVENT with the payload as the error message", async () => {
+      await transport.connect();
+
+      ctrl.push(
+        makeSystemEvent(
+          "broker.error",
+          "agent failed: agent binary 'nonexistent_binary' not found on PATH",
+        ),
+      );
+      ctrl.end();
+
+      const gen = transport.readMessages()[Symbol.asyncIterator]();
+      await expect(gen.next()).rejects.toThrow(
+        "agent failed: agent binary 'nonexistent_binary' not found on PATH",
+      );
+    });
+
+    it("calls onAxonEvent before throwing on broker.error", async () => {
+      const onAxonEvent = vi.fn();
+      const transportWithListener = new AxonTransport(axon as never, { onAxonEvent });
+
+      const ctrlWithListener = createControllableStream(true);
+      axon.subscribeSse.mockResolvedValueOnce(ctrlWithListener.stream);
+      await transportWithListener.connect();
+
+      ctrlWithListener.push(makeSystemEvent("broker.error", "agent failed"));
+      ctrlWithListener.end();
+
+      const gen = transportWithListener.readMessages()[Symbol.asyncIterator]();
+      await expect(gen.next()).rejects.toThrow("agent failed");
+
+      expect(onAxonEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          origin: "SYSTEM_EVENT",
+          event_type: "broker.error",
+          payload: "agent failed",
+        }),
+      );
     });
   });
 

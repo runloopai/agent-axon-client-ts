@@ -194,6 +194,13 @@ export class AxonTransport implements Transport {
 
       this.onAxonEvent?.(event);
 
+      // Handle broker errors: throw so the read loop exits and initialize() rejects
+      // this can happen if the agent binary is not found, etc.
+      if (event.origin === "SYSTEM_EVENT" && event.event_type === "broker.error") {
+        this.log("read", `#${eventCount} BROKER_ERROR: ${event.payload}`);
+        throw new Error(event.payload);
+      }
+
       if (event.origin === "AGENT_EVENT") {
         this.log("read", `#${eventCount} ${event.event_type}`);
         if (event.payload == null) {

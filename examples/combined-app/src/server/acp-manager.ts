@@ -125,20 +125,44 @@ export class ACPConnectionManager {
       stream,
     );
 
-    const initResp = await this.connection.initialize({
-      protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "combined-app", version: "0.1.0" },
-      clientCapabilities: CLIENT_CAPABILITIES,
-    });
+    let initResp;
+    try {
+      initResp = await this.connection.initialize({
+        protocolVersion: PROTOCOL_VERSION,
+        clientInfo: { name: "combined-app", version: "0.1.0" },
+        clientCapabilities: CLIENT_CAPABILITIES,
+      });
+    } catch (err) {
+      await this.shutdown();
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message: unknown }).message)
+            : String(err);
+      throw new Error(`Failed to initialize agent: ${message}`);
+    }
 
     const initData = initResp as Record<string, unknown>;
     this.authMethods = (initData.authMethods as unknown[]) ?? null;
 
     this.ws.broadcast({ type: "connection_progress", step: "Starting session..." });
-    const sessionResp = await this.connection.newSession({
-      cwd: "/home/user",
-      mcpServers: [],
-    });
+    let sessionResp;
+    try {
+      sessionResp = await this.connection.newSession({
+        cwd: "/home/user",
+        mcpServers: [],
+      });
+    } catch (err) {
+      await this.shutdown();
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message: unknown }).message)
+            : String(err);
+      throw new Error(`Failed to create session: ${message}`);
+    }
     this.activeSessionId = sessionResp.sessionId;
 
     const sessionRaw = sessionResp as Record<string, unknown>;

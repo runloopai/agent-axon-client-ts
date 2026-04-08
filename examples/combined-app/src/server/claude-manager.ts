@@ -115,7 +115,18 @@ export class ClaudeConnectionManager {
     });
 
     this.ws.broadcast({ type: "connection_progress", step: "Connecting to Claude Code..." });
-    await conn.initialize();
+    try {
+      await conn.initialize();
+    } catch (err) {
+      await this.shutdown();
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message: unknown }).message)
+            : String(err);
+      throw new Error(`Failed to initialize agent: ${message}`);
+    }
 
     this.runReadLoop(conn);
 

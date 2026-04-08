@@ -155,7 +155,7 @@ export class ConnectionManager {
           : typeof err === "object" && err !== null && "message" in err
             ? String((err as { message: unknown }).message)
             : String(err);
-      throw new HttpError(500, `Failed to initialize agent: ${message}`);
+      throw new HttpError(400, `Failed to initialize agent: ${message}`);
     }
 
     const initData = initResp as Record<string, unknown>;
@@ -176,7 +176,7 @@ export class ConnectionManager {
           : typeof err === "object" && err !== null && "message" in err
             ? String((err as { message: unknown }).message)
             : String(err);
-      throw new HttpError(500, `Failed to create session: ${message}`);
+      throw new HttpError(400, `Failed to create session: ${message}`);
     }
     this.activeSessionId = sessionResp.sessionId;
 
