@@ -13,7 +13,7 @@ The minimal starting point for using the ACP module. Provisions a Runloop devbox
 
 ```bash
 # From the monorepo root
-bun install && bun run build
+bun install
 
 # Set your API key
 export RUNLOOP_API_KEY=your_key
@@ -22,9 +22,7 @@ export RUNLOOP_API_KEY=your_key
 ## Running
 
 ```bash
-npm start
-# or
-bun run acp-hello-world.ts
+bun run start
 ```
 
 ## What it does
