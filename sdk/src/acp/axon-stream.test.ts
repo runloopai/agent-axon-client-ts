@@ -351,6 +351,19 @@ describe("axonStream", () => {
         }),
       );
     });
+
+    it("errors the stream when broker.error arrives with no pending requests", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl.stream);
+
+      const { readable } = axonStream({ axon: axon as never });
+
+      ctrl.push(makeSystemEvent("broker.error", "agent failed: agent binary 'bad' not found"));
+      ctrl.end();
+
+      const reader = readable.getReader();
+      await expect(reader.read()).rejects.toThrow("agent failed: agent binary 'bad' not found");
+    });
   });
 
   describe("auto-reconnect", () => {

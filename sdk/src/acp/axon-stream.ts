@@ -115,9 +115,14 @@ function createReadable(
 
             onAxonEvent?.(axonEvent);
 
-            // Handle broker errors: fail all pending requests so they reject immediately
+            // Handle broker errors: fail all pending requests so they reject immediately.
+            // If no requests are pending (rare race), error the stream so callers still see the failure.
             if (axonEvent.origin === "SYSTEM_EVENT" && axonEvent.event_type === "broker.error") {
               log?.("read", `#${totalEvents} BROKER_ERROR: ${axonEvent.payload}`);
+              if (pendingRequests.size === 0) {
+                controller.error(new Error(axonEvent.payload));
+                return;
+              }
               for (const [method, id] of pendingRequests) {
                 if (id !== undefined && id !== null) {
                   controller.enqueue({

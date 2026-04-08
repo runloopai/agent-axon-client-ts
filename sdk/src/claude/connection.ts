@@ -365,6 +365,7 @@ export class ClaudeAxonConnection {
 
     (async () => {
       let reconnected = false;
+      let fatalError = false;
 
       const consumeStream = async (): Promise<"ended" | "error"> => {
         try {
@@ -375,6 +376,11 @@ export class ClaudeAxonConnection {
           return "ended";
         } catch (err) {
           this.log("readLoop", `error: ${err}`);
+          const errMsg = err instanceof Error ? err.message : String(err);
+          // if the requested agent binary isn't available, retrying won't help.
+          if (errMsg.includes("agent failed") || errMsg.includes("not found")) {
+            fatalError = true;
+          }
           for (const [, pending] of this.pendingControlRequests) {
             pending.reject(err instanceof Error ? err : new Error(String(err)));
           }
@@ -385,7 +391,7 @@ export class ClaudeAxonConnection {
 
       const outcome = await consumeStream();
 
-      if (!this.closed && !this.streamAborted && !reconnected) {
+      if (!this.closed && !this.streamAborted && !reconnected && !fatalError) {
         const label = outcome === "error" ? "error" : "ended unexpectedly";
         console.warn(`[ClaudeAxonConnection] SSE stream ${label}, reconnecting...`);
         reconnected = true;
