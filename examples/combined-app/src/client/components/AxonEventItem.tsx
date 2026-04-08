@@ -183,6 +183,13 @@ function PayloadTree({ data, depth = 0 }: { data: unknown; depth?: number }) {
   return <span className="axon-val">{String(data)}</span>;
 }
 
+function buildFullEvent(event: AxonEventView): Record<string, unknown> {
+  const { payload, ...rest } = event;
+  let parsedPayload: unknown = payload;
+  try { parsedPayload = JSON.parse(payload); } catch { /* keep string */ }
+  return { ...rest, payload: parsedPayload };
+}
+
 export function AxonEventItem({
   event, expanded, onToggle, onCopy,
 }: {
@@ -193,16 +200,16 @@ export function AxonEventItem({
 }) {
   const summary = summarizeAxonEvent(event);
   const [showRaw, setShowRaw] = useState(false);
+  const [viewMode, setViewMode] = useState<"payload" | "event">("payload");
 
   let parsedPayload: unknown = event.payload;
   try { parsedPayload = JSON.parse(event.payload); } catch { /* keep string */ }
 
-  let prettyPayload: string;
-  try {
-    prettyPayload = JSON.stringify(JSON.parse(event.payload), null, 2);
-  } catch {
-    prettyPayload = event.payload;
-  }
+  const fullEvent = buildFullEvent(event);
+
+  const rawJson = viewMode === "event"
+    ? JSON.stringify(fullEvent, null, 2)
+    : (() => { try { return JSON.stringify(JSON.parse(event.payload), null, 2); } catch { return event.payload; } })();
 
   return (
     <div className={`event-item ${summary.colorClass} ${expanded ? "event-item-expanded" : ""}`} onClick={onToggle}>
@@ -221,23 +228,39 @@ export function AxonEventItem({
 
       {expanded && (
         <div className="axon-event-detail" onClick={(e) => e.stopPropagation()}>
+          <div className="axon-view-toggle">
+            <button
+              className={`axon-view-toggle-btn ${viewMode === "payload" ? "active" : ""}`}
+              onClick={() => setViewMode("payload")}
+            >
+              Payload
+            </button>
+            <button
+              className={`axon-view-toggle-btn ${viewMode === "event" ? "active" : ""}`}
+              onClick={() => setViewMode("event")}
+            >
+              Event
+            </button>
+          </div>
+
           <div className="axon-detail-section">
-            <div className="axon-detail-header">Payload</div>
             <div className="axon-payload-tree">
-              <PayloadTree data={parsedPayload} />
+              <PayloadTree data={viewMode === "payload" ? parsedPayload : fullEvent} />
             </div>
           </div>
 
-          <div className="axon-detail-meta">
-            <div className="axon-detail-meta-item">
-              <span className="axon-detail-meta-key">axon_id</span>
-              <span className="axon-detail-meta-val">{event.axon_id}</span>
+          {viewMode === "payload" && (
+            <div className="axon-detail-meta">
+              <div className="axon-detail-meta-item">
+                <span className="axon-detail-meta-key">axon_id</span>
+                <span className="axon-detail-meta-val">{event.axon_id}</span>
+              </div>
+              <div className="axon-detail-meta-item">
+                <span className="axon-detail-meta-key">timestamp_ms</span>
+                <span className="axon-detail-meta-val">{event.timestamp_ms}</span>
+              </div>
             </div>
-            <div className="axon-detail-meta-item">
-              <span className="axon-detail-meta-key">timestamp_ms</span>
-              <span className="axon-detail-meta-val">{event.timestamp_ms}</span>
-            </div>
-          </div>
+          )}
 
           <div className="axon-detail-actions">
             <button
@@ -255,7 +278,7 @@ export function AxonEventItem({
           </div>
           {showRaw && (
             <div className="axon-event-raw">
-              <pre>{prettyPayload}</pre>
+              <pre>{rawJson}</pre>
             </div>
           )}
         </div>
