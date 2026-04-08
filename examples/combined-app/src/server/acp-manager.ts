@@ -125,44 +125,24 @@ export class ACPConnectionManager {
       stream,
     );
 
-    let initResp;
-    try {
-      initResp = await this.connection.initialize({
+    const initResp = await this.attempt("Failed to initialize agent", () =>
+      this.connection!.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientInfo: { name: "combined-app", version: "0.1.0" },
         clientCapabilities: CLIENT_CAPABILITIES,
-      });
-    } catch (err) {
-      await this.shutdown();
-      const message =
-        err instanceof Error
-          ? err.message
-          : typeof err === "object" && err !== null && "message" in err
-            ? String((err as { message: unknown }).message)
-            : String(err);
-      throw new Error(`Failed to initialize agent: ${message}`);
-    }
+      }),
+    );
 
     const initData = initResp as Record<string, unknown>;
     this.authMethods = (initData.authMethods as unknown[]) ?? null;
 
     this.ws.broadcast({ type: "connection_progress", step: "Starting session..." });
-    let sessionResp;
-    try {
-      sessionResp = await this.connection.newSession({
+    const sessionResp = await this.attempt("Failed to create session", () =>
+      this.connection!.newSession({
         cwd: "/home/user",
         mcpServers: [],
-      });
-    } catch (err) {
-      await this.shutdown();
-      const message =
-        err instanceof Error
-          ? err.message
-          : typeof err === "object" && err !== null && "message" in err
-            ? String((err as { message: unknown }).message)
-            : String(err);
-      throw new Error(`Failed to create session: ${message}`);
-    }
+      }),
+    );
     this.activeSessionId = sessionResp.sessionId;
 
     const sessionRaw = sessionResp as Record<string, unknown>;
@@ -201,6 +181,22 @@ export class ACPConnectionManager {
   requireClient(): NodeACPClient {
     if (!this.nodeClient) throw new Error("Not connected");
     return this.nodeClient;
+  }
+
+  private extractMessage(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    if (typeof err === "object" && err !== null && "message" in err)
+      return String((err as { message: unknown }).message);
+    return String(err);
+  }
+
+  private async attempt<T>(label: string, fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err) {
+      await this.shutdown();
+      throw new Error(`${label}: ${this.extractMessage(err)}`);
+    }
   }
 
   async shutdown(): Promise<void> {
