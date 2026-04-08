@@ -35,7 +35,7 @@ export interface UseClaudeAgentReturn {
   autoApprovePermissions: boolean;
   axonEvents: AxonEventView[];
   pendingControlRequest: PendingControlRequest | null;
-  start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => Promise<void>;
+  start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; autoApprovePermissions?: boolean }) => Promise<void>;
   sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
   cancel: () => Promise<void>;
   setModel: (model: string) => Promise<void>;
@@ -569,10 +569,13 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     };
   }, []);
 
-  const start = useCallback(async (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string }) => {
+  const start = useCallback(async (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; autoApprovePermissions?: boolean }) => {
     try {
       setError(null);
       setConnectionPhase("connecting");
+      if (config.autoApprovePermissions !== undefined) {
+        setAutoApprovePermissionsState(config.autoApprovePermissions);
+      }
       connectWs();
 
       const resp = await api<{

@@ -13,6 +13,7 @@ export interface ACPStartOptions {
   launchArgs?: string[];
   launchCommands?: string[];
   systemPrompt?: string;
+  autoApprovePermissions?: boolean;
 }
 
 const CLIENT_CAPABILITIES = {
@@ -117,6 +118,7 @@ export class ACPConnectionManager {
     });
 
     const client = new NodeACPClient();
+    client.autoApprovePermissions = opts.autoApprovePermissions !== false;
     this.nodeClient = client;
     client.onEvent((event) => this.ws.broadcast(event));
 

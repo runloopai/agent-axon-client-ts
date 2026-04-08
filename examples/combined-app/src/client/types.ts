@@ -423,6 +423,7 @@ export interface ClaudeStartConfig {
   launchCommands?: string[];
   systemPrompt?: string;
   model?: string;
+  autoApprovePermissions?: boolean;
 }
 
 export interface ACPStartConfig {
@@ -430,6 +431,7 @@ export interface ACPStartConfig {
   launchArgs?: string[];
   launchCommands?: string[];
   systemPrompt?: string;
+  autoApprovePermissions?: boolean;
 }
 
 export type StartConfig =

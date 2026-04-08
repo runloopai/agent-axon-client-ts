@@ -9,6 +9,7 @@ export function SetupCard({
   systemPrompt, setSystemPrompt,
   blueprintName, setBlueprintName,
   model, setModel,
+  autoApprovePermissions, setAutoApprovePermissions,
   onStart,
   connectionPhase,
   connectionStatus,
@@ -21,6 +22,7 @@ export function SetupCard({
   systemPrompt: string; setSystemPrompt: (v: string) => void;
   blueprintName: string; setBlueprintName: (v: string) => void;
   model: string; setModel: (v: string) => void;
+  autoApprovePermissions: boolean; setAutoApprovePermissions: (v: boolean) => void;
   onStart: () => void;
   connectionPhase: ConnectionPhase;
   connectionStatus: string | null;
@@ -125,6 +127,15 @@ export function SetupCard({
           <div className="form-hint">Custom instructions prepended to every conversation.</div>
           <textarea className="setup-textarea" value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} placeholder="You are a senior engineer..." disabled={connecting} rows={3} />
         </div>
+        <label className="config-toggle">
+          <input
+            type="checkbox"
+            checked={autoApprovePermissions}
+            onChange={(e) => setAutoApprovePermissions(e.target.checked)}
+            disabled={connecting}
+          />
+          <span className="config-toggle-label">Auto-approve permissions</span>
+        </label>
       </div>
 
       <button className="btn btn-primary" onClick={onStart} disabled={connecting}>
