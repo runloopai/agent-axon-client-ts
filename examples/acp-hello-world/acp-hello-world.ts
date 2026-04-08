@@ -62,12 +62,32 @@ console.log(`Devbox ready: ${agent.devboxId}`);
 // Initialize + create session
 // ---------------------------------------------------------------------------
 
-await agent.initialize({
-  protocolVersion: PROTOCOL_VERSION,
-  clientInfo: { name: "acp-hello-world", version: "0.1.0" },
+// Log SYSTEM_EVENTs so broker errors (e.g. agent binary not found) are visible
+agent.onAxonEvent((ev) => {
+  if (ev.origin === "SYSTEM_EVENT") {
+    console.error(`[system] ${ev.event_type}: ${ev.payload}`);
+  }
 });
 
-const session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
+try {
+  await agent.initialize({
+    protocolVersion: PROTOCOL_VERSION,
+    clientInfo: { name: "acp-hello-world", version: "0.1.0" },
+  });
+} catch (err) {
+  console.error("Failed to initialize agent:", err);
+  await agent.disconnect();
+  process.exit(1);
+}
+
+let session;
+try {
+  session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
+} catch (err) {
+  console.error("Failed to create session:", err);
+  await agent.disconnect();
+  process.exit(1);
+}
 console.log(`Session ready: ${session.sessionId}\n`);
 
 // ---------------------------------------------------------------------------
