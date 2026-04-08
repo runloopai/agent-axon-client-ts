@@ -63,7 +63,8 @@ async function runReadLoop(conn: ClaudeAxonConnection): Promise<void> {
 
 app.post("/api/start", async (req, res) => {
   try {
-    const { blueprintName, launchCommands, systemPrompt, model } = req.body;
+    const { blueprintName, launchCommands, systemPrompt, model, autoApprovePermissions: initialAutoApprove } = req.body;
+    autoApprovePermissions = initialAutoApprove !== false;
 
     const apiKey = process.env.RUNLOOP_API_KEY;
     const baseUrl = process.env.RUNLOOP_BASE_URL;
