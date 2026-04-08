@@ -7,6 +7,7 @@ import {
 import { axonStream, type AxonEventView } from "@runloop/agent-axon-client/acp";
 import { NodeACPClient } from "./acp-client.ts";
 import type { WsBroadcaster } from "./ws.ts";
+import { BadRequestError, UnauthorizedError } from "@runloop/agent-axon-client/shared";
 
 export interface StartOptions {
   agentBinary?: string;
@@ -20,14 +21,6 @@ const CLIENT_CAPABILITIES = {
   terminal: true,
   elicitation: { form: {} },
 } as const;
-
-export class HttpError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
 
 export class ConnectionManager {
   connection: ClientSideConnection | null = null;
@@ -49,7 +42,7 @@ export class ConnectionManager {
     const baseUrl = process.env.RUNLOOP_BASE_URL;
 
     if (!apiKey) {
-      throw new HttpError(500, "RUNLOOP_API_KEY not set in server .env");
+      throw new UnauthorizedError("RUNLOOP_API_KEY not set in server .env");
     }
 
     const sdk = new RunloopSDK({
@@ -164,7 +157,7 @@ export class ConnectionManager {
           : typeof err === "object" && err !== null && "message" in err
             ? String((err as { message: unknown }).message)
             : String(err);
-      throw new HttpError(400, `Failed to initialize agent: ${message}`);
+      throw new BadRequestError(`Failed to initialize agent: ${message}`);
     }
 
     const initData = initResp as Record<string, unknown>;
@@ -189,7 +182,7 @@ export class ConnectionManager {
           : typeof err === "object" && err !== null && "message" in err
             ? String((err as { message: unknown }).message)
             : String(err);
-      throw new HttpError(400, `Failed to create session: ${message}`);
+      throw new BadRequestError(`Failed to create session: ${message}`);
     }
     this.activeSessionId = sessionResp.sessionId;
 
@@ -216,18 +209,18 @@ export class ConnectionManager {
   }
 
   requireConnection(): ClientSideConnection {
-    if (!this.connection) throw new HttpError(400, "Not connected");
+    if (!this.connection) throw new BadRequestError("Not connected");
     return this.connection;
   }
 
   requireSession(): { connection: ClientSideConnection; sessionId: string } {
     const connection = this.requireConnection();
-    if (!this.activeSessionId) throw new HttpError(400, "No active session");
+    if (!this.activeSessionId) throw new BadRequestError("No active session");
     return { connection, sessionId: this.activeSessionId };
   }
 
   requireClient(): NodeACPClient {
-    if (!this.nodeClient) throw new HttpError(400, "Not connected");
+    if (!this.nodeClient) throw new BadRequestError("Not connected");
     return this.nodeClient;
   }
 
