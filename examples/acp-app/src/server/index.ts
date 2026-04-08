@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from "express";
 import { createServer } from "node:http";
 import { ConnectionManager } from "./connection-manager.ts";
-import { HttpError } from "@runloop/agent-axon-client/shared";
+import { HttpError } from "./http-errors.ts";
 import { WsBroadcaster } from "./ws.ts";
 
 const app = express();

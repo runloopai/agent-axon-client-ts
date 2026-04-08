@@ -1,8 +1,8 @@
 export abstract class HttpError extends Error {
   abstract readonly status: number;
 
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = new.target.name;
   }
 }

@@ -10,7 +10,7 @@
  * @module
  */
 
-export { BadRequestError, HttpError, UnauthorizedError } from "./errors/http-errors.js";
+export { InitializationError } from "./errors/initialization-error.js";
 export {
   isSystemError,
   SYSTEM_ERROR_EVENT_TYPE,

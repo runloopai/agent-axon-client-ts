@@ -37,4 +37,8 @@ describe("root exports", () => {
   it("shared namespace contains ListenerSet", () => {
     expect(SDK.shared.ListenerSet).toBeDefined();
   });
+
+  it("shared namespace contains InitializationError", () => {
+    expect(SDK.shared.InitializationError).toBeDefined();
+  });
 });

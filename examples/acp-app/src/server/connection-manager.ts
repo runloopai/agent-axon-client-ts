@@ -5,9 +5,10 @@ import {
   type Agent,
 } from "@runloop/agent-axon-client/acp";
 import { axonStream, type AxonEventView } from "@runloop/agent-axon-client/acp";
+import { InitializationError } from "@runloop/agent-axon-client/shared";
 import { NodeACPClient } from "./acp-client.ts";
+import { BadRequestError, UnauthorizedError } from "./http-errors.ts";
 import type { WsBroadcaster } from "./ws.ts";
-import { BadRequestError, UnauthorizedError } from "@runloop/agent-axon-client/shared";
 
 export interface StartOptions {
   agentBinary?: string;
@@ -151,13 +152,11 @@ export class ConnectionManager {
       });
     } catch (err) {
       await this.shutdown();
-      const message =
-        err instanceof Error
-          ? err.message
-          : typeof err === "object" && err !== null && "message" in err
-            ? String((err as { message: unknown }).message)
-            : String(err);
-      throw new BadRequestError(`Failed to initialize agent: ${message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      throw new BadRequestError(
+        `Failed to initialize agent: ${message}`,
+        { cause: new InitializationError(message, { cause: err }) },
+      );
     }
 
     const initData = initResp as Record<string, unknown>;
@@ -176,13 +175,7 @@ export class ConnectionManager {
     } catch (err) {
       // issue shutdown and return the message right away (no need to wait for it to complete)
       this.shutdown().catch(() => {});
-      const message =
-        err instanceof Error
-          ? err.message
-          : typeof err === "object" && err !== null && "message" in err
-            ? String((err as { message: unknown }).message)
-            : String(err);
-      throw new BadRequestError(`Failed to create session: ${message}`);
+      throw err;
     }
     this.activeSessionId = sessionResp.sessionId;
 

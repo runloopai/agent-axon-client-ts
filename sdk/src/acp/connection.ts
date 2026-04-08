@@ -24,12 +24,16 @@ import {
   type SetSessionModeResponse,
 } from "@agentclientprotocol/sdk";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
+import { InitializationError } from "../shared/errors/initialization-error.js";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
 import type { AxonEventListener } from "../shared/types.js";
 import { axonStream } from "./axon-stream.js";
-import type { ACPAxonConnectionOptions, SessionUpdateListener } from "./types.js";
+import type {
+  ACPAxonConnectionOptions,
+  SessionUpdateListener,
+} from "./types.js";
 
 /**
  * High-level ACP connection backed by an Axon transport.
@@ -101,10 +105,13 @@ export class ACPAxonConnection {
     this.devboxId = devbox.id;
     this.abortController = new AbortController();
     this.log = makeLogger("acp-sdk", options?.verbose ?? false);
-    this.handleError = options?.onError ?? makeDefaultOnError("ACPAxonConnection");
+    this.handleError =
+      options?.onError ?? makeDefaultOnError("ACPAxonConnection");
     this.handlePermission = options?.requestPermission;
     this.disconnectFn = options?.onDisconnect;
-    this.axonEventListeners = new ListenerSet<AxonEventListener>(this.handleError);
+    this.axonEventListeners = new ListenerSet<AxonEventListener>(
+      this.handleError,
+    );
 
     const verbose = options?.verbose ?? false;
     const stream = axonStream({
@@ -115,7 +122,10 @@ export class ACPAxonConnection {
       log: verbose ? (tag, ...args) => this.log(tag, ...args) : undefined,
     });
 
-    this.protocol = new ClientSideConnection((_agent: Agent) => this.createClient(), stream);
+    this.protocol = new ClientSideConnection(
+      (_agent: Agent) => this.createClient(),
+      stream,
+    );
     this.log("constructor", `axon=${axon.id} devbox=${this.devboxId}`);
   }
 
@@ -135,10 +145,16 @@ export class ACPAxonConnection {
    *
    * @param params - Protocol version, client info, and capability negotiation fields.
    * @returns The agent's supported capabilities and protocol version.
+   * @throws {InitializationError} If the handshake fails (wraps the underlying cause).
    */
-  initialize(params: InitializeRequest): Promise<InitializeResponse> {
+  async initialize(params: InitializeRequest): Promise<InitializeResponse> {
     this.ensureConnected();
-    return this.protocol.initialize(params);
+    try {
+      return await this.protocol.initialize(params);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new InitializationError(message, { cause: err });
+    }
   }
 
   /**
@@ -217,7 +233,9 @@ export class ACPAxonConnection {
    * @param params - Session ID and the target mode.
    * @returns Confirmation of the mode change.
    */
-  setSessionMode(params: SetSessionModeRequest): Promise<SetSessionModeResponse> {
+  setSessionMode(
+    params: SetSessionModeRequest,
+  ): Promise<SetSessionModeResponse> {
     this.ensureConnected();
     return this.protocol.setSessionMode(params);
   }
@@ -242,7 +260,10 @@ export class ACPAxonConnection {
    * @param params - Arbitrary key-value payload for the request.
    * @returns The agent's response payload.
    */
-  extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  extMethod(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     this.ensureConnected();
     return this.protocol.extMethod(method, params);
   }
@@ -254,7 +275,10 @@ export class ACPAxonConnection {
    * @param method - The custom method name.
    * @param params - Arbitrary key-value payload for the notification.
    */
-  extNotification(method: string, params: Record<string, unknown>): Promise<void> {
+  extNotification(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<void> {
     this.ensureConnected();
     return this.protocol.extNotification(method, params);
   }
@@ -363,8 +387,12 @@ export class ACPAxonConnection {
         }
 
         const option =
-          params.options.find((o: { kind: string }) => o.kind === "allow_always") ??
-          params.options.find((o: { kind: string }) => o.kind === "allow_once") ??
+          params.options.find(
+            (o: { kind: string }) => o.kind === "allow_always",
+          ) ??
+          params.options.find(
+            (o: { kind: string }) => o.kind === "allow_once",
+          ) ??
           params.options[0];
 
         if (option) {

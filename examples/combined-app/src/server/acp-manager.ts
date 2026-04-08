@@ -5,7 +5,9 @@ import {
   type Agent,
 } from "@runloop/agent-axon-client/acp";
 import { axonStream, type AxonEventView } from "@runloop/agent-axon-client/acp";
+import { InitializationError } from "@runloop/agent-axon-client/shared";
 import { NodeACPClient } from "./acp-client.ts";
+import { BadRequestError } from "./http-errors.ts";
 import type { WsBroadcaster } from "./ws.ts";
 
 export interface ACPStartOptions {
@@ -145,8 +147,10 @@ export class ACPConnectionManager {
       });
     } catch (err) {
       await this.shutdown();
-      throw new Error(
-        `Failed to initialize agent: ${this.extractMessage(err)}`,
+      const message = this.extractMessage(err);
+      throw new BadRequestError(
+        `Failed to initialize agent: ${message}`,
+        { cause: new InitializationError(message, { cause: err }) },
       );
     }
 
