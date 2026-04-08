@@ -31,7 +31,7 @@ const NOTIFICATION_TYPES = new Set<string>([CLIENT_METHODS.session_update]);
  * @category Connection
  */
 export function axonStream(options: AxonStreamOptions): Stream {
-  const { axon, signal, onAxonEvent, log } = options;
+  const { axon, signal, onAxonEvent, log, afterSequence } = options;
   const onError = options.onError ?? makeDefaultOnError("axonStream");
 
   // Maps outbound JSON-RPC request method -> id so we can correlate
@@ -53,6 +53,7 @@ export function axonStream(options: AxonStreamOptions): Stream {
     () => nextAgentRequestId++,
     onError,
     log,
+    afterSequence,
   );
 
   const writable = createWritable(axon, pendingRequests, pendingClientRequests, onError, log);
@@ -80,6 +81,7 @@ export function axonStream(options: AxonStreamOptions): Stream {
  * @param nextId               - Factory that produces the next synthetic JSON-RPC ID for
  *   agent-to-client requests.
  * @param onError              - Error sink for unparseable payloads.
+ * @param initialAfterSequence - Optional sequence number to resume from on the first subscribe.
  * @returns A `ReadableStream` of JSON-RPC messages.
  */
 function createReadable(
@@ -91,12 +93,13 @@ function createReadable(
   nextId: () => number,
   onError: (error: unknown) => void,
   log: ((tag: string, ...args: unknown[]) => void) | undefined,
+  initialAfterSequence?: number,
 ): ReadableStream<AnyMessage> {
   return new ReadableStream<AnyMessage>({
     async start(controller) {
       let totalEvents = 0;
       let attempt = 0;
-      let lastSequence: number | undefined;
+      let lastSequence: number | undefined = initialAfterSequence;
 
       while (!signal?.aborted) {
         attempt++;

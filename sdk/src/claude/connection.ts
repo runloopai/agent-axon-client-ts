@@ -262,6 +262,7 @@ export class ClaudeAxonConnection {
     this.transport = new AxonTransport(axon, {
       verbose: this.options.verbose,
       onAxonEvent: (ev) => this.axonEventListeners.emit(ev),
+      afterSequence: this.options.afterSequence,
     });
   }
 

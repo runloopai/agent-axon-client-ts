@@ -113,6 +113,7 @@ export class ACPAxonConnection {
       onAxonEvent: (ev) => this.axonEventListeners.emit(ev),
       onError: this.handleError,
       log: verbose ? (tag, ...args) => this.log(tag, ...args) : undefined,
+      afterSequence: options?.afterSequence,
     });
 
     this.protocol = new ClientSideConnection((_agent: Agent) => this.createClient(), stream);

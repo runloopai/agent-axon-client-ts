@@ -83,6 +83,12 @@ export interface AxonTransportOptions {
   verbose?: boolean;
   /** Called for every Axon event (before origin filtering). */
   onAxonEvent?: (event: AxonEventView) => void;
+  /**
+   * Axon sequence number to resume from. When set, the initial SSE
+   * subscription starts **after** this sequence — earlier events are skipped.
+   * Omit to replay the full event history.
+   */
+  afterSequence?: number;
 }
 
 /**
@@ -122,6 +128,7 @@ export class AxonTransport implements Transport {
     this.axon = axon;
     this.log = makeLogger("axon-transport", options?.verbose ?? false);
     this.onAxonEvent = options?.onAxonEvent;
+    this.lastSequence = options?.afterSequence;
   }
 
   /**
@@ -130,7 +137,10 @@ export class AxonTransport implements Transport {
    */
   async connect(): Promise<void> {
     this.log("connect", `axon=${this.axon.id}`);
-    this.sseStream = await this.axon.subscribeSse();
+    this.sseStream =
+      this.lastSequence != null
+        ? await this.axon.subscribeSse({ after_sequence: this.lastSequence })
+        : await this.axon.subscribeSse();
     this.connected = true;
     this.log("connect", "SSE connected");
   }

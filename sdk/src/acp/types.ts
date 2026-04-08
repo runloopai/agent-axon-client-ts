@@ -25,6 +25,12 @@ export interface AxonStreamOptions {
   onError?: (error: unknown) => void;
   /** Diagnostic log callback. When provided, the stream emits verbose logs. */
   log?: (tag: string, ...args: unknown[]) => void;
+  /**
+   * Axon sequence number to resume from. When set, the initial SSE
+   * subscription starts **after** this sequence — earlier events are skipped.
+   * Omit to replay the full event history.
+   */
+  afterSequence?: number;
 }
 
 /**

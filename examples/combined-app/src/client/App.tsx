@@ -8,10 +8,12 @@ import {
 import type { AgentType, AvailableCommand, AxonEventView, UserAttachment } from "./types.js";
 import { useAgent } from "./hooks/useAgent.js";
 import { useAgentList } from "./hooks/useAgentList.js";
+import { useAttachments } from "./hooks/useAttachments.js";
 import { SetupCard } from "./components/SetupCard.js";
 import { AgentSidebar } from "./components/AgentSidebar.js";
 import { ControlsBar } from "./components/ControlsBar.js";
 import { AssistantTurn } from "./components/AssistantTurn.js";
+import { AttachmentBar } from "./components/AttachmentBar.js";
 import { ElicitationForm } from "./components/ElicitationForm.js";
 import { PermissionDialog } from "./components/PermissionDialog.js";
 import { ControlRequestPrompt } from "./components/ControlRequestPrompt.js";
@@ -54,11 +56,13 @@ export default function App() {
   const activeAgentType = selectedEntry?.agentType ?? null;
 
   const agent = useAgent(selectedAgentId, activeAgentType);
+  const attach = useAttachments();
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
   const axonEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [agentBinary, setAgentBinary] = useState("opencode");
   const [launchArgs, setLaunchArgs] = useState("acp");
@@ -203,12 +207,15 @@ export default function App() {
   };
 
   const handleSend = async () => {
-    if (!inputText.trim()) return;
+    if (!attach.hasContent(inputText)) return;
     setShowCommandPicker(false);
     const text = inputText;
+    const content = attach.toContentPayload(text);
     setInputText("");
+    attach.clearAttachments();
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    await agent.sendMessage(text);
+    const hasAttachments = content.some((c) => c.type !== "text");
+    await agent.sendMessage(text, hasAttachments ? content : undefined);
   };
 
   const selectCommand = (cmd: AvailableCommand) => {
@@ -435,27 +442,62 @@ export default function App() {
                     onHover={setCommandPickerIndex}
                   />
                 )}
-                <div className="input-row">
+                <div className="input-composer">
+                  <AttachmentBar
+                    attachments={attach.attachments}
+                    onRemove={attach.removeAttachment}
+                  />
                   <textarea
                     ref={textareaRef}
                     value={inputText}
                     onChange={handleTextareaInput}
                     onKeyDown={handleKeyDown}
-                    placeholder="Send a message..."
+                    onPaste={attach.handlePaste}
+                    placeholder="Send a message, paste images, or drop files"
                     rows={1}
                     disabled={agent.connectionPhase !== "ready" || agent.isAgentTurn || agent.isSendingPrompt}
                   />
-                  {agent.isAgentTurn ? (
-                    <button className="btn btn-cancel" onClick={agent.cancel}>Cancel</button>
-                  ) : (
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    style={{ display: "none" }}
+                    accept="image/*,.txt,.md,.json,.csv,.xml,.yaml,.yml,.ts,.js,.py,.html,.css,.sh,.toml,.cfg,.log"
+                    onChange={(e) => {
+                      if (e.target.files) attach.addFiles(Array.from(e.target.files));
+                      e.target.value = "";
+                    }}
+                  />
+                  <div className="input-composer-actions">
                     <button
-                      className="btn-send"
-                      onClick={handleSend}
-                      disabled={!inputText.trim() || agent.connectionPhase !== "ready" || agent.isSendingPrompt}
+                      className="composer-btn composer-btn-attach"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={agent.connectionPhase !== "ready" || agent.isAgentTurn}
+                      title="Attach files"
                     >
-                      {agent.isSendingPrompt ? "Sending\u2026" : "Send"}
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 8.5l-5.5 5.5a3.5 3.5 0 01-5-5l6.5-6.5a2.5 2.5 0 013.5 3.5L7 12.5a1.5 1.5 0 01-2-2L10.5 5" />
+                      </svg>
                     </button>
-                  )}
+                    {agent.isAgentTurn ? (
+                      <button className="composer-btn composer-btn-cancel" onClick={agent.cancel} title="Cancel">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <rect x="3" y="3" width="10" height="10" rx="2" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <button
+                        className="composer-btn composer-btn-send"
+                        onClick={handleSend}
+                        disabled={!attach.hasContent(inputText) || agent.connectionPhase !== "ready" || agent.isSendingPrompt}
+                        title={agent.isSendingPrompt ? "Sending…" : "Send message"}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M3 8l5-5v3.5h5v3H8V13L3 8z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

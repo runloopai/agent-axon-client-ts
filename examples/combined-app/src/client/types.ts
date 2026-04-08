@@ -2,6 +2,17 @@ export type AgentType = "claude" | "acp";
 
 export type ConnectionPhase = "idle" | "connecting" | "ready" | "error";
 
+// --- Attachment types ---
+
+export type Attachment =
+  | { type: "image"; data: string; mimeType: string; name: string; preview: string }
+  | { type: "file"; name: string; text: string; mimeType: string };
+
+export type AttachmentContentItem =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string }
+  | { type: "file"; name: string; text: string; mimeType: string };
+
 // --- Tool call types ---
 
 export type ToolKind =
