@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { SYSTEM_EVENT_ORIGIN } from "../shared/errors/system-error.js";
 
 export interface MockAxonEvent {
   event_type: string;
@@ -41,7 +42,7 @@ export function makeSystemEvent(
   return {
     event_type: eventType,
     payload,
-    origin: "SYSTEM_EVENT",
+    origin: SYSTEM_EVENT_ORIGIN,
     ...(sequence != null ? { sequence } : {}),
   };
 }

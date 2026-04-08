@@ -11,6 +11,7 @@
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
 import type { Stream } from "@runloop/api-client/streaming";
+import { isSystemError, SystemError } from "../shared/errors/system-error.js";
 import { makeLogger } from "../shared/logging.js";
 import type { WireData } from "./types.js";
 
@@ -194,11 +195,9 @@ export class AxonTransport implements Transport {
 
       this.onAxonEvent?.(event);
 
-      // Handle broker errors: throw so the read loop exits and initialize() rejects
-      // this can happen if the agent binary is not found, etc.
-      if (event.origin === "SYSTEM_EVENT" && event.event_type === "broker.error") {
-        this.log("read", `#${eventCount} BROKER_ERROR: ${event.payload}`);
-        throw new Error(event.payload);
+      if (isSystemError(event)) {
+        this.log("read", `#${eventCount} SYSTEM_ERROR: ${event.payload}`);
+        throw new SystemError(event.payload);
       }
 
       if (event.origin === "AGENT_EVENT") {

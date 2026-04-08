@@ -2,6 +2,7 @@ import type { AnyMessage, Stream } from "@agentclientprotocol/sdk";
 import { CLIENT_METHODS } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
+import { isSystemError, SystemError } from "../shared/errors/system-error.js";
 import { makeDefaultOnError } from "../shared/logging.js";
 import type { AxonStreamOptions } from "./types.js";
 
@@ -115,12 +116,10 @@ function createReadable(
 
             onAxonEvent?.(axonEvent);
 
-            // Handle broker errors: fail all pending requests so they reject immediately.
-            // If no requests are pending (rare race), error the stream so callers still see the failure.
-            if (axonEvent.origin === "SYSTEM_EVENT" && axonEvent.event_type === "broker.error") {
-              log?.("read", `#${totalEvents} BROKER_ERROR: ${axonEvent.payload}`);
+            if (isSystemError(axonEvent)) {
+              log?.("read", `#${totalEvents} SYSTEM_ERROR: ${axonEvent.payload}`);
               if (pendingRequests.size === 0) {
-                controller.error(new Error(axonEvent.payload));
+                controller.error(new SystemError(axonEvent.payload));
                 return;
               }
               for (const [method, id] of pendingRequests) {

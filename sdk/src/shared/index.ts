@@ -10,7 +10,13 @@
  * @module
  */
 
-export { BadRequestError, HttpError, UnauthorizedError } from "./http-errors.js";
+export {
+  isSystemError,
+  SystemError,
+  SYSTEM_ERROR_EVENT_TYPE,
+  SYSTEM_EVENT_ORIGIN,
+} from "./errors/system-error.js";
+export { BadRequestError, HttpError, UnauthorizedError } from "./errors/http-errors.js";
 export { runDisconnectHook } from "./lifecycle.js";
 export { ListenerSet } from "./listener-set.js";
 export { makeDefaultOnError, makeLogger } from "./logging.js";
