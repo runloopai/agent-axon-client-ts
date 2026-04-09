@@ -83,7 +83,7 @@
     }
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.91",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.98",
     "@biomejs/biome": "^2.4.10",
     "@runloop/api-client": "^1.17.0",
     "@vitest/coverage-v8": "^4.1.2",
