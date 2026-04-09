@@ -505,10 +505,14 @@ export function classifyACPAxonEvent(ev: AxonEventView): ACPTimelineEvent {
 
   if (ACP_KNOWN_EVENT_TYPES.has(ev.event_type)) {
     let data: unknown = null;
-    try {
-      data = JSON.parse(ev.payload);
-    } catch {
-      // leave as null
+    if (typeof ev.payload === "string") {
+      try {
+        data = JSON.parse(ev.payload);
+      } catch {
+        // leave as null
+      }
+    } else if (ev.payload != null) {
+      data = ev.payload;
     }
     return { kind: "acp_protocol", data, axonEvent: ev };
   }

@@ -29,7 +29,9 @@ import type {
   AvailableCommand,
   SessionConfigOption,
   AgentInfo,
+  AgentCapabilities,
   ConnectionDetails,
+  ACPInitExtensions,
   SessionInfo,
   AxonEventView,
   ToolCallBlock,
@@ -528,6 +530,7 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
 
       if (data.type === "timeline_event") {
         const tlEvent = data.event as ACPTimelineEvent;
+
         const userMsg = extractACPUserMessage(tlEvent.data, tlEvent.axonEvent);
         if (userMsg) {
           flushBlocksToMessages(lastStopReasonRef.current);
@@ -540,7 +543,42 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
               content: userMsg.text,
             },
           ]);
+          return;
         }
+
+        if (tlEvent.axonEvent.event_type === "initialize" && tlEvent.axonEvent.origin === "AGENT_EVENT") {
+          const payload = tlEvent.data as Record<string, unknown>;
+          const info = (payload.agentInfo as Record<string, unknown>) ?? null;
+          const caps = (payload.agentCapabilities as AgentCapabilities) ?? null;
+          const protoVer = (payload.protocolVersion as number) ?? null;
+          const authMeta = (payload.authMethods as unknown[]) ?? [];
+
+          setAgentInfo(info as AgentInfo | null);
+          setConnectionDetails({ protocolVersion: protoVer, agentCapabilities: caps, clientCapabilities: null, sessionMeta: null });
+          setAuthMethods(authMeta as AuthMethod[]);
+
+          pushBlock({
+            type: "system_init",
+            id: nextBlockId("init"),
+            agentName: (info?.name as string) ?? null,
+            agentVersion: (info?.version as string) ?? null,
+            model: null,
+            commands: [],
+            extensions: {
+              protocol: "acp",
+              protocolVersion: protoVer,
+              modes: [],
+              models: [],
+              configOptions: [],
+              agentCapabilities: caps,
+              clientCapabilities: null,
+              authMethods: authMeta,
+            } satisfies ACPInitExtensions,
+            extra: payload,
+          });
+          return;
+        }
+
         return;
       }
 

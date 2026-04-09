@@ -12,8 +12,10 @@ import type { SystemEvent } from "./types.js";
  * @category Timeline
  */
 export function parseTimelinePayload<T = unknown>(event: { axonEvent: AxonEventView }): T | null {
+  const raw = event.axonEvent.payload;
+  if (typeof raw !== "string") return (raw as T) ?? null;
   try {
-    return JSON.parse(event.axonEvent.payload) as T;
+    return JSON.parse(raw) as T;
   } catch {
     return null;
   }
@@ -29,7 +31,9 @@ export function parseTimelinePayload<T = unknown>(event: { axonEvent: AxonEventV
 export function tryParseSystemEvent(ev: AxonEventView): SystemEvent | null {
   if (ev.event_type === "turn.started" || ev.event_type === "turn.completed") {
     try {
-      const parsed = JSON.parse(ev.payload) as Record<string, unknown>;
+      const parsed = (
+        typeof ev.payload === "string" ? JSON.parse(ev.payload) : ev.payload
+      ) as Record<string, unknown>;
       const turnId = (parsed.turn_id as string) ?? "";
       if (ev.event_type === "turn.started") {
         return { type: "turn.started", turnId };

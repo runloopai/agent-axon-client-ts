@@ -26,20 +26,6 @@ describe("extractACPUserMessage", () => {
     expect(result).toEqual({ text: "hello world", sequence: 1 });
   });
 
-  it("extracts text from JSON-RPC envelope payload", () => {
-    const data = {
-      jsonrpc: "2.0",
-      method: "session/prompt",
-      params: {
-        sessionId: "ses_123",
-        prompt: [{ type: "text", text: "hello envelope" }],
-      },
-    };
-    const ev = makeAxonEvent();
-    const result = extractACPUserMessage(data, ev);
-    expect(result).toEqual({ text: "hello envelope", sequence: 1 });
-  });
-
   it("concatenates multiple text blocks", () => {
     const data = {
       prompt: [

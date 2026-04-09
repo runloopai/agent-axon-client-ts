@@ -78,8 +78,8 @@ export function extractClaudeUserMessage(
  * a user-sent prompt (`session/prompt` with `origin: "USER_EVENT"`).
  * Returns `null` for all other events.
  *
- * Handles the JSON-RPC envelope structure where the prompt content blocks
- * live at `data.params.prompt`.
+ * Expects the parsed payload produced by {@link classifyACPAxonEvent},
+ * where `data` is the params-level object (`{ prompt, sessionId }`).
  *
  * @category Timeline
  */
@@ -93,10 +93,7 @@ export function extractACPUserMessage(
   if (data == null || typeof data !== "object") return null;
 
   const obj = data as Record<string, unknown>;
-  // The payload may be the params directly ({ prompt, sessionId }) or
-  // a full JSON-RPC envelope ({ params: { prompt, sessionId } }).
-  const params = (obj.params as Record<string, unknown> | undefined) ?? obj;
-  const prompt = params.prompt;
+  const prompt = obj.prompt;
 
   if (!Array.isArray(prompt)) return null;
 

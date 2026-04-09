@@ -1006,10 +1006,14 @@ export function classifyClaudeAxonEvent(ev: AxonEventView): ClaudeTimelineEvent 
 
   if (CLAUDE_KNOWN_EVENT_TYPES.has(ev.event_type)) {
     let data: SDKMessage | null = null;
-    try {
-      data = JSON.parse(ev.payload) as SDKMessage;
-    } catch {
-      // leave as null
+    if (typeof ev.payload === "string") {
+      try {
+        data = JSON.parse(ev.payload) as SDKMessage;
+      } catch {
+        // leave as null
+      }
+    } else if (ev.payload != null && typeof ev.payload === "object") {
+      data = ev.payload as SDKMessage;
     }
     if (data && typeof data === "object" && "type" in data) {
       return { kind: "claude_protocol", data, axonEvent: ev };
