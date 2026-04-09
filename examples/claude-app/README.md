@@ -4,6 +4,8 @@
 
 A full-stack demo app for chatting with Claude Code running in a Runloop devbox. An Express backend manages the Claude connection and streams SDK messages to a React frontend over WebSocket.
 
+See how to work with agents in a multi-turn example that demonstrates how to create workflows with humans in the loop using permission-prompts and axons.
+
 ## Prerequisites
 
 - Node.js 22+
@@ -59,23 +61,23 @@ npm run dev        # serves the built client from dist/
 
 ## Server API
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/connect` | Provision Axon + Devbox, connect Claude. Body: `{ model? }`. Returns `{ axonId, devboxId }`. |
-| `POST` | `/api/prompt` | Send a prompt. Body: `{ text }`. Returns `{ ok: true }` immediately. |
-| `POST` | `/api/interrupt` | Interrupt the current turn. |
-| `POST` | `/api/disconnect` | Disconnect and shut down the devbox. |
-| `GET`  | `/api/status` | Connection status and init message. |
+| Method | Path              | Description                                                                                  |
+| ------ | ----------------- | -------------------------------------------------------------------------------------------- |
+| `POST` | `/api/connect`    | Provision Axon + Devbox, connect Claude. Body: `{ model? }`. Returns `{ axonId, devboxId }`. |
+| `POST` | `/api/prompt`     | Send a prompt. Body: `{ text }`. Returns `{ ok: true }` immediately.                         |
+| `POST` | `/api/interrupt`  | Interrupt the current turn.                                                                  |
+| `POST` | `/api/disconnect` | Disconnect and shut down the devbox.                                                         |
+| `GET`  | `/api/status`     | Connection status and init message.                                                          |
 
 ## WebSocket Events
 
 All messages are JSON with a `type` field, pushed to clients at `/ws`.
 
-| Type | Description |
-|------|-------------|
-| `sdk_message` | Raw `SDKMessage` from `@anthropic-ai/claude-agent-sdk` |
-| `turn_complete` | Emitted when a `result` message arrives |
-| `turn_error` | Emitted when an error occurs during a turn |
+| Type            | Description                                            |
+| --------------- | ------------------------------------------------------ |
+| `sdk_message`   | Raw `SDKMessage` from `@anthropic-ai/claude-agent-sdk` |
+| `turn_complete` | Emitted when a `result` message arrives                |
+| `turn_error`    | Emitted when an error occurs during a turn             |
 
 ## Project Structure
 

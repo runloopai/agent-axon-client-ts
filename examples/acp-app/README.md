@@ -4,6 +4,14 @@
 
 A full-stack demo app for interacting with ACP agents running in Runloop devboxes. The UI is modeled after Cursor's chat interface — streaming thinking blocks, inline tool calls with diffs and terminal output, markdown-rendered responses, and a plan view.
 
+This example showcases key features when working with axons:
+
+- authentication
+- permissions management
+- session switching
+- mixed media and multimodal operations
+- lifecycle operations, including cancelation and config option changes
+
 ## Prerequisites
 
 - Node.js 22+ (uses `--experimental-strip-types` and `--env-file`)
@@ -136,18 +144,18 @@ Browser (React)           Node Server (Express)          Runloop Cloud
 
 All endpoints accept/return JSON.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/start` | Provision Axon + Devbox, initialize ACP, create session. Body: `{ agentBinary?, launchArgs?, launchCommands? }`. Returns `{ sessionId, devboxId, axonId, modes, configOptions }`. |
-| `POST` | `/api/prompt` | Send a prompt. Body: `{ text }`. Returns `{ ok: true }` immediately — turn results arrive over WebSocket. |
-| `POST` | `/api/cancel` | Cancel the current agent turn. |
-| `POST` | `/api/set-mode` | Switch agent mode. Body: `{ modeId }`. Valid modes: `implement`, `plan`, `ask`, `debug`. |
-| `POST` | `/api/set-config-option` | Update a config option. Body: `{ configId, value }`. |
-| `POST` | `/api/new-session` | Create a new session (reuses the existing connection). |
-| `POST` | `/api/switch-session` | Load a previous session. Body: `{ sessionId }`. |
-| `GET`  | `/api/sessions` | List all sessions. |
-| `GET`  | `/api/axon-events` | Get raw Axon event history (debugging). |
-| `POST` | `/api/shutdown` | Tear down the devbox and close the connection. |
+| Method | Path                     | Description                                                                                                                                                                       |
+| ------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST` | `/api/start`             | Provision Axon + Devbox, initialize ACP, create session. Body: `{ agentBinary?, launchArgs?, launchCommands? }`. Returns `{ sessionId, devboxId, axonId, modes, configOptions }`. |
+| `POST` | `/api/prompt`            | Send a prompt. Body: `{ text }`. Returns `{ ok: true }` immediately — turn results arrive over WebSocket.                                                                         |
+| `POST` | `/api/cancel`            | Cancel the current agent turn.                                                                                                                                                    |
+| `POST` | `/api/set-mode`          | Switch agent mode. Body: `{ modeId }`. Valid modes: `implement`, `plan`, `ask`, `debug`.                                                                                          |
+| `POST` | `/api/set-config-option` | Update a config option. Body: `{ configId, value }`.                                                                                                                              |
+| `POST` | `/api/new-session`       | Create a new session (reuses the existing connection).                                                                                                                            |
+| `POST` | `/api/switch-session`    | Load a previous session. Body: `{ sessionId }`.                                                                                                                                   |
+| `GET`  | `/api/sessions`          | List all sessions.                                                                                                                                                                |
+| `GET`  | `/api/axon-events`       | Get raw Axon event history (debugging).                                                                                                                                           |
+| `POST` | `/api/shutdown`          | Tear down the devbox and close the connection.                                                                                                                                    |
 
 ## WebSocket Events
 
@@ -155,41 +163,41 @@ The server pushes events to all connected clients at `/ws`. All messages are JSO
 
 ### Turn lifecycle
 
-| Type | When | Payload |
-|------|------|---------|
+| Type            | When                  | Payload                |
+| --------------- | --------------------- | ---------------------- |
 | `turn_complete` | Agent's turn finished | Prompt response fields |
-| `turn_error` | Agent's turn failed | `{ error: string }` |
+| `turn_error`    | Agent's turn failed   | `{ error: string }`    |
 
 ### ACP session updates
 
 Type `session_update` with a nested `update.sessionUpdate` discriminator:
 
-| `sessionUpdate` | Description |
-|-----------------|-------------|
-| `agent_thought_chunk` | Streaming thinking/reasoning text |
-| `agent_message_chunk` | Streaming response text |
-| `tool_call` | Agent invoked a tool (read, edit, execute, search, etc.) |
-| `tool_call_update` | Tool execution progress or completion |
-| `plan` | Agent's plan with entries |
-| `usage_update` | Token usage and cost |
-| `current_mode_update` | Mode changed |
-| `turn_start` / `turn_end` | Turn boundaries |
+| `sessionUpdate`           | Description                                              |
+| ------------------------- | -------------------------------------------------------- |
+| `agent_thought_chunk`     | Streaming thinking/reasoning text                        |
+| `agent_message_chunk`     | Streaming response text                                  |
+| `tool_call`               | Agent invoked a tool (read, edit, execute, search, etc.) |
+| `tool_call_update`        | Tool execution progress or completion                    |
+| `plan`                    | Agent's plan with entries                                |
+| `usage_update`            | Token usage and cost                                     |
+| `current_mode_update`     | Mode changed                                             |
+| `turn_start` / `turn_end` | Turn boundaries                                          |
 
 ### Agent callbacks
 
-| Type | Description |
-|------|-------------|
-| `file_read` | Agent read a file: `{ path, lines }` |
-| `file_write` | Agent wrote a file: `{ path, bytes }` |
-| `terminal_create` | Agent spawned a terminal: `{ terminalId, command }` |
-| `terminal_output` | Terminal output captured: `{ terminalId, output, exited }` |
-| `terminal_kill` / `terminal_release` | Terminal lifecycle |
-| `permission` | Permission auto-approved: `{ title, outcome }` |
+| Type                                 | Description                                                |
+| ------------------------------------ | ---------------------------------------------------------- |
+| `file_read`                          | Agent read a file: `{ path, lines }`                       |
+| `file_write`                         | Agent wrote a file: `{ path, bytes }`                      |
+| `terminal_create`                    | Agent spawned a terminal: `{ terminalId, command }`        |
+| `terminal_output`                    | Terminal output captured: `{ terminalId, output, exited }` |
+| `terminal_kill` / `terminal_release` | Terminal lifecycle                                         |
+| `permission`                         | Permission auto-approved: `{ title, outcome }`             |
 
 ### Raw Axon events
 
-| Type | Description |
-|------|-------------|
+| Type         | Description                                     |
+| ------------ | ----------------------------------------------- |
 | `axon_event` | Every raw Axon event (for debugging/inspection) |
 
 ## UI Features
