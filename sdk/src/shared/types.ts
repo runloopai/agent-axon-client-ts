@@ -19,7 +19,8 @@ import type { AxonEventView } from "@runloop/api-client/resources/axons";
  */
 export type SystemEvent =
   | { type: "turn.started"; turnId: string }
-  | { type: "turn.completed"; turnId: string; stopReason?: string };
+  | { type: "turn.completed"; turnId: string; stopReason?: string }
+  | { type: "broker.error"; message: string };
 
 /**
  * A timeline event carrying a recognized broker system event.
@@ -36,8 +37,8 @@ export interface SystemTimelineEvent {
  * `axonEvent.origin` and `axonEvent.event_type` to decide how to handle it.
  * @category Timeline
  */
-export interface UnrecognizedTimelineEvent {
-  kind: "unrecognized";
+export interface UnknownTimelineEvent {
+  kind: "unknown";
   data: null;
   axonEvent: AxonEventView;
 }

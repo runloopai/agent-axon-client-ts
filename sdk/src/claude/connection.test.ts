@@ -938,16 +938,8 @@ describe("ClaudeAxonConnection", () => {
       transport._end();
 
       await vi.waitFor(() => {
-        expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining("SSE stream ended unexpectedly"),
-        );
+        expect(transport.reconnect).toHaveBeenCalledOnce();
       });
-
-      await vi.waitFor(() => {
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
-      });
-
-      expect(transport.reconnect).toHaveBeenCalledOnce();
 
       const initCalls = transport._written.filter((w) => {
         const p = JSON.parse(w);
@@ -984,7 +976,7 @@ describe("ClaudeAxonConnection", () => {
       transport._end();
 
       await vi.waitFor(() => {
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
+        expect(transport.reconnect).toHaveBeenCalledOnce();
       });
 
       transport._push({ type: "assistant", content: "after-reconnect" });
@@ -1122,7 +1114,9 @@ describe("ClaudeAxonConnection", () => {
       expect(events[0].kind).toBe("system");
       if (events[0].kind === "system") {
         expect(events[0].data.type).toBe("turn.started");
-        expect(events[0].data.turnId).toBe("t-42");
+        if (events[0].data.type === "turn.started") {
+          expect(events[0].data.turnId).toBe("t-42");
+        }
       }
     });
 
@@ -1148,7 +1142,7 @@ describe("ClaudeAxonConnection", () => {
       }
     });
 
-    it("classifies unknown EXTERNAL_EVENT as unrecognized", async () => {
+    it("classifies unknown EXTERNAL_EVENT as unknown", async () => {
       const conn = await createConnectedClient(transport);
 
       const events: ClaudeTimelineEvent[] = [];
@@ -1161,7 +1155,7 @@ describe("ClaudeAxonConnection", () => {
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0].kind).toBe("unrecognized");
+      expect(events[0].kind).toBe("unknown");
       expect(events[0].data).toBeNull();
     });
 

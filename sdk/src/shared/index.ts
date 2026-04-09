@@ -24,9 +24,11 @@ export type {
   SystemEvent,
   SystemTimelineEvent,
   TimelineEventListener,
-  UnrecognizedTimelineEvent,
+  UnknownTimelineEvent,
 } from "./types.js";
 export {
+  type ExtractedACPUserMessage,
+  type ExtractedClaudeUserMessage,
   type ExtractedUserMessage,
   extractACPUserMessage,
   extractClaudeUserMessage,

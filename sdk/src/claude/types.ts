@@ -4,7 +4,7 @@
 
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
-import type { SystemTimelineEvent, UnrecognizedTimelineEvent } from "../shared/types.js";
+import type { SystemTimelineEvent, UnknownTimelineEvent } from "../shared/types.js";
 
 /**
  * Raw JSON data from the transport layer.
@@ -40,4 +40,4 @@ export interface ClaudeProtocolTimelineEvent {
 export type ClaudeTimelineEvent =
   | ClaudeProtocolTimelineEvent
   | SystemTimelineEvent
-  | UnrecognizedTimelineEvent;
+  | UnknownTimelineEvent;

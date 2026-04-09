@@ -414,7 +414,7 @@ export class ClaudeAxonConnection {
    * Every Axon event on the channel is classified into one of:
    * - `claude_protocol` — a known Claude protocol event (user or agent message)
    * - `system` — a broker system event (`turn.started`, `turn.completed`)
-   * - `unrecognized` — anything else
+   * - `unknown` — anything else
    *
    * @param listener - Callback invoked with each {@link ClaudeTimelineEvent}.
    * @returns An unsubscribe function that removes the listener.
@@ -477,11 +477,11 @@ export class ClaudeAxonConnection {
 
       if (!this.closed && !this.streamAborted && !reconnected) {
         const label = outcome === "error" ? "error" : "ended unexpectedly";
-        console.warn(`[ClaudeAxonConnection] SSE stream ${label}, reconnecting...`);
+        this.log("readLoop", `SSE stream ${label}, reconnecting...`);
         reconnected = true;
         try {
           await this.transport.reconnect();
-          console.warn("[ClaudeAxonConnection] Reconnected successfully");
+          this.log("readLoop", "reconnected successfully");
           await consumeStream();
         } catch (reconnectErr) {
           this.log("readLoop", `reconnect failed: ${reconnectErr}`);
@@ -950,11 +950,19 @@ export class ClaudeAxonConnection {
 // Timeline event classification
 // ---------------------------------------------------------------------------
 
-/** All known Claude protocol event_type strings for O(1) lookup. */
 const CLAUDE_KNOWN_EVENT_TYPES: Set<string> = new Set([
   ...Object.keys(MESSAGE_TYPE_TO_EVENT_TYPE),
   ...Object.values(MESSAGE_TYPE_TO_EVENT_TYPE),
 ]);
+
+/**
+ * Returns `true` if `eventType` is a known Claude protocol event type.
+ *
+ * @category Timeline
+ */
+export function isClaudeProtocolEventType(eventType: string): boolean {
+  return CLAUDE_KNOWN_EVENT_TYPES.has(eventType);
+}
 
 /**
  * Classifies a raw Axon event into a {@link ClaudeTimelineEvent}.
@@ -962,7 +970,7 @@ const CLAUDE_KNOWN_EVENT_TYPES: Set<string> = new Set([
  * Classification rules:
  * 1. `SYSTEM_EVENT` with `turn.started` / `turn.completed` -> `system`
  * 2. Known Claude protocol `event_type` -> `claude_protocol`
- * 3. Everything else -> `unrecognized`
+ * 3. Everything else -> `unknown`
  *
  * @category Timeline
  */
@@ -974,13 +982,16 @@ export function classifyClaudeAxonEvent(ev: AxonEventView): ClaudeTimelineEvent 
     }
   }
 
-  if (CLAUDE_KNOWN_EVENT_TYPES.has(ev.event_type)) {
+  if (isClaudeProtocolEventType(ev.event_type)) {
     let data: SDKMessage | null = null;
     if (typeof ev.payload === "string") {
       try {
         data = JSON.parse(ev.payload) as SDKMessage;
-      } catch {
-        // leave as null
+      } catch (err) {
+        console.warn(
+          `[classifyClaudeAxonEvent] Failed to parse payload for event_type="${ev.event_type}":`,
+          err,
+        );
       }
     } else if (ev.payload != null && typeof ev.payload === "object") {
       data = ev.payload as SDKMessage;
@@ -990,5 +1001,5 @@ export function classifyClaudeAxonEvent(ev: AxonEventView): ClaudeTimelineEvent 
     }
   }
 
-  return { kind: "unrecognized", data: null, axonEvent: ev };
+  return { kind: "unknown", data: null, axonEvent: ev };
 }

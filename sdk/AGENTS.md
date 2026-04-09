@@ -176,7 +176,7 @@ chat UIs that interleave protocol events, system events, and custom events.
 | `acp_protocol` | `SessionUpdate \| unknown` | Known ACP protocol event (agent or client method) |
 | `claude_protocol` | `SDKMessage` | Known Claude protocol event |
 | `system` | `SystemEvent` | Broker system event (`turn.started`, `turn.completed`) |
-| `unrecognized` | `null` | Anything else — inspect `axonEvent` for details |
+| `unknown` | `null` | Anything else — inspect `axonEvent` for details |
 
 Every timeline event has `{ kind, data, axonEvent }` where `axonEvent` is the
 raw `AxonEventView` for full access to origin, event_type, payload, and sequence.
@@ -193,7 +193,7 @@ conn.onTimelineEvent((event) => {
     case "system":
       // event.data is SystemEvent ({ type: "turn.started" | "turn.completed", turnId, ... })
       break;
-    case "unrecognized":
+    case "unknown":
       // event.data is null — check event.axonEvent for raw data
       break;
   }
@@ -211,7 +211,7 @@ for await (const event of conn.receiveTimelineEvents()) {
 import { parseTimelinePayload } from "@runloop/agent-axon-client/acp";
 
 conn.onTimelineEvent((event) => {
-  if (event.kind === "unrecognized") {
+  if (event.kind === "unknown") {
     const payload = parseTimelinePayload<MyCustomEvent>(event);
     if (payload) { /* handle custom event */ }
   }

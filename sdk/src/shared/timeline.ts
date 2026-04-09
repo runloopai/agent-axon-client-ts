@@ -30,22 +30,27 @@ export function parseTimelinePayload<T = unknown>(event: { axonEvent: AxonEventV
  */
 export function tryParseSystemEvent(ev: AxonEventView): SystemEvent | null {
   if (ev.event_type === "turn.started" || ev.event_type === "turn.completed") {
-    try {
-      const parsed = (
-        typeof ev.payload === "string" ? JSON.parse(ev.payload) : ev.payload
-      ) as Record<string, unknown>;
-      const turnId = (parsed.turn_id as string) ?? "";
-      if (ev.event_type === "turn.started") {
-        return { type: "turn.started", turnId };
-      }
-      return {
-        type: "turn.completed",
-        turnId,
-        stopReason: parsed.stop_reason as string | undefined,
-      };
-    } catch {
-      return null;
+    const parsed = parseTimelinePayload<Record<string, unknown>>({ axonEvent: ev });
+    if (!parsed) return null;
+    const turnId = (parsed.turn_id as string) ?? "";
+    if (ev.event_type === "turn.started") {
+      return { type: "turn.started", turnId };
     }
+    return {
+      type: "turn.completed",
+      turnId,
+      stopReason: parsed.stop_reason as string | undefined,
+    };
   }
+
+  if (ev.event_type === "broker.error") {
+    const parsed = parseTimelinePayload<Record<string, unknown>>({ axonEvent: ev });
+    const message =
+      typeof parsed === "object" && parsed !== null
+        ? ((parsed.message as string) ?? String(ev.payload))
+        : String(ev.payload ?? "");
+    return { type: "broker.error", message };
+  }
+
   return null;
 }

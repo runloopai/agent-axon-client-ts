@@ -697,7 +697,7 @@ describe("ACPAxonConnection", () => {
   });
 
   describe("onTimelineEvent", () => {
-    it("classifies AGENT_EVENT session/update as acp_protocol", async () => {
+    it("classifies AGENT_EVENT session/update as acp_protocol with eventType", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
       const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
@@ -709,12 +709,15 @@ describe("ACPAxonConnection", () => {
 
       await waitFor(() => events.length > 0);
       expect(events[0].kind).toBe("acp_protocol");
+      if (events[0].kind === "acp_protocol") {
+        expect(events[0].eventType).toBe("session/update");
+      }
       expect(events[0].axonEvent.origin).toBe("AGENT_EVENT");
 
       conn.disconnect();
     });
 
-    it("classifies USER_EVENT initialize as acp_protocol", async () => {
+    it("classifies USER_EVENT initialize as acp_protocol with eventType", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
       const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
@@ -730,6 +733,9 @@ describe("ACPAxonConnection", () => {
 
       await waitFor(() => events.length > 0);
       expect(events[0].kind).toBe("acp_protocol");
+      if (events[0].kind === "acp_protocol") {
+        expect(events[0].eventType).toBe("initialize");
+      }
       expect(events[0].axonEvent.origin).toBe("USER_EVENT");
 
       conn.disconnect();
@@ -749,7 +755,9 @@ describe("ACPAxonConnection", () => {
       expect(events[0].kind).toBe("system");
       if (events[0].kind === "system") {
         expect(events[0].data.type).toBe("turn.started");
-        expect(events[0].data.turnId).toBe("t-1");
+        if (events[0].data.type === "turn.started") {
+          expect(events[0].data.turnId).toBe("t-1");
+        }
       }
 
       conn.disconnect();
@@ -769,8 +777,8 @@ describe("ACPAxonConnection", () => {
       expect(events[0].kind).toBe("system");
       if (events[0].kind === "system") {
         expect(events[0].data.type).toBe("turn.completed");
-        expect(events[0].data.turnId).toBe("t-1");
         if (events[0].data.type === "turn.completed") {
+          expect(events[0].data.turnId).toBe("t-1");
           expect(events[0].data.stopReason).toBe("end_turn");
         }
       }
@@ -778,7 +786,29 @@ describe("ACPAxonConnection", () => {
       conn.disconnect();
     });
 
-    it("classifies unknown EXTERNAL_EVENT as unrecognized", async () => {
+    it("classifies SYSTEM_EVENT broker.error as system", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const events: ACPTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      ctrl.push(makeSystemEvent("broker.error", { message: "something broke" }));
+
+      await waitFor(() => events.length > 0);
+      expect(events[0].kind).toBe("system");
+      if (events[0].kind === "system") {
+        expect(events[0].data.type).toBe("broker.error");
+        if (events[0].data.type === "broker.error") {
+          expect(events[0].data.message).toBe("something broke");
+        }
+      }
+
+      conn.disconnect();
+    });
+
+    it("classifies unknown EXTERNAL_EVENT as unknown", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
       const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
@@ -789,7 +819,7 @@ describe("ACPAxonConnection", () => {
       ctrl.push(makeExternalEvent("custom.event", { foo: "bar" }));
 
       await waitFor(() => events.length > 0);
-      expect(events[0].kind).toBe("unrecognized");
+      expect(events[0].kind).toBe("unknown");
       expect(events[0].data).toBeNull();
 
       conn.disconnect();

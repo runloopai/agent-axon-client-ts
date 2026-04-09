@@ -35,11 +35,20 @@ import type { AxonEventListener, TimelineEventListener } from "../shared/types.j
 import { axonStream } from "./axon-stream.js";
 import type { ACPAxonConnectionOptions, ACPTimelineEvent, SessionUpdateListener } from "./types.js";
 
-/** All known ACP protocol event_type strings (agent + client methods). */
 const ACP_KNOWN_EVENT_TYPES: Set<string> = new Set([
   ...Object.values(AGENT_METHODS),
   ...Object.values(CLIENT_METHODS),
 ]);
+
+/**
+ * Returns `true` if `eventType` is a known ACP protocol method
+ * (agent or client direction).
+ *
+ * @category Timeline
+ */
+export function isACPProtocolEventType(eventType: string): boolean {
+  return ACP_KNOWN_EVENT_TYPES.has(eventType);
+}
 
 /**
  * High-level ACP connection backed by an Axon transport.
@@ -319,7 +328,7 @@ export class ACPAxonConnection {
    * Every Axon event on the channel is classified into one of:
    * - `acp_protocol` — a known ACP protocol event (agent or client method)
    * - `system` — a broker system event (`turn.started`, `turn.completed`)
-   * - `unrecognized` — anything else
+   * - `unknown` — anything else
    *
    * @param listener - Callback invoked with each {@link ACPTimelineEvent}.
    * @returns An unsubscribe function that removes the listener.
@@ -464,7 +473,7 @@ export class ACPAxonConnection {
  * Classification rules:
  * 1. `SYSTEM_EVENT` with `turn.started` / `turn.completed` -> `system`
  * 2. Known ACP protocol `event_type` (agent or client method) -> `acp_protocol`
- * 3. Everything else -> `unrecognized`
+ * 3. Everything else -> `unknown`
  *
  * @category Timeline
  */
@@ -476,19 +485,27 @@ export function classifyACPAxonEvent(ev: AxonEventView): ACPTimelineEvent {
     }
   }
 
-  if (ACP_KNOWN_EVENT_TYPES.has(ev.event_type)) {
+  if (isACPProtocolEventType(ev.event_type)) {
     let data: unknown = null;
     if (typeof ev.payload === "string") {
       try {
         data = JSON.parse(ev.payload);
-      } catch {
-        // leave as null
+      } catch (err) {
+        console.warn(
+          `[classifyACPAxonEvent] Failed to parse payload for event_type="${ev.event_type}":`,
+          err,
+        );
       }
     } else if (ev.payload != null) {
       data = ev.payload;
     }
-    return { kind: "acp_protocol", data, axonEvent: ev };
+    return {
+      kind: "acp_protocol",
+      eventType: ev.event_type,
+      data,
+      axonEvent: ev,
+    } as ACPTimelineEvent;
   }
 
-  return { kind: "unrecognized", data: null, axonEvent: ev };
+  return { kind: "unknown", data: null, axonEvent: ev };
 }

@@ -23,7 +23,11 @@ describe("extractACPUserMessage", () => {
     };
     const ev = makeAxonEvent();
     const result = extractACPUserMessage(data, ev);
-    expect(result).toEqual({ text: "hello world", sequence: 1 });
+    expect(result).toEqual({
+      text: "hello world",
+      content: [{ type: "text", text: "hello world" }],
+      sequence: 1,
+    });
   });
 
   it("concatenates multiple text blocks", () => {
@@ -35,19 +39,49 @@ describe("extractACPUserMessage", () => {
     };
     const ev = makeAxonEvent();
     const result = extractACPUserMessage(data, ev);
-    expect(result).toEqual({ text: "first second", sequence: 1 });
+    expect(result).toEqual({
+      text: "first second",
+      content: [
+        { type: "text", text: "first " },
+        { type: "text", text: "second" },
+      ],
+      sequence: 1,
+    });
   });
 
-  it("skips non-text blocks", () => {
+  it("includes non-text blocks in content but not in text", () => {
+    const imageBlock = { type: "image", data: "base64..." };
+    const textBlock = { type: "text", text: "only this" };
     const data = {
-      prompt: [
-        { type: "image", data: "base64..." },
-        { type: "text", text: "only this" },
-      ],
+      prompt: [imageBlock, textBlock],
     };
     const ev = makeAxonEvent();
     const result = extractACPUserMessage(data, ev);
-    expect(result).toEqual({ text: "only this", sequence: 1 });
+    expect(result).toEqual({
+      text: "only this",
+      content: [imageBlock, textBlock],
+      sequence: 1,
+    });
+  });
+
+  it("preserves audio content blocks", () => {
+    const audioBlock = { type: "audio", data: "base64audio", mediaType: "audio/wav" };
+    const textBlock = { type: "text", text: "listen to this" };
+    const data = { prompt: [textBlock, audioBlock] };
+    const ev = makeAxonEvent();
+    const result = extractACPUserMessage(data, ev);
+    expect(result?.content).toHaveLength(2);
+    expect(result?.content[1]).toEqual(audioBlock);
+    expect(result?.text).toBe("listen to this");
+  });
+
+  it("preserves resource_link content blocks", () => {
+    const resourceBlock = { type: "resource_link", uri: "file:///foo.txt" };
+    const data = { prompt: [resourceBlock] };
+    const ev = makeAxonEvent();
+    const result = extractACPUserMessage(data, ev);
+    expect(result?.content).toEqual([resourceBlock]);
+    expect(result?.text).toBe("");
   });
 
   it("returns null for non-USER_EVENT origin", () => {
@@ -79,7 +113,11 @@ describe("extractClaudeUserMessage", () => {
     const data = { type: "user", message: { content: "hello claude" } };
     const ev = makeAxonEvent({ event_type: "query", origin: "USER_EVENT" });
     const result = extractClaudeUserMessage(data, ev);
-    expect(result).toEqual({ text: "hello claude", sequence: 1 });
+    expect(result).toEqual({
+      text: "hello claude",
+      content: [{ type: "text", text: "hello claude" }],
+      sequence: 1,
+    });
   });
 
   it("extracts text from array content", () => {
@@ -94,22 +132,58 @@ describe("extractClaudeUserMessage", () => {
     };
     const ev = makeAxonEvent({ event_type: "query", origin: "USER_EVENT" });
     const result = extractClaudeUserMessage(data, ev);
-    expect(result).toEqual({ text: "part one part two", sequence: 1 });
+    expect(result).toEqual({
+      text: "part one part two",
+      content: [
+        { type: "text", text: "part one " },
+        { type: "text", text: "part two" },
+      ],
+      sequence: 1,
+    });
   });
 
-  it("skips non-text blocks in array content", () => {
+  it("includes non-text blocks in content but not in text", () => {
+    const imageBlock = { type: "image", source: { type: "base64", data: "abc" } };
+    const textBlock = { type: "text", text: "only text" };
     const data = {
       type: "user",
-      message: {
-        content: [
-          { type: "image", source: {} },
-          { type: "text", text: "only text" },
-        ],
-      },
+      message: { content: [imageBlock, textBlock] },
     };
     const ev = makeAxonEvent({ event_type: "query", origin: "USER_EVENT" });
     const result = extractClaudeUserMessage(data, ev);
-    expect(result).toEqual({ text: "only text", sequence: 1 });
+    expect(result).toEqual({
+      text: "only text",
+      content: [imageBlock, textBlock],
+      sequence: 1,
+    });
+  });
+
+  it("preserves document content blocks", () => {
+    const docBlock = { type: "document", source: { type: "base64", data: "pdf..." } };
+    const data = {
+      type: "user",
+      message: { content: [docBlock] },
+    };
+    const ev = makeAxonEvent({ event_type: "query", origin: "USER_EVENT" });
+    const result = extractClaudeUserMessage(data, ev);
+    expect(result?.content).toEqual([docBlock]);
+    expect(result?.text).toBe("");
+  });
+
+  it("preserves tool_result content blocks", () => {
+    const toolBlock = {
+      type: "tool_result",
+      tool_use_id: "tu_123",
+      content: "result text",
+    };
+    const data = {
+      type: "user",
+      message: { content: [toolBlock] },
+    };
+    const ev = makeAxonEvent({ event_type: "query", origin: "USER_EVENT" });
+    const result = extractClaudeUserMessage(data, ev);
+    expect(result?.content).toEqual([toolBlock]);
+    expect(result?.text).toBe("");
   });
 
   it("returns null for non-USER_EVENT origin", () => {

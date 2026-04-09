@@ -151,7 +151,7 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 | `requestPermission` | `(params) => Promise<Response>` | Custom permission handler (defaults to auto-approve) |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
-| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. Omit to replay full history. |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Omitting this replays all events from the beginning of the channel.** |
 
 **ACP Methods** (proxied from `ClientSideConnection`):
 
@@ -336,7 +336,7 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 | `model` | `string` | Model ID (e.g. `"claude-sonnet-4-5"`) — set after initialization |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
-| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. Omit to replay full history. |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Omitting this replays all events from the beginning of the channel.** |
 
 **Listeners & Lifecycle**:
 
@@ -422,7 +422,7 @@ Every timeline event has three fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `kind` | `string` | Discriminant: `"acp_protocol"`, `"claude_protocol"`, `"system"`, or `"unrecognized"` |
+| `kind` | `string` | Discriminant: `"acp_protocol"`, `"claude_protocol"`, `"system"`, or `"unknown"` |
 | `data` | varies | Parsed typed payload (`SessionUpdate`, `SDKMessage`, `SystemEvent`, or `null`) |
 | `axonEvent` | `AxonEventView` | The raw Axon event with full metadata (origin, event_type, payload, sequence) |
 
@@ -440,7 +440,7 @@ conn.onTimelineEvent((event: ACPTimelineEvent) => {
     case "system":
       // event.data is SystemEvent: { type: "turn.started", turnId } | { type: "turn.completed", turnId, stopReason? }
       break;
-    case "unrecognized":
+    case "unknown":
       // event.data is null — inspect event.axonEvent for raw data
       break;
   }
@@ -460,7 +460,7 @@ conn.onTimelineEvent((event: ClaudeTimelineEvent) => {
     case "system":
       // event.data is SystemEvent
       break;
-    case "unrecognized":
+    case "unknown":
       // event.data is null
       break;
   }
@@ -479,13 +479,13 @@ for await (const event of conn.receiveTimelineEvents()) {
 
 ### `parseTimelinePayload` helper
 
-For unrecognized events, use `parseTimelinePayload` to safely parse the raw JSON payload:
+For unknown events, use `parseTimelinePayload` to safely parse the raw JSON payload:
 
 ```typescript
 import { parseTimelinePayload } from "@runloop/agent-axon-client/acp";
 
 conn.onTimelineEvent((event) => {
-  if (event.kind === "unrecognized") {
+  if (event.kind === "unknown") {
     const payload = parseTimelinePayload<{ myField: string }>(event);
     if (payload) console.log(payload.myField);
   }
@@ -557,7 +557,7 @@ Common options accepted by both `ACPAxonConnection` and `ClaudeAxonConnection`:
 | `verbose` | `boolean` | Emit verbose logs to stderr |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` |
-| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. Omit to replay full history. |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Omitting this replays all events from the beginning of the channel.** |
 
 ### `AxonEventView`
 

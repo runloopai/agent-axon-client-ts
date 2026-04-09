@@ -1,6 +1,12 @@
 import type {
   Agent,
   Client,
+  InitializeRequest,
+  InitializeResponse,
+  NewSessionRequest,
+  NewSessionResponse,
+  PromptRequest,
+  PromptResponse,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionUpdate,
@@ -10,7 +16,7 @@ import type { Axon } from "@runloop/api-client/sdk";
 import type {
   BaseConnectionOptions,
   SystemTimelineEvent,
-  UnrecognizedTimelineEvent,
+  UnknownTimelineEvent,
 } from "../shared/types.js";
 
 /**
@@ -47,6 +53,10 @@ export interface AxonStreamOptions {
  * if needed) and must return a `Client` that handles agent-to-client
  * requests such as `requestPermission`, `sessionUpdate`, file I/O,
  * terminal management, and elicitation.
+ *
+ * @todo Consider a composition-based approach (e.g. accepting partial
+ * overrides that merge with defaults) so callers don't have to
+ * reimplement the entire `Client` interface.
  *
  * @category Configuration
  */
@@ -97,9 +107,52 @@ export type SessionUpdateListener = (sessionId: string | null, update: SessionUp
 // ---------------------------------------------------------------------------
 
 /**
- * A timeline event carrying a recognized ACP protocol event.
- * `data` is the parsed payload — for `session/update` this is a `SessionUpdate`,
- * for other protocol methods it is the raw parsed JSON.
+ * A `session/update` timeline event. `data` is the parsed `SessionUpdate`.
+ * @category Timeline
+ */
+export interface ACPSessionUpdateTimelineEvent {
+  kind: "acp_protocol";
+  eventType: "session/update";
+  data: SessionUpdate;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * An `initialize` timeline event.
+ * @category Timeline
+ */
+export interface ACPInitializeTimelineEvent {
+  kind: "acp_protocol";
+  eventType: "initialize";
+  data: InitializeRequest | InitializeResponse;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * A `session/prompt` timeline event.
+ * @category Timeline
+ */
+export interface ACPPromptTimelineEvent {
+  kind: "acp_protocol";
+  eventType: "session/prompt";
+  data: PromptRequest | PromptResponse;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * A `session/new` timeline event.
+ * @category Timeline
+ */
+export interface ACPNewSessionTimelineEvent {
+  kind: "acp_protocol";
+  eventType: "session/new";
+  data: NewSessionRequest | NewSessionResponse;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * A recognized ACP protocol event whose `eventType` is not one of the
+ * specifically typed variants above.
  *
  * Use `axonEvent.origin` to determine direction:
  * - `USER_EVENT` = outbound (client sent this)
@@ -107,11 +160,24 @@ export type SessionUpdateListener = (sessionId: string | null, update: SessionUp
  *
  * @category Timeline
  */
-export interface ACPProtocolTimelineEvent {
+export interface ACPOtherProtocolTimelineEvent {
   kind: "acp_protocol";
-  data: SessionUpdate | unknown;
+  eventType: string;
+  data: unknown;
   axonEvent: AxonEventView;
 }
+
+/**
+ * Discriminated union of all ACP protocol timeline event variants.
+ * Switch on `eventType` to narrow the `data` type.
+ * @category Timeline
+ */
+export type ACPProtocolTimelineEvent =
+  | ACPSessionUpdateTimelineEvent
+  | ACPInitializeTimelineEvent
+  | ACPPromptTimelineEvent
+  | ACPNewSessionTimelineEvent
+  | ACPOtherProtocolTimelineEvent;
 
 /**
  * Union of all timeline event types emitted by the ACP connection.
@@ -120,4 +186,4 @@ export interface ACPProtocolTimelineEvent {
 export type ACPTimelineEvent =
   | ACPProtocolTimelineEvent
   | SystemTimelineEvent
-  | UnrecognizedTimelineEvent;
+  | UnknownTimelineEvent;

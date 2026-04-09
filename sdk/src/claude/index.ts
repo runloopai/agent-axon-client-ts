@@ -72,9 +72,13 @@ export type {
   SystemEvent,
   SystemTimelineEvent,
   TimelineEventListener,
-  UnrecognizedTimelineEvent,
+  UnknownTimelineEvent,
 } from "../shared/types.js";
-export { type ExtractedUserMessage, extractClaudeUserMessage } from "../shared/user-message.js";
+export {
+  type ExtractedClaudeUserMessage,
+  type ExtractedUserMessage,
+  extractClaudeUserMessage,
+} from "../shared/user-message.js";
 export {
   ClaudeAxonConnection,
   type ClaudeAxonConnectionOptions,
@@ -82,6 +86,7 @@ export {
   type ControlRequestInner,
   type ControlRequestOfSubtype,
   classifyClaudeAxonEvent,
+  isClaudeProtocolEventType,
 } from "./connection.js";
 export {
   AxonTransport,

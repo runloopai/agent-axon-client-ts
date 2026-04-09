@@ -145,7 +145,7 @@ export interface UseClaudeAgentReturn {
   autoApprovePermissions: boolean;
   /** Raw Axon events for the event viewer. */
   axonEvents: AxonEventView[];
-  /** Classified timeline events (protocol, system, unrecognized) for the timeline view. */
+  /** Classified timeline events (protocol, system, unknown) for the timeline view. */
   timelineEvents: ClaudeTimelineEvent[];
   /** A pending control request awaiting user input (e.g. AskUserQuestion), or null. */
   pendingControlRequest: PendingControlRequest | null;

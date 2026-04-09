@@ -70,11 +70,15 @@ export type {
   SystemEvent,
   SystemTimelineEvent,
   TimelineEventListener,
-  UnrecognizedTimelineEvent,
+  UnknownTimelineEvent,
 } from "../shared/types.js";
-export { type ExtractedUserMessage, extractACPUserMessage } from "../shared/user-message.js";
+export {
+  type ExtractedACPUserMessage,
+  type ExtractedUserMessage,
+  extractACPUserMessage,
+} from "../shared/user-message.js";
 export { axonStream } from "./axon-stream.js";
-export { ACPAxonConnection, classifyACPAxonEvent } from "./connection.js";
+export { ACPAxonConnection, classifyACPAxonEvent, isACPProtocolEventType } from "./connection.js";
 export type {
   AgentMessageChunkUpdate,
   AgentThoughtChunkUpdate,
@@ -103,7 +107,12 @@ export {
 } from "./session-update-guards.js";
 export type {
   ACPAxonConnectionOptions,
+  ACPInitializeTimelineEvent,
+  ACPNewSessionTimelineEvent,
+  ACPOtherProtocolTimelineEvent,
+  ACPPromptTimelineEvent,
   ACPProtocolTimelineEvent,
+  ACPSessionUpdateTimelineEvent,
   ACPTimelineEvent,
   AxonStreamOptions,
   CreateClientFn,
