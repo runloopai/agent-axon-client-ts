@@ -31,11 +31,16 @@ bun run claude-hello-world.ts
 
 ## What it does
 
-1. Creates an Axon channel and a Runloop devbox running Claude Code
-2. Connects via `ClaudeAxonConnection`
-3. Sends a single prompt
-4. Streams the response to stdout
-5. Disconnects and shuts down the devbox
+1. Sets up an Agent Gateway to securely proxy Anthropic API requests
+2. Creates an Axon channel and a Runloop devbox running Claude Code
+3. Connects via `ClaudeAxonConnection`
+4. Sends a single prompt
+5. Streams the response to stdout
+6. Disconnects, cleans up the gateway secret, and shuts down the devbox
+
+## Agent Gateway
+
+This example uses [Agent Gateway](https://docs.runloop.ai/docs/devboxes/agent-gateways) to securely proxy Anthropic API requests. Your real API key is never exposed to the devbox — it receives only a gateway URL and temporary token. The temporary secret is automatically cleaned up when the script exits.
 
 For a full interactive REPL, see [`../claude-cli`](../claude-cli/).
 For a full-stack UI demo, see [`../claude-app`](../claude-app/).

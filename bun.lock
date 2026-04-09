@@ -58,6 +58,7 @@
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
         "@runloop/api-client": "^1.17.0",
+        "@runloop/examples-shared": "workspace:*",
         "diff": "^8.0.4",
         "express": "^5.1.0",
         "react": "^19.2.0",
@@ -86,6 +87,7 @@
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
         "@runloop/api-client": "^1.17.0",
+        "@runloop/examples-shared": "workspace:*",
       },
     },
     "examples/claude-hello-world": {
@@ -95,6 +97,7 @@
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
         "@runloop/api-client": "^1.17.0",
+        "@runloop/examples-shared": "workspace:*",
       },
     },
     "examples/combined-app": {
@@ -104,6 +107,7 @@
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
         "@runloop/api-client": "^1.17.0",
+        "@runloop/examples-shared": "workspace:*",
         "diff": "^8.0.4",
         "express": "^5.2.1",
         "react": "^19.2.4",
@@ -123,6 +127,13 @@
         "@vitejs/plugin-react": "^6.0.1",
         "typescript": "~5.8.0",
         "vite": "^8.0.3",
+      },
+    },
+    "examples/shared": {
+      "name": "@runloop/examples-shared",
+      "version": "0.1.0",
+      "dependencies": {
+        "@runloop/api-client": "^1.17.0",
       },
     },
     "sdk": {
@@ -393,6 +404,8 @@
     "@runloop/example-claude-hello-world": ["@runloop/example-claude-hello-world@workspace:examples/claude-hello-world"],
 
     "@runloop/example-combined-app": ["@runloop/example-combined-app@workspace:examples/combined-app"],
+
+    "@runloop/examples-shared": ["@runloop/examples-shared@workspace:examples/shared"],
 
     "@shikijs/engine-oniguruma": ["@shikijs/engine-oniguruma@3.23.0", "", { "dependencies": { "@shikijs/types": "3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-1nWINwKXxKKLqPibT5f4pAFLej9oZzQTsby8942OTlsJzOBZ0MWKiwzMsd+jhzu8YPCHAswGnnN1YtQfirL35g=="],
 

@@ -1,0 +1,14 @@
+{
+  "name": "@runloop/examples-shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./gateway-utils.ts",
+  "exports": {
+    ".": "./gateway-utils.ts",
+    "./gateway-utils": "./gateway-utils.ts"
+  },
+  "dependencies": {
+    "@runloop/api-client": "^1.17.0"
+  }
+}

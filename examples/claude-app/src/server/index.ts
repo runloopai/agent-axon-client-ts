@@ -2,6 +2,7 @@ import express from "express";
 import { createServer } from "node:http";
 import { RunloopSDK } from "@runloop/api-client";
 import { ClaudeAxonConnection, type AxonEventView } from "@runloop/agent-axon-client/claude";
+import { setupAnthropicGateway, type GatewaySetupResult } from "@runloop/examples-shared";
 import type { SDKControlResponse, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { WsBroadcaster, type WsEvent } from "./ws.ts";
 
@@ -16,6 +17,7 @@ let abortController: AbortController | null = null;
 let axonEvents: AxonEventView[] = [];
 let initMessage: SDKMessage | null = null;
 let autoApprovePermissions = true;
+let gatewayCleanup: (() => Promise<void>) | null = null;
 
 // Pending control requests awaiting a response from the frontend.
 // When a can_use_tool control request arrives, we broadcast it to WS clients
@@ -68,7 +70,6 @@ app.post("/api/start", async (req, res) => {
 
     const apiKey = process.env.RUNLOOP_API_KEY;
     const baseUrl = process.env.RUNLOOP_BASE_URL;
-    const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
       res.status(500).json({ error: "RUNLOOP_API_KEY not set in server .env" });
@@ -79,6 +80,10 @@ app.post("/api/start", async (req, res) => {
       bearerToken: apiKey,
       ...(baseUrl ? { baseURL: baseUrl } : {}),
     });
+
+    ws.broadcast({ type: "connection_progress", step: "Setting up Agent Gateway to protect your credentials..." });
+    const gateway = await setupAnthropicGateway(sdk, { optional: true });
+    gatewayCleanup = gateway?.cleanup ?? null;
 
     ws.broadcast({ type: "connection_progress", step: "Creating Axon channel..." });
     const axon = await sdk.axon.create({ name: "claude-demo-sdk" });
@@ -97,9 +102,7 @@ app.post("/api/start", async (req, res) => {
           launch_args: [],
         },
       ],
-      environment_variables: {
-        ...(anthropicApiKey ? { ANTHROPIC_API_KEY: anthropicApiKey } : {}),
-      },
+      ...(gateway ? { gateways: gateway.gateways } : {}),
       launch_parameters: launchCommands?.length
         ? { launch_commands: launchCommands }
         : undefined,
@@ -316,11 +319,15 @@ app.post("/api/shutdown", async (_req, res) => {
     if (connection) {
       await connection.disconnect();
     }
+    if (gatewayCleanup) {
+      await gatewayCleanup();
+    }
     connection = null;
     abortController = null;
     axonEvents = [];
     initMessage = null;
     autoApprovePermissions = true;
+    gatewayCleanup = null;
     // Reject any pending control responses
     for (const [, pending] of pendingControlResponses) {
       pending.reject(new Error("Shutdown"));

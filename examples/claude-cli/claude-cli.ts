@@ -4,6 +4,9 @@
  * Creates a Runloop Devbox + Axon session, connects the ClaudeAxonConnection,
  * and runs a REPL that streams assistant messages in real time.
  *
+ * This example uses Agent Gateway to securely proxy Anthropic API requests
+ * without exposing your API key to the devbox.
+ *
  * Usage:
  *   bun run claude-cli.ts
  *   bun run claude-cli.ts --model haiku-4.5
@@ -13,9 +16,8 @@
 import { RunloopSDK } from "@runloop/api-client";
 import { createInterface, type Interface } from "readline";
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
-import type {
-  SDKMessage,
-} from "@anthropic-ai/claude-agent-sdk";
+import { setupAnthropicGateway, type GatewaySetupResult } from "@runloop/examples-shared";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 // ---------------------------------------------------------------------------
 // Args
@@ -62,6 +64,13 @@ if (!anthropicApiKey) {
 
 const runloop = new RunloopSDK();
 
+console.log("Setting up Agent Gateway to protect your credentials...");
+const gateway = await setupAnthropicGateway(runloop, { apiKey: anthropicApiKey });
+if (!gateway) {
+  console.error("Failed to set up Agent Gateway.");
+  process.exit(1);
+}
+
 console.log("Starting devbox...");
 const axon = await runloop.axon.create({ name: "cli-sdk-session" });
 // The runloop/agents blueprint used has Claude pre-installed.
@@ -78,9 +87,7 @@ const devbox = await runloop.devbox.create({
     },
   ],
   blueprint_name: DEFAULT_BLUEPRINT_NAME,
-  environment_variables: {
-    ANTHROPIC_API_KEY: anthropicApiKey,
-  },
+  gateways: gateway.gateways,
 });
 console.log(`Devbox ready: ${devbox.id}`);
 
@@ -109,6 +116,7 @@ process.on("SIGINT", async () => {
   console.log(`\nInterrupted — shutting down devbox ${devbox.id}...`);
   rl.close();
   await client.disconnect();
+  await gateway.cleanup();
   process.exit(0);
 });
 
@@ -219,5 +227,6 @@ while (true) {
 rl.close();
 console.log("\nDisconnecting...");
 await client.disconnect();
+await gateway.cleanup();
 console.log("Done.");
 process.exit(0);

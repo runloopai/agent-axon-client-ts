@@ -4,6 +4,9 @@
  * Creates a Runloop Devbox, connects via ClaudeAxonConnection,
  * sends a single prompt, prints the response, and exits.
  *
+ * This example uses Agent Gateway to securely proxy Anthropic API requests
+ * without exposing your API key to the devbox.
+ *
  * Usage:
  *   bun run claude-hello-world.ts
  *   bun run claude-hello-world.ts --model haiku-4.5
@@ -12,6 +15,7 @@
 import { RunloopSDK } from "@runloop/api-client";
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { setupAnthropicGateway } from "@runloop/examples-shared";
 import { createInterface } from "readline";
 import { parseArgs } from "util";
 
@@ -50,6 +54,13 @@ if (!anthropicApiKey) {
 
 const runloop = new RunloopSDK();
 
+console.log("Setting up Agent Gateway to protect your credentials...");
+const gateway = await setupAnthropicGateway(runloop, { apiKey: anthropicApiKey });
+if (!gateway) {
+  console.error("Failed to set up Agent Gateway.");
+  process.exit(1);
+}
+
 console.log("Starting devbox...");
 const axon = await runloop.axon.create({ name: "hello-world-session" });
 // The runloop/agents blueprint used has Claude pre-installed.
@@ -66,9 +77,7 @@ const devbox = await runloop.devbox.create({
     },
   ],
   blueprint_name: DEFAULT_BLUEPRINT_NAME,
-  environment_variables: {
-    ANTHROPIC_API_KEY: anthropicApiKey,
-  },
+  gateways: gateway.gateways,
 });
 console.log(`Devbox ready: ${devbox.id}`);
 
@@ -127,5 +136,6 @@ function renderMessage(msg: SDKMessage): void {
 
 console.log("\nDisconnecting...");
 await client.disconnect();
+await gateway.cleanup();
 console.log("Done.");
 process.exit(0);

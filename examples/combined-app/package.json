@@ -14,6 +14,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.91",
     "@runloop/agent-axon-client": "workspace:*",
     "@runloop/api-client": "^1.17.0",
+    "@runloop/examples-shared": "workspace:*",
     "diff": "^8.0.4",
     "express": "^5.2.1",
     "react": "^19.2.4",

@@ -52,10 +52,15 @@ npm run dev        # serves the built client from dist/
 
 ## How It Works
 
-1. **Connect** — the browser calls `POST /api/connect`, which provisions an Axon channel and a Runloop devbox running Claude Code, then opens a `ClaudeAxonConnection`.
+1. **Connect** — the browser calls `POST /api/connect`, which sets up an Agent Gateway, provisions an Axon channel and a Runloop devbox running Claude Code, then opens a `ClaudeAxonConnection`.
 2. **Send a prompt** — `POST /api/prompt` calls `conn.send()` and returns immediately. The agent's response streams in the background.
 3. **Stream messages** — as Claude responds, SDK messages flow through the Axon SSE stream to the server's read loop, which broadcasts each message over WebSocket to the browser.
 4. **Turn completion** — when a `result` message arrives, the server also broadcasts a `turn_complete` event so the client knows the turn is done.
+5. **Shutdown** — when disconnecting, the server cleans up the temporary gateway secret.
+
+## Agent Gateway
+
+This app uses [Agent Gateway](https://docs.runloop.ai/docs/devboxes/agent-gateways) to securely proxy Anthropic API requests. Your real API key is never exposed to the devbox — it receives only a gateway URL and temporary token. The temporary secret is automatically cleaned up when you disconnect.
 
 ## Server API
 

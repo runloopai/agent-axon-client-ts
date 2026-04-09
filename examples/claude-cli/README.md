@@ -48,3 +48,7 @@ Use `VERBOSE=1` (or `--verbose`) to see thinking blocks, tool call details, and 
 | `--model <id>` | _(agent default)_ | Claude model to use (e.g. `claude-haiku-4-5`) |
 | `--system-prompt <text>` | _(agent default)_ | Override the system prompt |
 | `--verbose` | `false` | Enable verbose output |
+
+## Agent Gateway
+
+This example uses [Agent Gateway](https://docs.runloop.ai/docs/devboxes/agent-gateways) to securely proxy Anthropic API requests. Your real API key is never exposed to the devbox — it receives only a gateway URL and temporary token. The temporary secret is automatically cleaned up when you exit the CLI.

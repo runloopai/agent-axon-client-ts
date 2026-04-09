@@ -1,5 +1,6 @@
 import { RunloopSDK } from "@runloop/api-client";
 import { ClaudeAxonConnection, type AxonEventView } from "@runloop/agent-axon-client/claude";
+import { setupAnthropicGateway } from "@runloop/examples-shared";
 import type { SDKControlResponse, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { WsBroadcaster, WsEvent } from "./ws.ts";
 
@@ -17,6 +18,7 @@ export class ClaudeConnectionManager {
   autoApprovePermissions = true;
 
   private abortController: AbortController | null = null;
+  private gatewayCleanup: (() => Promise<void>) | null = null;
   private pendingControlResponses = new Map<
     string,
     { resolve: (data: unknown) => void; reject: (err: Error) => void }
@@ -29,7 +31,6 @@ export class ClaudeConnectionManager {
 
     const apiKey = process.env.RUNLOOP_API_KEY;
     const baseUrl = process.env.RUNLOOP_BASE_URL;
-    const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) throw new Error("RUNLOOP_API_KEY not set in server .env");
 
@@ -37,6 +38,10 @@ export class ClaudeConnectionManager {
       bearerToken: apiKey,
       ...(baseUrl ? { baseURL: baseUrl } : {}),
     });
+
+    this.ws.broadcast({ type: "connection_progress", step: "Setting up Agent Gateway to protect your credentials..." });
+    const gateway = await setupAnthropicGateway(sdk, { optional: true });
+    this.gatewayCleanup = gateway?.cleanup ?? null;
 
     this.ws.broadcast({ type: "connection_progress", step: "Creating Axon channel..." });
     const axon = await sdk.axon.create({ name: "combined-app-claude" });
@@ -53,9 +58,7 @@ export class ClaudeConnectionManager {
           launch_args: [],
         },
       ],
-      environment_variables: {
-        ...(anthropicApiKey ? { ANTHROPIC_API_KEY: anthropicApiKey } : {}),
-      },
+      ...(gateway ? { gateways: gateway.gateways } : {}),
       launch_parameters: opts.launchCommands?.length
         ? { launch_commands: opts.launchCommands }
         : undefined,
@@ -186,10 +189,14 @@ export class ClaudeConnectionManager {
     if (this.connection) {
       await this.connection.disconnect();
     }
+    if (this.gatewayCleanup) {
+      await this.gatewayCleanup();
+    }
     this.connection = null;
     this.abortController = null;
     this.axonEvents = [];
     this.autoApprovePermissions = true;
+    this.gatewayCleanup = null;
     for (const [, pending] of this.pendingControlResponses) {
       pending.reject(new Error("Shutdown"));
     }
