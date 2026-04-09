@@ -137,7 +137,7 @@ await conn.initialize();   // protocol handshake + set model
 
 // 3. Send and receive
 await conn.send("What files are in this directory?");
-for await (const msg of conn.receiveResponse()) {
+for await (const msg of conn.receiveAgentResponse()) {
   console.log(msg.type, msg);
 }
 

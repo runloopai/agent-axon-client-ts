@@ -120,7 +120,7 @@ app.post(
     const { connection, sessionId } = mgr.requireSession();
     const { modelId } = req.body;
     res.json(
-      await connection.unstable_setSessionModel({ sessionId, modelId }),
+      await connection.protocol.unstable_setSessionModel({ sessionId, modelId }),
     );
   }),
 );

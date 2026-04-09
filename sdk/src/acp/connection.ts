@@ -1,6 +1,5 @@
 import {
   AGENT_METHODS,
-  type Agent,
   type AuthenticateRequest,
   type AuthenticateResponse,
   type CancelNotification,
@@ -31,6 +30,7 @@ import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
 import { tryParseSystemEvent } from "../shared/timeline.js";
+import { timelineEventGenerator } from "../shared/timeline-generator.js";
 import type { AxonEventListener, TimelineEventListener } from "../shared/types.js";
 import { axonStream } from "./axon-stream.js";
 import type { ACPAxonConnectionOptions, ACPTimelineEvent, SessionUpdateListener } from "./types.js";
@@ -135,7 +135,11 @@ export class ACPAxonConnection {
       afterSequence: options?.afterSequence,
     });
 
-    this.protocol = new ClientSideConnection((_agent: Agent) => this.createClient(), stream);
+    const customCreateClient = options?.createClient;
+    this.protocol = new ClientSideConnection(
+      customCreateClient ? (agent) => customCreateClient(agent) : () => this.createClient(),
+      stream,
+    );
     this.log("constructor", `axon=${axon.id} devbox=${this.devboxId}`);
   }
 
@@ -334,41 +338,10 @@ export class ACPAxonConnection {
    * @returns An async generator of {@link ACPTimelineEvent}.
    */
   async *receiveTimelineEvents(): AsyncGenerator<ACPTimelineEvent, void, undefined> {
-    const queue: ACPTimelineEvent[] = [];
-    let resolve: (() => void) | null = null;
-    let done = false;
-
-    const unsubscribe = this.onTimelineEvent((event) => {
-      queue.push(event);
-      resolve?.();
-    });
-
-    const onAbort = () => {
-      done = true;
-      resolve?.();
-    };
-    this.abortController.signal.addEventListener("abort", onAbort, { once: true });
-
-    try {
-      while (!done) {
-        if (queue.length > 0) {
-          // biome-ignore lint/style/noNonNullAssertion: guarded by .length > 0 check above
-          yield queue.shift()!;
-        } else {
-          await new Promise<void>((r) => {
-            resolve = r;
-          });
-          resolve = null;
-        }
-      }
-      while (queue.length > 0) {
-        // biome-ignore lint/style/noNonNullAssertion: draining remaining items after done
-        yield queue.shift()!;
-      }
-    } finally {
-      unsubscribe();
-      this.abortController.signal.removeEventListener("abort", onAbort);
-    }
+    yield* timelineEventGenerator<ACPTimelineEvent>(
+      (listener) => this.onTimelineEvent(listener),
+      this.abortController.signal,
+    );
   }
 
   // ---------------------------------------------------------------------------

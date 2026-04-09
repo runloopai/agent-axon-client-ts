@@ -1,4 +1,6 @@
 import type {
+  Agent,
+  Client,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionUpdate,
@@ -38,6 +40,19 @@ export interface AxonStreamOptions {
 }
 
 /**
+ * Factory function that creates a {@link Client} implementation for the
+ * underlying `ClientSideConnection`.
+ *
+ * Receives the `Agent` proxy (so the client can call back into the agent
+ * if needed) and must return a `Client` that handles agent-to-client
+ * requests such as `requestPermission`, `sessionUpdate`, file I/O,
+ * terminal management, and elicitation.
+ *
+ * @category Configuration
+ */
+export type CreateClientFn = (agent: Agent) => Client;
+
+/**
  * Options for creating an {@link ACPAxonConnection}.
  * @category Configuration
  */
@@ -48,8 +63,22 @@ export interface ACPAxonConnectionOptions extends BaseConnectionOptions {
    *
    * Defaults to auto-approving with preference:
    * `allow_always` > `allow_once` > first option.
+   *
+   * Ignored when {@link createClient} is provided (the custom client is
+   * responsible for handling permissions).
    */
   requestPermission?: (params: RequestPermissionRequest) => Promise<RequestPermissionResponse>;
+
+  /**
+   * Provide a full custom {@link Client} implementation for the underlying
+   * `ClientSideConnection`. Use this when you need to handle agent-to-client
+   * callbacks beyond permissions and session updates — for example file I/O,
+   * terminal management, or elicitation.
+   *
+   * When set, the built-in `requestPermission` / `onSessionUpdate` wiring is
+   * bypassed — the returned `Client` is used as-is.
+   */
+  createClient?: CreateClientFn;
 }
 
 /**

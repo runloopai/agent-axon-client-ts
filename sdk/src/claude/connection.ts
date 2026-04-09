@@ -28,6 +28,7 @@ import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
 import { tryParseSystemEvent } from "../shared/timeline.js";
+import { timelineEventGenerator } from "../shared/timeline-generator.js";
 import type {
   AxonEventListener,
   BaseConnectionOptions,
@@ -237,6 +238,9 @@ export class ClaudeAxonConnection {
   private closed = false;
   private streamAborted = false;
 
+  /** Aborted when the connection closes or the read loop ends, to terminate timeline generators. */
+  private timelineAbortController = new AbortController();
+
   /** User-registered handlers for incoming control requests, keyed by subtype. */
   // biome-ignore lint/suspicious/noExplicitAny: handlers are typed at registration via onControlRequest()
   private controlRequestHandlers = new Map<string, ControlRequestHandler<any>>();
@@ -252,8 +256,7 @@ export class ClaudeAxonConnection {
   /**
    * Creates a new Claude connection over the given Axon channel and devbox.
    *
-   * Unlike ACP, the transport is not opened until {@link connect} (or
-   * {@link initialize}, which calls `connect()` automatically) is called.
+   * Unlike ACP, the transport is not opened until {@link connect} is called.
    *
    * @param axon    - The Axon channel to communicate over (from `@runloop/api-client`).
    * @param devbox  - The Runloop devbox hosting the Claude Code agent.
@@ -365,6 +368,7 @@ export class ClaudeAxonConnection {
   async disconnect(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    this.timelineAbortController.abort();
 
     // Unblock any waiters and clear buffered messages
     for (const waiter of this.messageWaiters) {
@@ -423,51 +427,16 @@ export class ClaudeAxonConnection {
    * Async generator that yields classified timeline events.
    *
    * Mirrors the pull-based pattern of {@link receiveAgentEvents}. The
-   * generator completes when the connection is disconnected.
+   * generator completes when the connection is disconnected or the
+   * read loop ends.
    *
    * @returns An async generator of {@link ClaudeTimelineEvent}.
    */
   async *receiveTimelineEvents(): AsyncGenerator<ClaudeTimelineEvent, void, undefined> {
-    const queue: ClaudeTimelineEvent[] = [];
-    let resolve: (() => void) | null = null;
-    let done = false;
-
-    const unsubscribe = this.onTimelineEvent((event) => {
-      queue.push(event);
-      resolve?.();
-    });
-
-    const checkDone = () => {
-      if (this.closed || this.readLoopDone) {
-        done = true;
-        resolve?.();
-      }
-    };
-
-    const interval = setInterval(checkDone, 100);
-
-    try {
-      while (!done) {
-        if (queue.length > 0) {
-          // biome-ignore lint/style/noNonNullAssertion: guarded by .length > 0 check above
-          yield queue.shift()!;
-        } else {
-          checkDone();
-          if (done) break;
-          await new Promise<void>((r) => {
-            resolve = r;
-          });
-          resolve = null;
-        }
-      }
-      while (queue.length > 0) {
-        // biome-ignore lint/style/noNonNullAssertion: draining remaining items after done
-        yield queue.shift()!;
-      }
-    } finally {
-      clearInterval(interval);
-      unsubscribe();
-    }
+    yield* timelineEventGenerator<ClaudeTimelineEvent>(
+      (listener) => this.onTimelineEvent(listener),
+      this.timelineAbortController.signal,
+    );
   }
 
   // -----------------------------------------------------------------------
@@ -522,6 +491,7 @@ export class ClaudeAxonConnection {
       this.readLoopDone = true;
       this.readLoopRunning = false;
       this.streamAborted = false;
+      this.timelineAbortController.abort();
       for (const waiter of this.messageWaiters) {
         waiter(null);
       }

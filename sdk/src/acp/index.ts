@@ -106,5 +106,6 @@ export type {
   ACPProtocolTimelineEvent,
   ACPTimelineEvent,
   AxonStreamOptions,
+  CreateClientFn,
   SessionUpdateListener,
 } from "./types.js";

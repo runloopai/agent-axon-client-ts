@@ -261,7 +261,7 @@ app.post("/api/set-model", asyncHandler(async (req, res) => {
     res.json({ ok: true });
   } else {
     const { connection, sessionId } = entry.acpManager!.requireSession();
-    res.json(await connection.unstable_setSessionModel({ sessionId, modelId: req.body.modelId }));
+    res.json(await connection.protocol.unstable_setSessionModel({ sessionId, modelId: req.body.modelId }));
   }
 }));
 

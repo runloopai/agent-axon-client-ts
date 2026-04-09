@@ -1,10 +1,10 @@
 import { RunloopSDK } from "@runloop/api-client";
 import {
-  ClientSideConnection,
+  ACPAxonConnection,
   PROTOCOL_VERSION,
-  type Agent,
+  type ACPTimelineEvent,
+  type AxonEventView,
 } from "@runloop/agent-axon-client/acp";
-import { axonStream, classifyACPAxonEvent, tryParseSystemEvent, type AxonEventView } from "@runloop/agent-axon-client/acp";
 import { NodeACPClient } from "./acp-client.ts";
 import type { WsBroadcaster } from "./ws.ts";
 
@@ -30,19 +30,15 @@ export class HttpError extends Error {
 }
 
 export class ConnectionManager {
-  connection: ClientSideConnection | null = null;
+  connection: ACPAxonConnection | null = null;
   nodeClient: NodeACPClient | null = null;
   activeSessionId: string | null = null;
   axonEvents: AxonEventView[] = [];
   authMethods: unknown[] | null = null;
 
-  private devboxShutdown: (() => Promise<void>) | null = null;
-  private abortController: AbortController | null = null;
-
   constructor(private ws: WsBroadcaster) {}
 
   async start(opts: StartOptions) {
-    // Tear down any existing connection
     await this.shutdown();
 
     const apiKey = process.env.RUNLOOP_API_KEY;
@@ -59,9 +55,7 @@ export class ConnectionManager {
 
     this.ws.broadcast({ type: "connection_progress", step: "Creating Axon channel..." });
     const axon = await sdk.axon.create({ name: "node-demo-acp" });
-    // The runloop/agents blueprint used has opencode pre-installed.
-    // When using an AxonACPConnection, ensure the Agent is on the blueprint by
-    // using the AgentAPI or a Blueprint.
+
     const launchCommands = opts.launchCommands ? [...opts.launchCommands] : [];
     if (opts.systemPrompt) {
       const config = JSON.stringify({
@@ -95,49 +89,47 @@ export class ConnectionManager {
         : undefined,
     });
 
-    this.devboxShutdown = async () => {
-      await devbox.shutdown();
-    };
-    this.abortController = new AbortController();
     this.axonEvents = [];
-
-    this.ws.broadcast({ type: "connection_progress", step: "Connecting to agent..." });
-    const stream = axonStream({
-      axon,
-      signal: this.abortController.signal,
-      onAxonEvent: (ev) => {
-        this.axonEvents.push(ev);
-        this.ws.broadcast({ type: "axon_event", event: ev });
-        this.ws.broadcast({ type: "timeline_event", event: classifyACPAxonEvent(ev) });
-
-        const systemEvent = tryParseSystemEvent(ev);
-        if (systemEvent) {
-          if (systemEvent.type === "turn.started") {
-            this.ws.broadcast({
-              type: "turn_started",
-              turnId: systemEvent.turnId,
-            });
-          } else if (systemEvent.type === "turn.completed") {
-            this.ws.broadcast({
-              type: "turn_completed",
-              turnId: systemEvent.turnId,
-              stopReason: systemEvent.stopReason ?? "EndTurn",
-            });
-          }
-        }
-      },
-    });
 
     const client = new NodeACPClient();
     this.nodeClient = client;
     client.onEvent((event) => this.ws.broadcast(event));
 
-    this.connection = new ClientSideConnection(
-      (_agent: Agent) => client,
-      stream,
-    );
+    this.ws.broadcast({ type: "connection_progress", step: "Connecting to agent..." });
+    const conn = new ACPAxonConnection(axon, devbox, {
+      createClient: () => client,
+      onDisconnect: async () => {
+        await devbox.shutdown();
+      },
+    });
 
-    const initResp = await this.connection.initialize({
+    conn.onAxonEvent((ev) => {
+      this.axonEvents.push(ev);
+      this.ws.broadcast({ type: "axon_event", event: ev });
+    });
+
+    conn.onTimelineEvent((event: ACPTimelineEvent) => {
+      this.ws.broadcast({ type: "timeline_event", event });
+
+      if (event.kind === "system") {
+        if (event.data.type === "turn.started") {
+          this.ws.broadcast({
+            type: "turn_started",
+            turnId: event.data.turnId,
+          });
+        } else if (event.data.type === "turn.completed") {
+          this.ws.broadcast({
+            type: "turn_completed",
+            turnId: event.data.turnId,
+            stopReason: event.data.stopReason ?? "EndTurn",
+          });
+        }
+      }
+    });
+
+    this.connection = conn;
+
+    const initResp = await conn.initialize({
       protocolVersion: PROTOCOL_VERSION,
       clientInfo: { name: "node-demo", version: "0.1.0" },
       clientCapabilities: CLIENT_CAPABILITIES,
@@ -146,7 +138,7 @@ export class ConnectionManager {
     this.authMethods = initResp.authMethods ?? null;
 
     this.ws.broadcast({ type: "connection_progress", step: "Starting session..." });
-    const sessionResp = await this.connection.newSession({
+    const sessionResp = await conn.newSession({
       cwd: "/home/user",
       mcpServers: [],
     });
@@ -169,12 +161,12 @@ export class ConnectionManager {
     };
   }
 
-  requireConnection(): ClientSideConnection {
+  requireConnection(): ACPAxonConnection {
     if (!this.connection) throw new HttpError(400, "Not connected");
     return this.connection;
   }
 
-  requireSession(): { connection: ClientSideConnection; sessionId: string } {
+  requireSession(): { connection: ACPAxonConnection; sessionId: string } {
     const connection = this.requireConnection();
     if (!this.activeSessionId) throw new HttpError(400, "No active session");
     return { connection, sessionId: this.activeSessionId };
@@ -186,15 +178,12 @@ export class ConnectionManager {
   }
 
   async shutdown(): Promise<void> {
-    this.abortController?.abort();
+    await this.connection?.disconnect();
     this.nodeClient?.shutdown();
-    if (this.devboxShutdown) await this.devboxShutdown();
 
     this.connection = null;
     this.nodeClient = null;
     this.activeSessionId = null;
-    this.devboxShutdown = null;
-    this.abortController = null;
     this.axonEvents = [];
     this.authMethods = null;
   }

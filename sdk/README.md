@@ -116,6 +116,7 @@ const devbox = await sdk.devbox.create({
 
 // Connect to Claude Code and set the model
 const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
+await conn.connect();
 await conn.initialize();
 
 // Send a prompt and iterate over response messages until a "result" message arrives
@@ -150,6 +151,7 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 | `requestPermission` | `(params) => Promise<Response>` | Custom permission handler (defaults to auto-approve) |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. Omit to replay full history. |
 
 **ACP Methods** (proxied from `ClientSideConnection`):
 
@@ -241,6 +243,7 @@ Low-level function that creates an ACP-compatible duplex stream backed by an `Ax
 | `signal` | `AbortSignal` | No | Cancellation signal |
 | `onAxonEvent` | `(event: AxonEventView) => void` | No | Callback for every Axon event |
 | `onError` | `(error: unknown) => void` | No | Callback for swallowed parse errors |
+| `afterSequence` | `number` | No | Resume from this sequence — only events after it are delivered |
 
 **Returns**: `{ readable: ReadableStream<AnyMessage>; writable: WritableStream<AnyMessage> }`
 
@@ -333,6 +336,7 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 | `model` | `string` | Model ID (e.g. `"claude-sonnet-4-5"`) — set after initialization |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. Omit to replay full history. |
 
 **Listeners & Lifecycle**:
 
@@ -340,8 +344,10 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 |---|---|
 | `axonId: string` | The Axon channel ID |
 | `devboxId: string` | The Runloop devbox ID |
-| `initialize()` | Connect to Claude Code, initialize the control protocol, and set model if configured |
+| `connect()` | Open the transport and start the background read loop |
+| `initialize()` | Protocol handshake + optional model set (requires `connect()` first) |
 | `disconnect()` | Close the transport, fail pending requests, and run `onDisconnect` if provided |
+| `abortStream()` | Abort the SSE stream without clearing listeners |
 
 **Messaging**:
 
@@ -486,6 +492,27 @@ conn.onTimelineEvent((event) => {
 });
 ```
 
+### Event replay and `afterSequence`
+
+Both modules subscribe to the Axon SSE stream, which **replays all events from the beginning of the channel** by default. Pass `afterSequence` in the connection options to start **after** a known sequence number:
+
+```typescript
+// ACP — skip events 0–42, receive 43+
+const conn = new ACPAxonConnection(axon, devbox, { afterSequence: 42 });
+
+// Claude — same option
+const conn = new ClaudeAxonConnection(axon, devbox, { afterSequence: 42 });
+```
+
+Track the cursor by persisting `AxonEventView.sequence` from `onAxonEvent`:
+
+```typescript
+let lastSeq: number | undefined;
+conn.onAxonEvent((ev) => { lastSeq = ev.sequence; });
+// Later, reconnect from where you left off:
+const conn2 = new ACPAxonConnection(axon, devbox, { afterSequence: lastSeq });
+```
+
 ---
 
 ## Architecture
@@ -530,6 +557,7 @@ Common options accepted by both `ACPAxonConnection` and `ClaudeAxonConnection`:
 | `verbose` | `boolean` | Emit verbose logs to stderr |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. Omit to replay full history. |
 
 ### `AxonEventView`
 
