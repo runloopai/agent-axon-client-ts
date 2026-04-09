@@ -7,6 +7,47 @@ export type { AxonEventView } from "@runloop/api-client/resources/axons";
 
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 
+// ---------------------------------------------------------------------------
+// Timeline events — unified event stream types
+// ---------------------------------------------------------------------------
+
+/**
+ * Broker-emitted system event recognized by the SDK.
+ * These bracket agent turns on the Axon channel.
+ *
+ * @category Timeline
+ */
+export type SystemEvent =
+  | { type: "turn.started"; turnId: string }
+  | { type: "turn.completed"; turnId: string; stopReason?: string };
+
+/**
+ * A timeline event carrying a recognized broker system event.
+ * @category Timeline
+ */
+export interface SystemTimelineEvent {
+  kind: "system";
+  data: SystemEvent;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * A timeline event the SDK did not recognize. The consumer can inspect
+ * `axonEvent.origin` and `axonEvent.event_type` to decide how to handle it.
+ * @category Timeline
+ */
+export interface UnrecognizedTimelineEvent {
+  kind: "unrecognized";
+  data: null;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * Listener callback for timeline events.
+ * @category Timeline
+ */
+export type TimelineEventListener<T> = (event: T) => void;
+
 /**
  * Callback invoked for every Axon event (before protocol-specific processing).
  *

@@ -6,7 +6,6 @@ import {
   isToolCall,
   isToolCallProgress,
   isPlan,
-  isUserMessageChunk,
 } from "@runloop/agent-axon-client/acp";
 import type { ClientEvent } from "../../server/acp-client.js";
 import type {
@@ -31,7 +30,8 @@ export interface UseTurnBlocksReturn {
   plan: PlanEntry[] | null;
   error: string | null;
   blocksRef: React.RefObject<TurnBlock[]>;
-  startTurn: (userText: string, attachments?: UserAttachment[]) => void;
+  startTurn: () => void;
+  addUserMessage: (text: string, id: string, attachments?: UserAttachment[]) => void;
   resetChat: () => void;
   onEvent: (event: ClientEvent) => void;
 }
@@ -96,23 +96,28 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     setCurrentTurnBlocks([]);
   }
 
-  const startTurn = useCallback((userText: string, attachments?: UserAttachment[]) => {
+  const startTurn = useCallback(() => {
     flushBlocksToMessages(lastStopReasonRef.current);
     lastStopReasonRef.current = undefined;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `user-${Date.now()}`,
-        role: "user",
-        content: userText,
-        ...(attachments && attachments.length > 0 ? { attachments } : {}),
-      },
-    ]);
     blocksRef.current = [];
     thinkingStartRef.current = null;
     setCurrentTurnBlocks([]);
     setIsAgentTurn(true);
     setIsStreaming(false);
+  }, []);
+
+  const addUserMessage = useCallback((text: string, id: string, attachments?: UserAttachment[]) => {
+    flushBlocksToMessages(lastStopReasonRef.current);
+    lastStopReasonRef.current = undefined;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id,
+        role: "user" as const,
+        content: text,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      },
+    ]);
   }, []);
 
   const resetChat = useCallback(() => {
@@ -316,16 +321,6 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
       return;
     }
 
-    if (isUserMessageChunk(update)) {
-      const { content } = update;
-      const text = content.type === "text" ? content.text : "";
-      if (text) {
-        setMessages((prev) => [
-          ...prev,
-          { id: `user-replay-${Date.now()}`, role: "user", content: text },
-        ]);
-      }
-    }
   }, []);
 
   return {
@@ -337,6 +332,7 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     error,
     blocksRef,
     startTurn,
+    addUserMessage,
     resetChat,
     onEvent,
   };

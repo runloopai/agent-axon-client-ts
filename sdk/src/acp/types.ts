@@ -5,7 +5,11 @@ import type {
 } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
-import type { BaseConnectionOptions } from "../shared/types.js";
+import type {
+  BaseConnectionOptions,
+  SystemTimelineEvent,
+  UnrecognizedTimelineEvent,
+} from "../shared/types.js";
 
 /**
  * Configuration for creating a low-level Axon stream via {@link axonStream}.
@@ -58,3 +62,33 @@ export interface ACPAxonConnectionOptions extends BaseConnectionOptions {
  * @category Configuration
  */
 export type SessionUpdateListener = (sessionId: string | null, update: SessionUpdate) => void;
+
+// ---------------------------------------------------------------------------
+// Timeline events
+// ---------------------------------------------------------------------------
+
+/**
+ * A timeline event carrying a recognized ACP protocol event.
+ * `data` is the parsed payload — for `session/update` this is a `SessionUpdate`,
+ * for other protocol methods it is the raw parsed JSON.
+ *
+ * Use `axonEvent.origin` to determine direction:
+ * - `USER_EVENT` = outbound (client sent this)
+ * - `AGENT_EVENT` = inbound (agent sent this)
+ *
+ * @category Timeline
+ */
+export interface ACPProtocolTimelineEvent {
+  kind: "acp_protocol";
+  data: SessionUpdate | unknown;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * Union of all timeline event types emitted by the ACP connection.
+ * @category Timeline
+ */
+export type ACPTimelineEvent =
+  | ACPProtocolTimelineEvent
+  | SystemTimelineEvent
+  | UnrecognizedTimelineEvent;

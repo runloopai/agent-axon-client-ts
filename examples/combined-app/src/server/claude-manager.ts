@@ -117,6 +117,10 @@ export class ClaudeConnectionManager {
       this.ws.broadcast(this.tag({ type: "axon_event", event: ev }));
     });
 
+    conn.onTimelineEvent((ev) => {
+      this.ws.broadcast(this.tag({ type: "timeline_event", event: ev }));
+    });
+
     conn.onControlRequest("can_use_tool", async (message) => {
       const requestId = message.request_id;
       const request = message.request;
@@ -135,7 +139,7 @@ export class ClaudeConnectionManager {
         };
       }
 
-      this.ws.broadcast(this.tag({ type: "control_request", controlRequest: message as unknown as Record<string, unknown> }));
+      this.ws.broadcast(this.tag({ type: "control_request", controlRequest: message }));
 
       return new Promise<SDKControlResponse>((resolve, reject) => {
         this.pendingControlResponses.set(requestId, {
@@ -170,12 +174,11 @@ export class ClaudeConnectionManager {
   private async runReadLoop(conn: ClaudeAxonConnection): Promise<void> {
     console.log("[read-loop] started");
     try {
-      for await (const msg of conn.receiveMessages()) {
-        const msgType = (msg as Record<string, unknown>).type;
-        const msgSubtype = (msg as Record<string, unknown>).subtype;
-        console.log(`[read-loop] received: type=${msgType} subtype=${msgSubtype}`);
+      for await (const msg of conn.receiveAgentEvents()) {
+        const msgSubtype = "subtype" in msg ? (msg as { subtype: string }).subtype : undefined;
+        console.log(`[read-loop] received: type=${msg.type} subtype=${msgSubtype}`);
 
-        this.ws.broadcast(this.tag({ type: "sdk_message", message: msg as unknown as Record<string, unknown> }));
+        this.ws.broadcast(this.tag({ type: "sdk_message", message: msg }));
 
         if (msg.type === "result") {
           this.ws.broadcast(this.tag({ type: "turn_complete", result: msg } as BaseWsEvent));

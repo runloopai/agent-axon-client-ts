@@ -7,7 +7,7 @@
  * {@link ClaudeAxonConnection.connect | connect()} then
  * {@link ClaudeAxonConnection.initialize | initialize()}, then use
  * {@link ClaudeAxonConnection.send | send()} and
- * {@link ClaudeAxonConnection.receiveResponse | receiveResponse()} to
+ * {@link ClaudeAxonConnection.receiveAgentResponse | receiveAgentResponse()} to
  * interact with Claude Code.
  *
  * @categoryDescription Connection
@@ -64,17 +64,28 @@ export type {
   SDKUserMessage,
   SDKUserMessageReplay,
 } from "@anthropic-ai/claude-agent-sdk";
-export type { AxonEventListener, AxonEventView, BaseConnectionOptions } from "../shared/types.js";
+export { parseTimelinePayload, tryParseSystemEvent } from "../shared/timeline.js";
+export type {
+  AxonEventListener,
+  AxonEventView,
+  BaseConnectionOptions,
+  SystemEvent,
+  SystemTimelineEvent,
+  TimelineEventListener,
+  UnrecognizedTimelineEvent,
+} from "../shared/types.js";
+export { type ExtractedUserMessage, extractClaudeUserMessage } from "../shared/user-message.js";
 export {
   ClaudeAxonConnection,
   type ClaudeAxonConnectionOptions,
   type ControlRequestHandler,
   type ControlRequestInner,
   type ControlRequestOfSubtype,
+  classifyClaudeAxonEvent,
 } from "./connection.js";
 export {
   AxonTransport,
   type AxonTransportOptions,
   type Transport,
 } from "./transport.js";
-export type { WireData } from "./types.js";
+export type { ClaudeProtocolTimelineEvent, ClaudeTimelineEvent, WireData } from "./types.js";

@@ -185,12 +185,11 @@ app.post(
       mcpServers: [],
     });
     mgr.activeSessionId = resp.sessionId;
-    const raw = resp as Record<string, unknown>;
     res.json({
       sessionId: resp.sessionId,
-      modes: raw.modes,
-      configOptions: raw.configOptions,
-      models: raw.models,
+      modes: resp.modes,
+      configOptions: resp.configOptions,
+      models: resp.models,
     });
   }),
 );

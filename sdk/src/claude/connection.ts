@@ -22,13 +22,19 @@ import type {
   SDKMessage,
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
-import type { AxonEventListener, BaseConnectionOptions } from "../shared/types.js";
-import { AxonTransport, type Transport } from "./transport.js";
-import type { WireData } from "./types.js";
+import { tryParseSystemEvent } from "../shared/timeline.js";
+import type {
+  AxonEventListener,
+  BaseConnectionOptions,
+  TimelineEventListener,
+} from "../shared/types.js";
+import { AxonTransport, MESSAGE_TYPE_TO_EVENT_TYPE, type Transport } from "./transport.js";
+import type { ClaudeTimelineEvent, WireData } from "./types.js";
 
 /** The inner request payload — discriminated by `subtype`. */
 export type ControlRequestInner = SDKControlRequest["request"];
@@ -238,6 +244,9 @@ export class ClaudeAxonConnection {
   /** Registered raw Axon event listeners. */
   private axonEventListeners: ListenerSet<AxonEventListener>;
 
+  /** Registered timeline event listeners. */
+  private timelineEventListeners: ListenerSet<TimelineEventListener<ClaudeTimelineEvent>>;
+
   private log: (tag: string, ...args: unknown[]) => void;
 
   /**
@@ -259,9 +268,15 @@ export class ClaudeAxonConnection {
     this.disconnectFn = options?.onDisconnect;
     this.log = makeLogger("claude-sdk", options?.verbose ?? false);
     this.axonEventListeners = new ListenerSet<AxonEventListener>(this.handleError);
+    this.timelineEventListeners = new ListenerSet<TimelineEventListener<ClaudeTimelineEvent>>(
+      this.handleError,
+    );
     this.transport = new AxonTransport(axon, {
       verbose: this.options.verbose,
-      onAxonEvent: (ev) => this.axonEventListeners.emit(ev),
+      onAxonEvent: (ev) => {
+        this.axonEventListeners.emit(ev);
+        this.emitTimelineEvent(ev);
+      },
       afterSequence: this.options.afterSequence,
     });
   }
@@ -366,6 +381,7 @@ export class ClaudeAxonConnection {
     }
     this.pendingControlRequests.clear();
     this.axonEventListeners.clear();
+    this.timelineEventListeners.clear();
     this.controlRequestHandlers.clear();
 
     await this.transport.close();
@@ -386,6 +402,72 @@ export class ClaudeAxonConnection {
    */
   onAxonEvent(listener: AxonEventListener): () => void {
     return this.axonEventListeners.add(listener);
+  }
+
+  /**
+   * Registers a listener for classified timeline events.
+   *
+   * Every Axon event on the channel is classified into one of:
+   * - `claude_protocol` — a known Claude protocol event (user or agent message)
+   * - `system` — a broker system event (`turn.started`, `turn.completed`)
+   * - `unrecognized` — anything else
+   *
+   * @param listener - Callback invoked with each {@link ClaudeTimelineEvent}.
+   * @returns An unsubscribe function that removes the listener.
+   */
+  onTimelineEvent(listener: TimelineEventListener<ClaudeTimelineEvent>): () => void {
+    return this.timelineEventListeners.add(listener);
+  }
+
+  /**
+   * Async generator that yields classified timeline events.
+   *
+   * Mirrors the pull-based pattern of {@link receiveAgentEvents}. The
+   * generator completes when the connection is disconnected.
+   *
+   * @returns An async generator of {@link ClaudeTimelineEvent}.
+   */
+  async *receiveTimelineEvents(): AsyncGenerator<ClaudeTimelineEvent, void, undefined> {
+    const queue: ClaudeTimelineEvent[] = [];
+    let resolve: (() => void) | null = null;
+    let done = false;
+
+    const unsubscribe = this.onTimelineEvent((event) => {
+      queue.push(event);
+      resolve?.();
+    });
+
+    const checkDone = () => {
+      if (this.closed || this.readLoopDone) {
+        done = true;
+        resolve?.();
+      }
+    };
+
+    const interval = setInterval(checkDone, 100);
+
+    try {
+      while (!done) {
+        if (queue.length > 0) {
+          // biome-ignore lint/style/noNonNullAssertion: guarded by .length > 0 check above
+          yield queue.shift()!;
+        } else {
+          checkDone();
+          if (done) break;
+          await new Promise<void>((r) => {
+            resolve = r;
+          });
+          resolve = null;
+        }
+      }
+      while (queue.length > 0) {
+        // biome-ignore lint/style/noNonNullAssertion: draining remaining items after done
+        yield queue.shift()!;
+      }
+    } finally {
+      clearInterval(interval);
+      unsubscribe();
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -445,6 +527,14 @@ export class ClaudeAxonConnection {
       }
       this.messageWaiters.length = 0;
     })();
+  }
+
+  /**
+   * Classifies a raw Axon event and emits it to timeline listeners.
+   */
+  private emitTimelineEvent(ev: AxonEventView): void {
+    const event = classifyClaudeAxonEvent(ev);
+    this.timelineEventListeners.emit(event);
   }
 
   /**
@@ -751,13 +841,13 @@ export class ClaudeAxonConnection {
   /**
    * Async iterator that yields every `SDKMessage` from Claude indefinitely.
    *
-   * Does **not** stop at `result` messages — use {@link receiveResponse}
+   * Does **not** stop at `result` messages — use {@link receiveAgentResponse}
    * for single-turn convenience. Iteration ends when the transport closes
    * or {@link disconnect} is called.
    *
    * @yields Each `SDKMessage` as it arrives from the agent.
    */
-  async *receiveMessages(): AsyncGenerator<SDKMessage, void, undefined> {
+  async *receiveAgentEvents(): AsyncGenerator<SDKMessage, void, undefined> {
     while (true) {
       const msg = await this.nextMessage();
       if (msg === null) return;
@@ -770,25 +860,39 @@ export class ClaudeAxonConnection {
    * `result` message, then terminates automatically.
    *
    * Convenient for single-turn usage: send a prompt, iterate
-   * `receiveResponse()`, and the loop ends when Claude finishes.
+   * `receiveAgentResponse()`, and the loop ends when Claude finishes.
    *
    * @yields Each `SDKMessage` up to and including the `result`.
    *
    * @example
    * ```ts
    * await conn.send("Summarize this file.");
-   * for await (const msg of conn.receiveResponse()) {
+   * for await (const msg of conn.receiveAgentResponse()) {
    *   console.log(msg.type, msg);
    * }
    * ```
    */
-  async *receiveResponse(): AsyncGenerator<SDKMessage, void, undefined> {
-    for await (const msg of this.receiveMessages()) {
+  async *receiveAgentResponse(): AsyncGenerator<SDKMessage, void, undefined> {
+    for await (const msg of this.receiveAgentEvents()) {
       yield msg;
       if (msg.type === "result") {
         return;
       }
     }
+  }
+
+  /**
+   * @deprecated Use {@link receiveAgentEvents} instead.
+   */
+  async *receiveMessages(): AsyncGenerator<SDKMessage, void, undefined> {
+    yield* this.receiveAgentEvents();
+  }
+
+  /**
+   * @deprecated Use {@link receiveAgentResponse} instead.
+   */
+  async *receiveResponse(): AsyncGenerator<SDKMessage, void, undefined> {
+    yield* this.receiveAgentResponse();
   }
 
   // -----------------------------------------------------------------------
@@ -870,4 +974,47 @@ export class ClaudeAxonConnection {
       }
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Timeline event classification
+// ---------------------------------------------------------------------------
+
+/** All known Claude protocol event_type strings for O(1) lookup. */
+const CLAUDE_KNOWN_EVENT_TYPES: Set<string> = new Set([
+  ...Object.keys(MESSAGE_TYPE_TO_EVENT_TYPE),
+  ...Object.values(MESSAGE_TYPE_TO_EVENT_TYPE),
+]);
+
+/**
+ * Classifies a raw Axon event into a {@link ClaudeTimelineEvent}.
+ *
+ * Classification rules:
+ * 1. `SYSTEM_EVENT` with `turn.started` / `turn.completed` -> `system`
+ * 2. Known Claude protocol `event_type` -> `claude_protocol`
+ * 3. Everything else -> `unrecognized`
+ *
+ * @category Timeline
+ */
+export function classifyClaudeAxonEvent(ev: AxonEventView): ClaudeTimelineEvent {
+  if (ev.origin === "SYSTEM_EVENT") {
+    const systemEvent = tryParseSystemEvent(ev);
+    if (systemEvent) {
+      return { kind: "system", data: systemEvent, axonEvent: ev };
+    }
+  }
+
+  if (CLAUDE_KNOWN_EVENT_TYPES.has(ev.event_type)) {
+    let data: SDKMessage | null = null;
+    try {
+      data = JSON.parse(ev.payload) as SDKMessage;
+    } catch {
+      // leave as null
+    }
+    if (data && typeof data === "object" && "type" in data) {
+      return { kind: "claude_protocol", data, axonEvent: ev };
+    }
+  }
+
+  return { kind: "unrecognized", data: null, axonEvent: ev };
 }

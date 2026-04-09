@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { ClaudeAxonConnection } from "./connection.js";
 import type { Transport } from "./transport.js";
-import type { WireData } from "./types.js";
+import type { ClaudeTimelineEvent, WireData } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Mock Transport
@@ -1054,6 +1054,217 @@ describe("ClaudeAxonConnection", () => {
       const parsed = JSON.parse(initCall as string);
       expect(parsed.request.systemPrompt).toBeUndefined();
       expect(parsed.request.appendSystemPrompt).toBeUndefined();
+    });
+  });
+
+  describe("onTimelineEvent", () => {
+    function emitAxonEvent(
+      conn: ClaudeAxonConnection,
+      event: { event_type: string; payload: string; origin: string; sequence?: number },
+    ) {
+      // Call the private emitTimelineEvent directly since the mock transport
+      // bypasses the real onAxonEvent callback wired in the constructor.
+      const emitTimeline = (
+        conn as unknown as { emitTimelineEvent: (ev: unknown) => void }
+      ).emitTimelineEvent.bind(conn);
+      emitTimeline(event);
+    }
+
+    it("classifies AGENT_EVENT assistant as claude_protocol", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant", content: "Hello" }),
+        origin: "AGENT_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("claude_protocol");
+      if (events[0].kind === "claude_protocol") {
+        expect(events[0].data.type).toBe("assistant");
+      }
+    });
+
+    it("classifies USER_EVENT query as claude_protocol", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "query",
+        payload: JSON.stringify({ type: "user", message: { role: "user", content: "Hi" } }),
+        origin: "USER_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("claude_protocol");
+      expect(events[0].axonEvent.origin).toBe("USER_EVENT");
+    });
+
+    it("classifies SYSTEM_EVENT turn.started as system", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "turn.started",
+        payload: JSON.stringify({ turn_id: "t-42" }),
+        origin: "SYSTEM_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("system");
+      if (events[0].kind === "system") {
+        expect(events[0].data.type).toBe("turn.started");
+        expect(events[0].data.turnId).toBe("t-42");
+      }
+    });
+
+    it("classifies SYSTEM_EVENT turn.completed as system", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "turn.completed",
+        payload: JSON.stringify({ turn_id: "t-42", stop_reason: "end_turn" }),
+        origin: "SYSTEM_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("system");
+      if (events[0].kind === "system") {
+        expect(events[0].data.type).toBe("turn.completed");
+        if (events[0].data.type === "turn.completed") {
+          expect(events[0].data.stopReason).toBe("end_turn");
+        }
+      }
+    });
+
+    it("classifies unknown EXTERNAL_EVENT as unrecognized", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "custom.metric",
+        payload: JSON.stringify({ foo: "bar" }),
+        origin: "EXTERNAL_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("unrecognized");
+      expect(events[0].data).toBeNull();
+    });
+
+    it("returns an unsubscribe function", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      const unsub = conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant", content: "Hi" }),
+        origin: "AGENT_EVENT",
+      });
+      expect(events).toHaveLength(1);
+
+      unsub();
+
+      emitAxonEvent(conn, {
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant", content: "Bye" }),
+        origin: "AGENT_EVENT",
+      });
+      expect(events).toHaveLength(1);
+    });
+
+    it("disconnect() clears timeline listeners", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      await conn.disconnect();
+
+      emitAxonEvent(conn, {
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant", content: "Hi" }),
+        origin: "AGENT_EVENT",
+      });
+      expect(events).toHaveLength(0);
+    });
+  });
+
+  describe("receiveAgentEvents / receiveAgentResponse (renamed)", () => {
+    it("receiveAgentEvents() yields SDK messages", async () => {
+      const conn = await createConnectedClient(transport);
+
+      transport._push({ type: "assistant", content: "Hi" });
+      transport._push({ type: "result", cost: 0.01 });
+      conn.abortStream();
+      transport._end();
+
+      const messages: WireData[] = [];
+      for await (const msg of conn.receiveAgentEvents()) {
+        messages.push(msg as unknown as WireData);
+      }
+
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({ type: "assistant" });
+    });
+
+    it("receiveAgentResponse() yields until result", async () => {
+      const conn = await createConnectedClient(transport);
+
+      transport._push({ type: "assistant", content: "thinking..." });
+      transport._push({ type: "result", cost: 0.05 });
+      transport._push({ type: "assistant", content: "next turn" });
+
+      const messages: WireData[] = [];
+      for await (const msg of conn.receiveAgentResponse()) {
+        messages.push(msg as unknown as WireData);
+      }
+
+      expect(messages).toHaveLength(2);
+      expect(messages[1]).toMatchObject({ type: "result" });
+    });
+
+    it("deprecated receiveMessages() delegates to receiveAgentEvents()", async () => {
+      const conn = await createConnectedClient(transport);
+
+      transport._push({ type: "assistant", content: "Hi" });
+      conn.abortStream();
+      transport._end();
+
+      const messages: WireData[] = [];
+      for await (const msg of conn.receiveMessages()) {
+        messages.push(msg as unknown as WireData);
+      }
+
+      expect(messages).toHaveLength(1);
+    });
+
+    it("deprecated receiveResponse() delegates to receiveAgentResponse()", async () => {
+      const conn = await createConnectedClient(transport);
+
+      transport._push({ type: "result", cost: 0.01 });
+
+      const messages: WireData[] = [];
+      for await (const msg of conn.receiveResponse()) {
+        messages.push(msg as unknown as WireData);
+      }
+
+      expect(messages).toHaveLength(1);
     });
   });
 });

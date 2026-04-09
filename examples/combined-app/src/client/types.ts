@@ -1,3 +1,37 @@
+import type {
+  AvailableCommand,
+  Diff,
+  ModelInfo,
+  PermissionOption,
+  PlanEntryPriority,
+  PlanEntryStatus,
+  SessionInfo,
+  SessionMode,
+  Terminal,
+  ToolCallStatus,
+  ToolKind,
+} from "@runloop/agent-axon-client/acp";
+import type { ACPTimelineEvent, AxonEventView } from "@runloop/agent-axon-client/acp";
+import type { ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
+
+export type {
+  AvailableCommand,
+  Diff,
+  ModelInfo,
+  PermissionOption,
+  PlanEntryPriority,
+  PlanEntryStatus,
+  SessionInfo,
+  SessionMode,
+  Terminal,
+  ToolCallStatus,
+  ToolKind,
+} from "@runloop/agent-axon-client/acp";
+export type { ACPTimelineEvent, AxonEventView } from "@runloop/agent-axon-client/acp";
+export type { ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
+
+export type TimelineEvent = ACPTimelineEvent | ClaudeTimelineEvent;
+
 export type AgentType = "claude" | "acp";
 
 export type ConnectionPhase = "idle" | "connecting" | "ready" | "error";
@@ -15,20 +49,6 @@ export type AttachmentContentItem =
 
 // --- Tool call types ---
 
-export type ToolKind =
-  | "read"
-  | "edit"
-  | "delete"
-  | "move"
-  | "search"
-  | "execute"
-  | "think"
-  | "fetch"
-  | "switch_mode"
-  | "other";
-
-export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed";
-
 export interface ToolCallLocation {
   path: string;
   startLine?: number;
@@ -38,24 +58,11 @@ export interface ToolCallLocation {
 export interface ContentItem {
   type: "content" | "diff" | "terminal";
   text?: string;
-  diff?: DiffContent;
-  terminal?: TerminalContent;
-}
-
-export interface DiffContent {
-  path: string;
-  oldText?: string | null;
-  newText: string;
-}
-
-export interface TerminalContent {
-  terminalId: string;
+  diff?: Diff;
+  terminal?: Terminal;
 }
 
 // --- Plan entry (unified todo + plan) ---
-
-export type PlanEntryStatus = "pending" | "in_progress" | "completed";
-export type PlanEntryPriority = "high" | "medium" | "low";
 
 export interface PlanEntry {
   content: string;
@@ -253,13 +260,6 @@ export interface PendingControlRequest {
 
 // --- ACP-specific: permission ---
 
-export interface PermissionOption {
-  optionId: string;
-  name: string;
-  kind: string;
-  description?: string;
-}
-
 export interface PendingPermission {
   requestId: string;
   toolTitle: string;
@@ -295,27 +295,6 @@ export interface PendingElicitation {
 }
 
 // --- ACP-specific: session config ---
-
-export interface SessionMode {
-  id: string;
-  name: string;
-  description?: string;
-}
-
-export interface ModelInfo {
-  modelId: string;
-  name: string;
-}
-
-export interface AvailableCommandInput {
-  hint: string;
-}
-
-export interface AvailableCommand {
-  name: string;
-  description?: string;
-  input?: AvailableCommandInput | null;
-}
 
 export interface SessionConfigOption {
   id: string;
@@ -405,27 +384,6 @@ export interface TerminalState {
   timestamp: number;
 }
 
-export interface SessionListEntry {
-  sessionId: string;
-  title?: string;
-  updatedAt?: string;
-  cwd: string;
-}
-
-// --- Axon event (re-export shape) ---
-
-export interface AxonEventView {
-  id: string;
-  axon_id: string;
-  event_type: string;
-  origin: string;
-  payload: string;
-  created_at: string;
-  sequence: number;
-  source: string;
-  timestamp_ms: number;
-  [key: string]: unknown;
-}
 
 // --- Start config types ---
 
@@ -487,7 +445,7 @@ export interface UseAgentReturn {
   isAuthenticated: boolean;
   authDismissed: boolean;
   availableCommands: AvailableCommand[];
-  sessions: SessionListEntry[];
+  sessions: SessionInfo[];
   isLoadingSessions: boolean;
 
   // Common
@@ -497,6 +455,7 @@ export interface UseAgentReturn {
   sessionId: string | null;
   runloopUrl: string | null;
   axonEvents: AxonEventView[];
+  timelineEvents: TimelineEvent[];
 
   // Actions
   start: (params: StartConfig) => Promise<void>;

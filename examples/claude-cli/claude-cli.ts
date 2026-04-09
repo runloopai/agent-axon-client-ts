@@ -205,7 +205,7 @@ while (true) {
   try {
     await client.send(trimmed);
 
-    for await (const msg of client.receiveResponse()) {
+    for await (const msg of client.receiveAgentResponse()) {
       renderMessage(msg);
     }
   } catch (err: unknown) {

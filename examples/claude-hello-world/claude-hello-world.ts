@@ -95,7 +95,7 @@ console.log("Connected.\n");
 console.log("Sending prompt: 'Say hello world'\n");
 await client.send("Say hello world");
 
-for await (const msg of client.receiveResponse()) {
+for await (const msg of client.receiveAgentResponse()) {
   renderMessage(msg);
 }
 

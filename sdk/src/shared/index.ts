@@ -13,6 +13,20 @@
 export { runDisconnectHook } from "./lifecycle.js";
 export { ListenerSet } from "./listener-set.js";
 export { makeDefaultOnError, makeLogger } from "./logging.js";
-
+export { parseTimelinePayload, tryParseSystemEvent } from "./timeline.js";
 /** @category Types */
-export type { AxonEventListener, AxonEventView, BaseConnectionOptions } from "./types.js";
+/** @category Timeline */
+export type {
+  AxonEventListener,
+  AxonEventView,
+  BaseConnectionOptions,
+  SystemEvent,
+  SystemTimelineEvent,
+  TimelineEventListener,
+  UnrecognizedTimelineEvent,
+} from "./types.js";
+export {
+  type ExtractedUserMessage,
+  extractACPUserMessage,
+  extractClaudeUserMessage,
+} from "./user-message.js";

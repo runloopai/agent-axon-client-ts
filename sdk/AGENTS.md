@@ -106,6 +106,8 @@ Available guards: `isUserMessageChunk`, `isAgentMessageChunk`,
 | `cancel(params)` | Cancel an in-progress turn |
 | `onSessionUpdate(listener)` | Subscribe to session updates (returns unsubscribe fn) |
 | `onAxonEvent(listener)` | Subscribe to all Axon events (returns unsubscribe fn) |
+| `onTimelineEvent(listener)` | Subscribe to classified timeline events (returns unsubscribe fn) |
+| `receiveTimelineEvents()` | Async generator yielding classified timeline events |
 | `abortStream()` | Abort the SSE stream without clearing listeners |
 | `disconnect()` | Close the connection and run `onDisconnect` callback |
 
@@ -150,12 +152,71 @@ await conn.disconnect();
 | `connect()` | Open transport and start the read loop; replays all events unless `afterSequence` was set |
 | `initialize()` | Protocol handshake + optional model set (requires `connect()` first) |
 | `send(prompt)` | Send a user message (`string` or `SDKUserMessage`) |
-| `receiveResponse()` | Async iterator yielding messages until `result` |
-| `receiveMessages()` | Async iterator yielding all messages indefinitely |
+| `receiveAgentResponse()` | Async iterator yielding messages until `result` |
+| `receiveAgentEvents()` | Async iterator yielding all messages indefinitely |
+| `receiveMessages()` | **Deprecated** — use `receiveAgentEvents()` |
+| `receiveResponse()` | **Deprecated** — use `receiveAgentResponse()` |
 | `interrupt()` | Cancel the current turn |
 | `onAxonEvent(listener)` | Subscribe to all Axon events (returns unsubscribe fn) |
+| `onTimelineEvent(listener)` | Subscribe to classified timeline events (returns unsubscribe fn) |
+| `receiveTimelineEvents()` | Async generator yielding classified timeline events |
 | `abortStream()` | Abort the SSE stream without clearing listeners |
 | `disconnect()` | Close transport + run `onDisconnect` callback |
+
+## Timeline Events
+
+Both modules provide a unified timeline event stream that classifies every Axon
+event into a typed discriminated union. This is the recommended way to build
+chat UIs that interleave protocol events, system events, and custom events.
+
+### Timeline event kinds
+
+| Kind | Data type | When |
+|------|-----------|------|
+| `acp_protocol` | `SessionUpdate \| unknown` | Known ACP protocol event (agent or client method) |
+| `claude_protocol` | `SDKMessage` | Known Claude protocol event |
+| `system` | `SystemEvent` | Broker system event (`turn.started`, `turn.completed`) |
+| `unrecognized` | `null` | Anything else — inspect `axonEvent` for details |
+
+Every timeline event has `{ kind, data, axonEvent }` where `axonEvent` is the
+raw `AxonEventView` for full access to origin, event_type, payload, and sequence.
+
+### Consuming timeline events
+
+```typescript
+// Callback-based (push)
+conn.onTimelineEvent((event) => {
+  switch (event.kind) {
+    case "acp_protocol":
+      // event.data is SessionUpdate | unknown
+      break;
+    case "system":
+      // event.data is SystemEvent ({ type: "turn.started" | "turn.completed", turnId, ... })
+      break;
+    case "unrecognized":
+      // event.data is null — check event.axonEvent for raw data
+      break;
+  }
+});
+
+// Generator-based (pull)
+for await (const event of conn.receiveTimelineEvents()) {
+  console.log(event.kind, event.data);
+}
+```
+
+### Utility: `parseTimelinePayload`
+
+```typescript
+import { parseTimelinePayload } from "@runloop/agent-axon-client/acp";
+
+conn.onTimelineEvent((event) => {
+  if (event.kind === "unrecognized") {
+    const payload = parseTimelinePayload<MyCustomEvent>(event);
+    if (payload) { /* handle custom event */ }
+  }
+});
+```
 
 ## Event replay and `afterSequence`
 

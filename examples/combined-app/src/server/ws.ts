@@ -1,23 +1,26 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
+import type { ACPTimelineEvent, AxonEventView, ElicitationRequest, RequestPermissionRequest, SessionUpdate } from "@runloop/agent-axon-client/acp";
+import type { ClaudeTimelineEvent, SDKControlRequest, SDKMessage } from "@runloop/agent-axon-client/claude";
 
 export type BaseWsEvent =
-  | { type: "sdk_message"; message: Record<string, unknown> }
-  | { type: "control_request"; controlRequest: Record<string, unknown> }
-  | { type: "session_update"; sessionId: string | null; update: unknown }
+  | { type: "sdk_message"; message: SDKMessage }
+  | { type: "control_request"; controlRequest: SDKControlRequest }
+  | { type: "session_update"; sessionId: string | null; update: SessionUpdate }
   | { type: "file_read"; path: string; lines: number }
   | { type: "file_write"; path: string; bytes: number }
   | { type: "terminal_create"; terminalId: string; command: string }
   | { type: "terminal_output"; terminalId: string; output: string; exited: boolean }
   | { type: "terminal_kill"; terminalId: string }
   | { type: "terminal_release"; terminalId: string }
-  | { type: "permission_request"; requestId: string; request: unknown }
+  | { type: "permission_request"; requestId: string; request: RequestPermissionRequest }
   | { type: "permission_dismissed" }
-  | { type: "elicitation_request"; requestId: string; request: unknown }
+  | { type: "elicitation_request"; requestId: string; request: ElicitationRequest }
   | { type: "elicitation_dismissed" }
-  | { type: "axon_event"; event: unknown }
-  | { type: "turn_started"; turnId?: number }
-  | { type: "turn_completed"; turnId?: number; stopReason?: string; result?: unknown }
+  | { type: "axon_event"; event: AxonEventView }
+  | { type: "timeline_event"; event: ACPTimelineEvent | ClaudeTimelineEvent }
+  | { type: "turn_started"; turnId?: string }
+  | { type: "turn_completed"; turnId?: string; stopReason?: string; result?: SDKMessage }
   | { type: "turn_complete"; [key: string]: unknown }
   | { type: "turn_error"; error: string }
   | { type: "connection_progress"; step: string };

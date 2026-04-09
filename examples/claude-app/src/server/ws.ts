@@ -1,13 +1,14 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
-import type { AxonEventView } from "@runloop/agent-axon-client/claude";
+import type { AxonEventView, ClaudeTimelineEvent, SDKControlRequest, SDKMessage } from "@runloop/agent-axon-client/claude";
 
 export type WsEvent =
-  | { type: "sdk_message"; message: unknown }
-  | { type: "control_request"; controlRequest: unknown }
-  | { type: "turn_complete"; result: unknown }
+  | { type: "sdk_message"; message: SDKMessage }
+  | { type: "control_request"; controlRequest: SDKControlRequest }
+  | { type: "turn_complete"; result: SDKMessage }
   | { type: "turn_error"; error: string }
   | { type: "axon_event"; event: AxonEventView }
+  | { type: "timeline_event"; event: ClaudeTimelineEvent }
   | { type: "connection_progress"; step: string };
 
 export class WsBroadcaster {

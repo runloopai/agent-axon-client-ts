@@ -4,7 +4,7 @@ import {
   PROTOCOL_VERSION,
   type Agent,
 } from "@runloop/agent-axon-client/acp";
-import { axonStream, type AxonEventView } from "@runloop/agent-axon-client/acp";
+import { axonStream, classifyACPAxonEvent, tryParseSystemEvent, type AxonEventView } from "@runloop/agent-axon-client/acp";
 import { NodeACPClient } from "./acp-client.ts";
 import type { WsBroadcaster } from "./ws.ts";
 
@@ -108,24 +108,21 @@ export class ConnectionManager {
       onAxonEvent: (ev) => {
         this.axonEvents.push(ev);
         this.ws.broadcast({ type: "axon_event", event: ev });
+        this.ws.broadcast({ type: "timeline_event", event: classifyACPAxonEvent(ev) });
 
-        if (ev.origin === "SYSTEM_EVENT") {
-          try {
-            const payload = JSON.parse(ev.payload);
-            if (ev.event_type === "turn.started") {
-              this.ws.broadcast({
-                type: "turn_started",
-                turnId: payload.turn_id,
-              });
-            } else if (ev.event_type === "turn.completed") {
-              this.ws.broadcast({
-                type: "turn_completed",
-                turnId: payload.turn_id,
-                stopReason: payload.stop_reason ?? "EndTurn",
-              });
-            }
-          } catch {
-            /* ignore parse errors */
+        const systemEvent = tryParseSystemEvent(ev);
+        if (systemEvent) {
+          if (systemEvent.type === "turn.started") {
+            this.ws.broadcast({
+              type: "turn_started",
+              turnId: systemEvent.turnId,
+            });
+          } else if (systemEvent.type === "turn.completed") {
+            this.ws.broadcast({
+              type: "turn_completed",
+              turnId: systemEvent.turnId,
+              stopReason: systemEvent.stopReason ?? "EndTurn",
+            });
           }
         }
       },
@@ -146,8 +143,7 @@ export class ConnectionManager {
       clientCapabilities: CLIENT_CAPABILITIES,
     });
 
-    const initData = initResp as Record<string, unknown>;
-    this.authMethods = (initData.authMethods as unknown[]) ?? null;
+    this.authMethods = initResp.authMethods ?? null;
 
     this.ws.broadcast({ type: "connection_progress", step: "Starting session..." });
     const sessionResp = await this.connection.newSession({
@@ -156,25 +152,20 @@ export class ConnectionManager {
     });
     this.activeSessionId = sessionResp.sessionId;
 
-    const sessionRaw = sessionResp as Record<string, unknown>;
-
     return {
       sessionId: sessionResp.sessionId,
       devboxId: devbox.id,
       axonId: axon.id,
       runloopUrl: baseUrl ?? "https://app.runloop.ai",
-      modes: sessionRaw.modes,
-      configOptions: sessionRaw.configOptions,
-      models: sessionRaw.models,
+      modes: sessionResp.modes,
+      configOptions: sessionResp.configOptions,
+      models: sessionResp.models,
       authMethods: this.authMethods,
-      agentInfo:
-        (initData.agentInfo as
-          | { name?: string; title?: string | null; version?: string }
-          | undefined) ?? null,
-      protocolVersion: initData.protocolVersion ?? null,
-      agentCapabilities: initData.agentCapabilities ?? null,
+      agentInfo: initResp.agentInfo ?? null,
+      protocolVersion: initResp.protocolVersion ?? null,
+      agentCapabilities: initResp.agentCapabilities ?? null,
       clientCapabilities: CLIENT_CAPABILITIES,
-      sessionMeta: sessionRaw._meta ?? null,
+      sessionMeta: sessionResp._meta ?? null,
     };
   }
 

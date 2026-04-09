@@ -355,8 +355,7 @@ app.post("/api/new-session", asyncHandler(async (req, res) => {
   const connection = entry.acpManager!.requireConnection();
   const resp = await connection.newSession({ cwd: "/home/user", mcpServers: [] });
   entry.acpManager!.activeSessionId = resp.sessionId;
-  const raw = resp as Record<string, unknown>;
-  res.json({ sessionId: resp.sessionId, modes: raw.modes, configOptions: raw.configOptions, models: raw.models });
+  res.json({ sessionId: resp.sessionId, modes: resp.modes, configOptions: resp.configOptions, models: resp.models });
 }));
 
 app.post("/api/switch-session", asyncHandler(async (req, res) => {

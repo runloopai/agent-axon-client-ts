@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { AuthMethod, ElicitationAction } from "@runloop/agent-axon-client/acp";
-import { isUsageUpdate, isSessionInfoUpdate, type AxonEventView } from "@runloop/agent-axon-client/acp";
+import { isUsageUpdate, isSessionInfoUpdate, extractACPUserMessage, type AxonEventView } from "@runloop/agent-axon-client/acp";
 import type { ClientEvent } from "../../server/acp-client.js";
 import type {
   AgentInfo,
@@ -131,6 +131,15 @@ export function useNodeAgent(): UseNodeAgentReturn {
         return;
       }
 
+      if (data.type === "timeline_event") {
+        const tlEvent = data.event;
+        const userMsg = extractACPUserMessage(tlEvent.data, tlEvent.axonEvent);
+        if (userMsg) {
+          turnBlocks.addUserMessage(userMsg.text, `user-${userMsg.sequence}`);
+        }
+        return;
+      }
+
       if (data.type === "connection_progress") {
         setConnectionStatus((data as { type: "connection_progress"; step: string }).step);
         return;
@@ -208,7 +217,7 @@ export function useNodeAgent(): UseNodeAgentReturn {
     socket.onclose = () => {
       wsRef.current = null;
     };
-  }, [turnBlocks.onEvent, activity.onEvent, sessionConfig.onEvent]);
+  }, [turnBlocks.onEvent, turnBlocks.addUserMessage, activity.onEvent, sessionConfig.onEvent]);
 
   useEffect(() => {
     return () => {
@@ -287,17 +296,7 @@ export function useNodeAgent(): UseNodeAgentReturn {
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
     if (!text.trim() && (!content || content.length === 0)) return;
 
-    const attachments = content
-      ?.filter((c) => c.type === "image" || c.type === "file")
-      .map((c) => ({
-        type: c.type as "image" | "file",
-        name: c.name as string | undefined,
-        data: c.data as string | undefined,
-        mimeType: c.mimeType as string | undefined,
-        text: c.text as string | undefined,
-      }));
-
-    turnBlocks.startTurn(text, attachments && attachments.length > 0 ? attachments : undefined);
+    turnBlocks.startTurn();
 
     setIsSendingPrompt(true);
     try {

@@ -5,14 +5,14 @@ import {
   isToolCall,
   isToolCallProgress,
   isPlan,
-  isUserMessageChunk,
   isUsageUpdate,
   isSessionInfoUpdate,
   isCurrentModeUpdate,
   isConfigOptionUpdate,
   isAvailableCommandsUpdate,
 } from "@runloop/agent-axon-client/acp";
-import type { ToolCallContent, AuthMethod, ElicitationAction, SessionUpdate } from "@runloop/agent-axon-client/acp";
+import type { ToolCallContent, AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent } from "@runloop/agent-axon-client/acp";
+import { extractACPUserMessage } from "@runloop/agent-axon-client/acp";
 import type { WsEvent } from "../../server/ws.js";
 import type {
   TurnBlock,
@@ -30,7 +30,7 @@ import type {
   SessionConfigOption,
   AgentInfo,
   ConnectionDetails,
-  SessionListEntry,
+  SessionInfo,
   AxonEventView,
   ToolCallBlock,
 } from "../types.js";
@@ -75,7 +75,7 @@ export interface UseACPAgentReturn {
   authDismissed: boolean;
   availableCommands: AvailableCommand[];
   axonEvents: AxonEventView[];
-  sessions: SessionListEntry[];
+  sessions: SessionInfo[];
   isLoadingSessions: boolean;
   start: (config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string }) => Promise<void>;
   sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
@@ -116,7 +116,7 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
   const [pendingPermission, setPendingPermission] = useState<PendingPermission | null>(null);
   const [autoApprovePermissions, setAutoApprovePermissionsState] = useState(true);
   const [pendingElicitation, setPendingElicitation] = useState<PendingElicitation | null>(null);
-  const [sessions, setSessions] = useState<SessionListEntry[]>([]);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [usage, setUsage] = useState<UsageState | null>(null);
   const [axonEvents, setAxonEvents] = useState<AxonEventView[]>([]);
@@ -443,17 +443,6 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
       return;
     }
 
-    if (isUserMessageChunk(update)) {
-      const { content } = update as { content: Record<string, unknown> };
-      const text = content.type === "text" ? (content.text as string) : "";
-      if (text) {
-        setMessages((prev) => [
-          ...prev,
-          { id: `user-replay-${Date.now()}`, role: "user", content: text },
-        ]);
-      }
-    }
-
     // Session config updates
     if (isCurrentModeUpdate(update)) {
       setCurrentMode((update as { currentModeId: string }).currentModeId);
@@ -537,6 +526,24 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
         return;
       }
 
+      if (data.type === "timeline_event") {
+        const tlEvent = data.event as ACPTimelineEvent;
+        const userMsg = extractACPUserMessage(tlEvent.data, tlEvent.axonEvent);
+        if (userMsg) {
+          flushBlocksToMessages(lastStopReasonRef.current);
+          lastStopReasonRef.current = undefined;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `user-${userMsg.sequence}`,
+              role: "user" as const,
+              content: userMsg.text,
+            },
+          ]);
+        }
+        return;
+      }
+
       if (data.type === "connection_progress") {
         setConnectionStatus(data.step);
         return;
@@ -605,22 +612,8 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
     if (!text.trim() && (!content || content.length === 0)) return;
 
-    const attachments = content
-      ?.filter((c) => c.type === "image" || c.type === "file")
-      .map((c) => ({
-        type: c.type as "image" | "file",
-        name: c.name as string | undefined,
-        data: c.data as string | undefined,
-        mimeType: c.mimeType as string | undefined,
-        text: c.text as string | undefined,
-      }));
-
     flushBlocksToMessages(lastStopReasonRef.current);
     lastStopReasonRef.current = undefined;
-    setMessages((prev) => [
-      ...prev,
-      { id: `user-${Date.now()}`, role: "user", content: text, ...(attachments && attachments.length > 0 ? { attachments } : {}) },
-    ]);
     blocksRef.current = [];
     thinkingStartRef.current = null;
     setCurrentTurnBlocks([]);
@@ -739,7 +732,7 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
   const refreshSessions = useCallback(async () => {
     setIsLoadingSessions(true);
     try {
-      const resp = await api<{ sessions?: SessionListEntry[] }>(`/api/sessions?agentId=${agentId}`);
+      const resp = await api<{ sessions?: SessionInfo[] }>(`/api/sessions?agentId=${agentId}`);
       if (resp.sessions) setSessions(resp.sessions);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

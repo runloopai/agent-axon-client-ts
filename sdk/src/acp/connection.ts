@@ -1,8 +1,10 @@
 import {
+  AGENT_METHODS,
   type Agent,
   type AuthenticateRequest,
   type AuthenticateResponse,
   type CancelNotification,
+  CLIENT_METHODS,
   type Client,
   ClientSideConnection,
   type InitializeRequest,
@@ -23,13 +25,21 @@ import {
   type SetSessionModeRequest,
   type SetSessionModeResponse,
 } from "@agentclientprotocol/sdk";
+import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
-import type { AxonEventListener } from "../shared/types.js";
+import { tryParseSystemEvent } from "../shared/timeline.js";
+import type { AxonEventListener, TimelineEventListener } from "../shared/types.js";
 import { axonStream } from "./axon-stream.js";
-import type { ACPAxonConnectionOptions, SessionUpdateListener } from "./types.js";
+import type { ACPAxonConnectionOptions, ACPTimelineEvent, SessionUpdateListener } from "./types.js";
+
+/** All known ACP protocol event_type strings (agent + client methods). */
+const ACP_KNOWN_EVENT_TYPES: Set<string> = new Set([
+  ...Object.values(AGENT_METHODS),
+  ...Object.values(CLIENT_METHODS),
+]);
 
 /**
  * High-level ACP connection backed by an Axon transport.
@@ -72,6 +82,9 @@ export class ACPAxonConnection {
   /** Registered raw Axon event listeners (fired before JSON-RPC translation). */
   private axonEventListeners: ListenerSet<AxonEventListener>;
 
+  /** Registered timeline event listeners. */
+  private timelineEventListeners: ListenerSet<TimelineEventListener<ACPTimelineEvent>>;
+
   /** Error sink for listener exceptions and stream parse failures. */
   private handleError: (error: unknown) => void;
 
@@ -105,12 +118,18 @@ export class ACPAxonConnection {
     this.handlePermission = options?.requestPermission;
     this.disconnectFn = options?.onDisconnect;
     this.axonEventListeners = new ListenerSet<AxonEventListener>(this.handleError);
+    this.timelineEventListeners = new ListenerSet<TimelineEventListener<ACPTimelineEvent>>(
+      this.handleError,
+    );
 
     const verbose = options?.verbose ?? false;
     const stream = axonStream({
       axon,
       signal: this.abortController.signal,
-      onAxonEvent: (ev) => this.axonEventListeners.emit(ev),
+      onAxonEvent: (ev) => {
+        this.axonEventListeners.emit(ev);
+        this.emitTimelineEvent(ev);
+      },
       onError: this.handleError,
       log: verbose ? (tag, ...args) => this.log(tag, ...args) : undefined,
       afterSequence: options?.afterSequence,
@@ -290,6 +309,68 @@ export class ACPAxonConnection {
     return this.axonEventListeners.add(listener);
   }
 
+  /**
+   * Registers a listener for classified timeline events.
+   *
+   * Every Axon event on the channel is classified into one of:
+   * - `acp_protocol` — a known ACP protocol event (agent or client method)
+   * - `system` — a broker system event (`turn.started`, `turn.completed`)
+   * - `unrecognized` — anything else
+   *
+   * @param listener - Callback invoked with each {@link ACPTimelineEvent}.
+   * @returns An unsubscribe function that removes the listener.
+   */
+  onTimelineEvent(listener: TimelineEventListener<ACPTimelineEvent>): () => void {
+    return this.timelineEventListeners.add(listener);
+  }
+
+  /**
+   * Async generator that yields classified timeline events.
+   *
+   * Mirrors the pull-based pattern of `receiveMessages()` in the Claude
+   * module. The generator completes when the connection is disconnected
+   * or the abort signal fires.
+   *
+   * @returns An async generator of {@link ACPTimelineEvent}.
+   */
+  async *receiveTimelineEvents(): AsyncGenerator<ACPTimelineEvent, void, undefined> {
+    const queue: ACPTimelineEvent[] = [];
+    let resolve: (() => void) | null = null;
+    let done = false;
+
+    const unsubscribe = this.onTimelineEvent((event) => {
+      queue.push(event);
+      resolve?.();
+    });
+
+    const onAbort = () => {
+      done = true;
+      resolve?.();
+    };
+    this.abortController.signal.addEventListener("abort", onAbort, { once: true });
+
+    try {
+      while (!done) {
+        if (queue.length > 0) {
+          // biome-ignore lint/style/noNonNullAssertion: guarded by .length > 0 check above
+          yield queue.shift()!;
+        } else {
+          await new Promise<void>((r) => {
+            resolve = r;
+          });
+          resolve = null;
+        }
+      }
+      while (queue.length > 0) {
+        // biome-ignore lint/style/noNonNullAssertion: draining remaining items after done
+        yield queue.shift()!;
+      }
+    } finally {
+      unsubscribe();
+      this.abortController.signal.removeEventListener("abort", onAbort);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
@@ -336,12 +417,21 @@ export class ACPAxonConnection {
     this.abortStream();
     this.sessionUpdateListeners.clear();
     this.axonEventListeners.clear();
+    this.timelineEventListeners.clear();
     await runDisconnectHook(this.disconnectFn, this.log, this.handleError);
   }
 
   // ---------------------------------------------------------------------------
   // Private
   // ---------------------------------------------------------------------------
+
+  /**
+   * Classifies a raw Axon event and emits it to timeline listeners.
+   */
+  private emitTimelineEvent(ev: AxonEventView): void {
+    const event = classifyACPAxonEvent(ev);
+    this.timelineEventListeners.emit(event);
+  }
 
   /**
    * Builds the ACP `Client` callbacks handed to the `ClientSideConnection`.
@@ -389,4 +479,39 @@ export class ACPAxonConnection {
       },
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Timeline event classification
+// ---------------------------------------------------------------------------
+
+/**
+ * Classifies a raw Axon event into an {@link ACPTimelineEvent}.
+ *
+ * Classification rules:
+ * 1. `SYSTEM_EVENT` with `turn.started` / `turn.completed` -> `system`
+ * 2. Known ACP protocol `event_type` (agent or client method) -> `acp_protocol`
+ * 3. Everything else -> `unrecognized`
+ *
+ * @category Timeline
+ */
+export function classifyACPAxonEvent(ev: AxonEventView): ACPTimelineEvent {
+  if (ev.origin === "SYSTEM_EVENT") {
+    const systemEvent = tryParseSystemEvent(ev);
+    if (systemEvent) {
+      return { kind: "system", data: systemEvent, axonEvent: ev };
+    }
+  }
+
+  if (ACP_KNOWN_EVENT_TYPES.has(ev.event_type)) {
+    let data: unknown = null;
+    try {
+      data = JSON.parse(ev.payload);
+    } catch {
+      // leave as null
+    }
+    return { kind: "acp_protocol", data, axonEvent: ev };
+  }
+
+  return { kind: "unrecognized", data: null, axonEvent: ev };
 }

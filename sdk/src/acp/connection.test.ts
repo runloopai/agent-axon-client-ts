@@ -4,8 +4,11 @@ import {
   createControllableStream,
   createMockAxon,
   makeAgentEvent,
+  makeExternalEvent,
+  makeSystemEvent,
 } from "../__test-utils__/mock-axon.js";
 import { ACPAxonConnection } from "./connection.js";
+import type { ACPTimelineEvent } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -690,6 +693,143 @@ describe("ACPAxonConnection", () => {
       await conn.disconnect();
 
       expect(onError).toHaveBeenCalledWith(disconnectError);
+    });
+  });
+
+  describe("onTimelineEvent", () => {
+    it("classifies AGENT_EVENT session/update as acp_protocol", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const events: ACPTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
+
+      await waitFor(() => events.length > 0);
+      expect(events[0].kind).toBe("acp_protocol");
+      expect(events[0].axonEvent.origin).toBe("AGENT_EVENT");
+
+      conn.disconnect();
+    });
+
+    it("classifies USER_EVENT initialize as acp_protocol", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const events: ACPTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      ctrl.push({
+        event_type: "initialize",
+        payload: JSON.stringify({ protocolVersion: "1.0" }),
+        origin: "USER_EVENT",
+      });
+
+      await waitFor(() => events.length > 0);
+      expect(events[0].kind).toBe("acp_protocol");
+      expect(events[0].axonEvent.origin).toBe("USER_EVENT");
+
+      conn.disconnect();
+    });
+
+    it("classifies SYSTEM_EVENT turn.started as system", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const events: ACPTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      ctrl.push(makeSystemEvent("turn.started", { turn_id: "t-1" }));
+
+      await waitFor(() => events.length > 0);
+      expect(events[0].kind).toBe("system");
+      if (events[0].kind === "system") {
+        expect(events[0].data.type).toBe("turn.started");
+        expect(events[0].data.turnId).toBe("t-1");
+      }
+
+      conn.disconnect();
+    });
+
+    it("classifies SYSTEM_EVENT turn.completed as system", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const events: ACPTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      ctrl.push(makeSystemEvent("turn.completed", { turn_id: "t-1", stop_reason: "end_turn" }));
+
+      await waitFor(() => events.length > 0);
+      expect(events[0].kind).toBe("system");
+      if (events[0].kind === "system") {
+        expect(events[0].data.type).toBe("turn.completed");
+        expect(events[0].data.turnId).toBe("t-1");
+        if (events[0].data.type === "turn.completed") {
+          expect(events[0].data.stopReason).toBe("end_turn");
+        }
+      }
+
+      conn.disconnect();
+    });
+
+    it("classifies unknown EXTERNAL_EVENT as unrecognized", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const events: ACPTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      ctrl.push(makeExternalEvent("custom.event", { foo: "bar" }));
+
+      await waitFor(() => events.length > 0);
+      expect(events[0].kind).toBe("unrecognized");
+      expect(events[0].data).toBeNull();
+
+      conn.disconnect();
+    });
+
+    it("returns an unsubscribe function", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const events: ACPTimelineEvent[] = [];
+      const unsub = conn.onTimelineEvent((ev) => events.push(ev));
+
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
+      await waitFor(() => events.length > 0);
+
+      unsub();
+
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
+      await new Promise((r) => setTimeout(r, 100));
+      expect(events).toHaveLength(1);
+
+      conn.disconnect();
+    });
+
+    it("disconnect() clears timeline listeners", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const events: ACPTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      conn.disconnect();
+
+      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
+      ctrl.end();
+
+      await new Promise((r) => setTimeout(r, 50));
+      expect(events).toHaveLength(0);
     });
   });
 });

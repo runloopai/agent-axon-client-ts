@@ -120,7 +120,7 @@ await conn.initialize();
 
 // Send a prompt and iterate over response messages until a "result" message arrives
 await conn.send("What files are in this directory?");
-for await (const msg of conn.receiveResponse()) {
+for await (const msg of conn.receiveAgentResponse()) {
   console.log(msg.type, msg);
 }
 
@@ -178,6 +178,8 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 | `closed: Promise<void>` | Resolves when the connection closes |
 | `onSessionUpdate(listener)` | Register a session update listener. Returns unsubscribe function. |
 | `onAxonEvent(listener)` | Register an Axon event listener. Returns unsubscribe function. |
+| `onTimelineEvent(listener)` | Register a classified timeline event listener. Returns unsubscribe function. |
+| `receiveTimelineEvents()` | Async generator yielding classified `ACPTimelineEvent`s |
 | `abortStream()` | Abort the SSE stream without clearing listeners (useful for testing / reconnect) |
 | `disconnect()` | Abort the stream, clear all listeners, and run the `onDisconnect` callback |
 
@@ -346,8 +348,10 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 | Method | Description |
 |--------|-------------|
 | `send(prompt)` | Send a user message. Accepts a `string` or `SDKUserMessage`. |
-| `receiveMessages()` | Async iterator yielding all `SDKMessage`s indefinitely |
-| `receiveResponse()` | Async iterator yielding messages until (and including) a `result` message |
+| `receiveAgentEvents()` | Async iterator yielding all `SDKMessage`s indefinitely |
+| `receiveAgentResponse()` | Async iterator yielding messages until (and including) a `result` message |
+| `receiveMessages()` | **Deprecated** — use `receiveAgentEvents()` |
+| `receiveResponse()` | **Deprecated** — use `receiveAgentResponse()` |
 
 **Control**:
 
@@ -362,6 +366,8 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 | Method | Description |
 |--------|-------------|
 | `onAxonEvent(listener)` | Register an Axon event listener. Returns unsubscribe function. |
+| `onTimelineEvent(listener)` | Register a classified timeline event listener. Returns unsubscribe function. |
+| `receiveTimelineEvents()` | Async generator yielding classified `ClaudeTimelineEvent`s |
 | `onControlRequest(subtype, handler)` | Register a handler for incoming control requests (e.g. `"can_use_tool"`) |
 
 ### `AxonTransport`
@@ -397,6 +403,88 @@ await transport.close();
 | `reconnect()` | Abort the current SSE stream and re-subscribe |
 | `close()` | Close the transport |
 | `isReady()` | Whether the transport is connected and not closed |
+
+---
+
+## Timeline Events
+
+Both modules provide a unified timeline event stream that classifies every Axon event into a typed discriminated union. This is the recommended way to build chat UIs that interleave protocol events, system events (turn start/end), and custom events in a single chronological view.
+
+### Event structure
+
+Every timeline event has three fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `kind` | `string` | Discriminant: `"acp_protocol"`, `"claude_protocol"`, `"system"`, or `"unrecognized"` |
+| `data` | varies | Parsed typed payload (`SessionUpdate`, `SDKMessage`, `SystemEvent`, or `null`) |
+| `axonEvent` | `AxonEventView` | The raw Axon event with full metadata (origin, event_type, payload, sequence) |
+
+### ACP timeline events (`ACPTimelineEvent`)
+
+```typescript
+import type { ACPTimelineEvent } from "@runloop/agent-axon-client/acp";
+
+conn.onTimelineEvent((event: ACPTimelineEvent) => {
+  switch (event.kind) {
+    case "acp_protocol":
+      // event.data is SessionUpdate | unknown (parsed protocol payload)
+      // event.axonEvent.origin tells you direction: USER_EVENT (outbound) or AGENT_EVENT (inbound)
+      break;
+    case "system":
+      // event.data is SystemEvent: { type: "turn.started", turnId } | { type: "turn.completed", turnId, stopReason? }
+      break;
+    case "unrecognized":
+      // event.data is null — inspect event.axonEvent for raw data
+      break;
+  }
+});
+```
+
+### Claude timeline events (`ClaudeTimelineEvent`)
+
+```typescript
+import type { ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
+
+conn.onTimelineEvent((event: ClaudeTimelineEvent) => {
+  switch (event.kind) {
+    case "claude_protocol":
+      // event.data is SDKMessage (assistant, result, system, etc.)
+      break;
+    case "system":
+      // event.data is SystemEvent
+      break;
+    case "unrecognized":
+      // event.data is null
+      break;
+  }
+});
+```
+
+### Async generator pattern
+
+Both connections also provide `receiveTimelineEvents()` for pull-based consumption:
+
+```typescript
+for await (const event of conn.receiveTimelineEvents()) {
+  console.log(event.kind, event.data);
+}
+```
+
+### `parseTimelinePayload` helper
+
+For unrecognized events, use `parseTimelinePayload` to safely parse the raw JSON payload:
+
+```typescript
+import { parseTimelinePayload } from "@runloop/agent-axon-client/acp";
+
+conn.onTimelineEvent((event) => {
+  if (event.kind === "unrecognized") {
+    const payload = parseTimelinePayload<{ myField: string }>(event);
+    if (payload) console.log(payload.myField);
+  }
+});
+```
 
 ---
 
@@ -467,6 +555,16 @@ Callback type for raw Axon event listeners:
 type AxonEventListener = (event: AxonEventView) => void;
 ```
 
+### `SystemEvent`
+
+Typed representation of recognized broker system events:
+
+```typescript
+type SystemEvent =
+  | { type: "turn.started"; turnId: string }
+  | { type: "turn.completed"; turnId: string; stopReason?: string };
+```
+
 ### `WireData` (Claude module)
 
 Generic JSON wire format used by the Claude transport:
@@ -491,18 +589,17 @@ The Axon broker delivers events in this order for a given turn:
 
 This means **`await conn.prompt(...)` returns before the agent's response text has been delivered via `onSessionUpdate`**. If you need to know when all content for a turn has arrived, use one of these strategies:
 
-- **Use `onAxonEvent` to watch for `turn.started` / `turn.completed` system events** (recommended). These bracket all content for a turn:
+- **Use `onTimelineEvent` to watch for `system` events** (recommended). These bracket all content for a turn:
 
   ```typescript
-  // onAxonEvent receives every raw Axon event — filter by origin/type
-  // to bracket turns and know when all session updates have been flushed
-  conn.onAxonEvent((event) => {
-    if (event.origin !== "SYSTEM_EVENT") return;
-    if (event.event_type === "turn.started") {
-      // Agent turn began — disable input, show cancel button
-    }
-    if (event.event_type === "turn.completed") {
-      // All content for this turn has been delivered
+  conn.onTimelineEvent((event) => {
+    if (event.kind === "system") {
+      if (event.data.type === "turn.started") {
+        // Agent turn began — disable input, show cancel button
+      }
+      if (event.data.type === "turn.completed") {
+        // All content for this turn has been delivered
+      }
     }
   });
   ```

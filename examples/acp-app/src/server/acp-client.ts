@@ -24,7 +24,7 @@ import type {
   ElicitationResponse,
 } from "@runloop/agent-axon-client/acp";
 import { CLIENT_METHODS } from "@runloop/agent-axon-client/acp";
-import type { AxonEventView } from "@runloop/agent-axon-client/acp";
+import type { AxonEventView, ACPTimelineEvent } from "@runloop/agent-axon-client/acp";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { TerminalManager } from "./terminal-manager.ts";
@@ -57,8 +57,9 @@ export type ClientEvent =
     }
   | { type: "elicitation_dismissed" }
   | { type: "axon_event"; event: AxonEventView }
-  | { type: "turn_started"; turnId: number }
-  | { type: "turn_completed"; turnId: number; stopReason: string }
+  | { type: "timeline_event"; event: ACPTimelineEvent }
+  | { type: "turn_started"; turnId: string }
+  | { type: "turn_completed"; turnId: string; stopReason: string }
   | ({ type: "turn_complete" } & PromptResponse)
   | { type: "turn_error"; error: string }
   | { type: "connection_progress"; step: string };
