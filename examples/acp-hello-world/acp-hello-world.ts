@@ -52,6 +52,7 @@ const devbox = await sdk.devbox.create({
   ],
 });
 const agent = new ACPAxonConnection(axon, devbox, {
+  // Shut down the devbox when we're finished using the axon.
   onDisconnect: async () => {
     await devbox.shutdown();
   },
@@ -69,7 +70,7 @@ try {
   });
 } catch (err) {
   console.error("Failed to initialize agent:", err);
-  // FIXME: connection manager shutdown
+  // invoke the onDisconnect callback, which shuts down the devbox.
   await agent.disconnect();
   process.exit(1);
 }

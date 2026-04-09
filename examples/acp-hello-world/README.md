@@ -4,6 +4,8 @@
 
 The minimal starting point for using the ACP module. Provisions a Runloop devbox, connects via the [Agent Client Protocol](https://agentclientprotocol.com), and sends a single prompt.
 
+This shows you how to start an axon and attach it to a devbox and register lifecycle event hooks.
+
 ## Prerequisites
 
 - Node.js 22+ / [Bun](https://bun.sh)
