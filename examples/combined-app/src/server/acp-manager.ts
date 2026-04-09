@@ -145,7 +145,8 @@ export class ACPConnectionManager {
         clientCapabilities: CLIENT_CAPABILITIES,
       });
     } catch (err: any) {
-      await this.shutdown();
+      // shut down but don't wait for it to complete
+      this.shutdown().catch(() => {});
       throw new BadRequestError(`Failed to initialize agent: ${err?.message}`, {
         cause: err,
       });

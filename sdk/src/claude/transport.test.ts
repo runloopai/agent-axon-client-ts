@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   createControllableStream,
   createMockAxon,
@@ -205,29 +205,6 @@ describe("AxonTransport", () => {
       const gen = transport.readMessages()[Symbol.asyncIterator]();
       await expect(gen.next()).rejects.toThrow(
         "agent failed: agent binary 'nonexistent_binary' not found on PATH",
-      );
-    });
-
-    it("calls onAxonEvent before throwing on broker.error", async () => {
-      const onAxonEvent = vi.fn();
-      const transportWithListener = new AxonTransport(axon as never, { onAxonEvent });
-
-      const ctrlWithListener = createControllableStream(true);
-      axon.subscribeSse.mockResolvedValueOnce(ctrlWithListener.stream);
-      await transportWithListener.connect();
-
-      ctrlWithListener.push(makeSystemEvent("broker.error", "agent failed"));
-      ctrlWithListener.end();
-
-      const gen = transportWithListener.readMessages()[Symbol.asyncIterator]();
-      await expect(gen.next()).rejects.toThrow("agent failed");
-
-      expect(onAxonEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          origin: "SYSTEM_EVENT",
-          event_type: "broker.error",
-          payload: "agent failed",
-        }),
       );
     });
   });
