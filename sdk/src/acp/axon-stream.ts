@@ -56,13 +56,7 @@ export function axonStream(options: AxonStreamOptions): Stream {
     log,
   );
 
-  const writable = createWritable(
-    axon,
-    pendingRequests,
-    pendingClientRequests,
-    onError,
-    log,
-  );
+  const writable = createWritable(axon, pendingRequests, pendingClientRequests, onError, log);
 
   return { readable, writable };
 }
@@ -123,10 +117,7 @@ function createReadable(
             onAxonEvent?.(axonEvent);
 
             if (isSystemError(axonEvent)) {
-              log?.(
-                "read",
-                `#${totalEvents} SYSTEM_ERROR: ${axonEvent.payload}`,
-              );
+              log?.("read", `#${totalEvents} SYSTEM_ERROR: ${axonEvent.payload}`);
               if (pendingRequests.size === 0) {
                 controller.error(new SystemError(axonEvent.payload));
                 return;
@@ -149,10 +140,7 @@ function createReadable(
             }
 
             if (axonEvent.origin !== "AGENT_EVENT") {
-              log?.(
-                "read",
-                `#${totalEvents} SKIP ${axonEvent.origin} ${axonEvent.event_type}`,
-              );
+              log?.("read", `#${totalEvents} SKIP ${axonEvent.origin} ${axonEvent.event_type}`);
               continue;
             }
 
@@ -175,10 +163,7 @@ function createReadable(
             );
             continue;
           }
-          log?.(
-            "read",
-            `error on reconnect attempt after ${eventCount} events: ${err}`,
-          );
+          log?.("read", `error on reconnect attempt after ${eventCount} events: ${err}`);
           controller.error(err);
           return;
         }
@@ -316,11 +301,7 @@ function createWritable(
 ): WritableStream<AnyMessage> {
   return new WritableStream<AnyMessage>({
     async write(message) {
-      const { eventType, payload } = jsonRpcToAxon(
-        message,
-        pendingRequests,
-        pendingClientRequests,
-      );
+      const { eventType, payload } = jsonRpcToAxon(message, pendingRequests, pendingClientRequests);
       log?.("write", `event_type=${eventType}`);
       try {
         await axon.publish({
@@ -389,11 +370,7 @@ function jsonRpcToAxon(
       pendingClientRequests.delete(message.id);
     }
     const resultPayload =
-      "result" in message
-        ? message.result
-        : "error" in message
-          ? message.error
-          : {};
+      "result" in message ? message.result : "error" in message ? message.error : {};
     return {
       eventType: method ?? "response",
       payload: JSON.stringify(resultPayload),
@@ -433,7 +410,6 @@ function isJsonRpcMessage(obj: unknown): obj is AnyMessage {
   if (typeof obj !== "object" || obj === null) return false;
   const record = obj as Record<string, unknown>;
   return (
-    record.jsonrpc === "2.0" &&
-    ("method" in record || "result" in record || "error" in record)
+    record.jsonrpc === "2.0" && ("method" in record || "result" in record || "error" in record)
   );
 }

@@ -40,8 +40,5 @@ export class SystemError extends Error {
  * @internal
  */
 export function isSystemError(event: AxonEventView): boolean {
-  return (
-    event.origin === SYSTEM_EVENT_ORIGIN &&
-    event.event_type === SYSTEM_ERROR_EVENT_TYPE
-  );
+  return event.origin === SYSTEM_EVENT_ORIGIN && event.event_type === SYSTEM_ERROR_EVENT_TYPE;
 }

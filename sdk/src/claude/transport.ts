@@ -162,9 +162,7 @@ export class AxonTransport implements Transport {
    */
   async write(data: string): Promise<void> {
     if (!this.isReady()) {
-      throw new Error(
-        "Transport is not ready. Call connect() first or check isReady().",
-      );
+      throw new Error("Transport is not ready. Call connect() first or check isReady().");
     }
     const eventType = this.resolveEventType(data);
     this.log("write", `event_type=${eventType}`);
@@ -219,10 +217,7 @@ export class AxonTransport implements Transport {
           this.log("read", `#${eventCount} failed to parse payload`);
         }
       } else {
-        this.log(
-          "read",
-          `#${eventCount} SKIP ${event.origin} ${event.event_type}`,
-        );
+        this.log("read", `#${eventCount} SKIP ${event.origin} ${event.event_type}`);
       }
     }
     this.log("read", `SSE ended after ${eventCount} events`);
@@ -251,9 +246,7 @@ export class AxonTransport implements Transport {
     this.log("reconnect", "aborting old stream and re-subscribing");
     this.abortStream();
     this.sseStream = await this.axon.subscribeSse(
-      this.lastSequence != null
-        ? { after_sequence: this.lastSequence }
-        : undefined,
+      this.lastSequence != null ? { after_sequence: this.lastSequence } : undefined,
     );
     this.log("reconnect", "SSE reconnected");
   }
