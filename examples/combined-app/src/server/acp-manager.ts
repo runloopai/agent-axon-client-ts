@@ -146,7 +146,9 @@ export class ACPConnectionManager {
       });
     } catch (err: any) {
       await this.shutdown();
-      throw new BadRequestError(`Failed to initialize agent: ${err.message}`, { cause: err });
+      throw new BadRequestError(`Failed to initialize agent: ${err?.message}`, {
+        cause: err,
+      });
     }
 
     const initData = initResp as Record<string, unknown>;
