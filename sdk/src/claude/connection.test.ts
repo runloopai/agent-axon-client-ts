@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { ClaudeAxonConnection } from "./connection.js";
+import {
+  ClaudeAxonConnection,
+  classifyClaudeAxonEvent,
+  isClaudeProtocolEventType,
+} from "./connection.js";
 import type { Transport } from "./transport.js";
 import type { ClaudeTimelineEvent, WireData } from "./types.js";
 
@@ -1197,6 +1201,51 @@ describe("ClaudeAxonConnection", () => {
       });
       expect(events).toHaveLength(0);
     });
+
+    it("classifies SYSTEM_EVENT broker.error as system", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "broker.error",
+        payload: JSON.stringify({ message: "something broke" }),
+        origin: "SYSTEM_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("system");
+      if (events[0].kind === "system") {
+        expect(events[0].data.type).toBe("broker.error");
+        if (events[0].data.type === "broker.error") {
+          expect(events[0].data.message).toBe("something broke");
+        }
+      }
+    });
+
+    it("warns and classifies as unknown when known event_type has invalid JSON", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "assistant",
+        payload: "not valid json {{{",
+        origin: "AGENT_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("unknown");
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("[classifyClaudeAxonEvent]"),
+        expect.anything(),
+      );
+
+      warnSpy.mockRestore();
+    });
   });
 
   describe("receiveAgentEvents / receiveAgentResponse (renamed)", () => {
@@ -1260,5 +1309,104 @@ describe("ClaudeAxonConnection", () => {
 
       expect(messages).toHaveLength(1);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isClaudeProtocolEventType
+// ---------------------------------------------------------------------------
+
+describe("isClaudeProtocolEventType", () => {
+  it("returns true for known event_type values (wire names)", () => {
+    expect(isClaudeProtocolEventType("query")).toBe(true);
+    expect(isClaudeProtocolEventType("assistant")).toBe(true);
+    expect(isClaudeProtocolEventType("result")).toBe(true);
+    expect(isClaudeProtocolEventType("system")).toBe(true);
+    expect(isClaudeProtocolEventType("control_request")).toBe(true);
+    expect(isClaudeProtocolEventType("control_response")).toBe(true);
+  });
+
+  it("returns true for SDK message type keys", () => {
+    expect(isClaudeProtocolEventType("user")).toBe(true);
+  });
+
+  it("returns false for system event types", () => {
+    expect(isClaudeProtocolEventType("turn.started")).toBe(false);
+    expect(isClaudeProtocolEventType("turn.completed")).toBe(false);
+    expect(isClaudeProtocolEventType("broker.error")).toBe(false);
+  });
+
+  it("returns false for arbitrary strings", () => {
+    expect(isClaudeProtocolEventType("custom.event")).toBe(false);
+    expect(isClaudeProtocolEventType("")).toBe(false);
+    expect(isClaudeProtocolEventType("session/update")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyClaudeAxonEvent (standalone)
+// ---------------------------------------------------------------------------
+
+describe("classifyClaudeAxonEvent", () => {
+  function makeAxonEvent(
+    overrides: Partial<{
+      event_type: string;
+      payload: string;
+      origin: string;
+      sequence: number;
+    }>,
+  ) {
+    return {
+      axon_id: "axn_test",
+      event_type: "assistant",
+      origin: "AGENT_EVENT",
+      payload: JSON.stringify({ type: "assistant", content: "Hi" }),
+      sequence: 1,
+      source: "test",
+      timestamp_ms: Date.now(),
+      ...overrides,
+    };
+  }
+
+  it("classifies known protocol event with valid JSON", () => {
+    const ev = makeAxonEvent({
+      event_type: "assistant",
+      payload: JSON.stringify({ type: "assistant", content: "Hello" }),
+    });
+    const result = classifyClaudeAxonEvent(ev as never);
+    expect(result.kind).toBe("claude_protocol");
+    if (result.kind === "claude_protocol") {
+      expect(result.data.type).toBe("assistant");
+    }
+  });
+
+  it("falls through to unknown for non-protocol non-system event", () => {
+    const ev = makeAxonEvent({
+      event_type: "custom.metric",
+      origin: "EXTERNAL_EVENT",
+      payload: JSON.stringify({ foo: "bar" }),
+    });
+    const result = classifyClaudeAxonEvent(ev as never);
+    expect(result.kind).toBe("unknown");
+    expect(result.data).toBeNull();
+  });
+
+  it("classifies AGENT_EVENT with non-protocol event_type as unknown", () => {
+    const ev = makeAxonEvent({
+      event_type: "some.random.type",
+      origin: "AGENT_EVENT",
+      payload: JSON.stringify({ type: "something" }),
+    });
+    const result = classifyClaudeAxonEvent(ev as never);
+    expect(result.kind).toBe("unknown");
+  });
+
+  it("falls to unknown when parsed payload lacks type field", () => {
+    const ev = makeAxonEvent({
+      event_type: "assistant",
+      payload: JSON.stringify({ content: "no type field" }),
+    });
+    const result = classifyClaudeAxonEvent(ev as never);
+    expect(result.kind).toBe("unknown");
   });
 });

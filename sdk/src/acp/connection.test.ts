@@ -7,7 +7,7 @@ import {
   makeExternalEvent,
   makeSystemEvent,
 } from "../__test-utils__/mock-axon.js";
-import { ACPAxonConnection } from "./connection.js";
+import { ACPAxonConnection, classifyACPAxonEvent, isACPProtocolEventType } from "./connection.js";
 import type { ACPTimelineEvent } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -861,5 +861,143 @@ describe("ACPAxonConnection", () => {
       await new Promise((r) => setTimeout(r, 50));
       expect(events).toHaveLength(0);
     });
+
+    it("sets data to SessionNotification shape for session/update", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const events: ACPTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      const notification = makeSessionNotification(makeUsageUpdate(), "sess-42");
+      ctrl.push(makeAgentEvent("session/update", notification));
+
+      await waitFor(() => events.length > 0);
+      expect(events[0].kind).toBe("acp_protocol");
+      if (events[0].kind === "acp_protocol") {
+        const data = events[0].data as Record<string, unknown>;
+        expect(data.sessionId).toBe("sess-42");
+        expect(data.update).toEqual(makeUsageUpdate());
+      }
+
+      conn.disconnect();
+    });
+
+    it("warns and returns acp_protocol with null data on invalid JSON payload", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const events: ACPTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      ctrl.push({
+        event_type: "session/update",
+        payload: "not valid json {{{",
+        origin: "AGENT_EVENT",
+      });
+
+      await waitFor(() => events.length > 0);
+      expect(events[0].kind).toBe("acp_protocol");
+      if (events[0].kind === "acp_protocol") {
+        expect(events[0].data).toBeNull();
+      }
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("[classifyACPAxonEvent]"),
+        expect.anything(),
+      );
+
+      warnSpy.mockRestore();
+      conn.disconnect();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isACPProtocolEventType
+// ---------------------------------------------------------------------------
+
+describe("isACPProtocolEventType", () => {
+  it("returns true for known agent methods", () => {
+    expect(isACPProtocolEventType("session/update")).toBe(true);
+    expect(isACPProtocolEventType("session/prompt")).toBe(true);
+    expect(isACPProtocolEventType("session/new")).toBe(true);
+  });
+
+  it("returns true for known client methods", () => {
+    expect(isACPProtocolEventType("initialize")).toBe(true);
+  });
+
+  it("returns false for system event types", () => {
+    expect(isACPProtocolEventType("turn.started")).toBe(false);
+    expect(isACPProtocolEventType("turn.completed")).toBe(false);
+    expect(isACPProtocolEventType("broker.error")).toBe(false);
+  });
+
+  it("returns false for arbitrary strings", () => {
+    expect(isACPProtocolEventType("custom.event")).toBe(false);
+    expect(isACPProtocolEventType("")).toBe(false);
+    expect(isACPProtocolEventType("assistant")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyACPAxonEvent (standalone)
+// ---------------------------------------------------------------------------
+
+describe("classifyACPAxonEvent", () => {
+  function makeAxonEvent(
+    overrides: Partial<{
+      event_type: string;
+      payload: string;
+      origin: string;
+      sequence: number;
+    }>,
+  ) {
+    return {
+      axon_id: "axn_test",
+      event_type: "session/update",
+      origin: "AGENT_EVENT",
+      payload: "{}",
+      sequence: 1,
+      source: "test",
+      timestamp_ms: Date.now(),
+      ...overrides,
+    };
+  }
+
+  it("classifies known protocol event with valid JSON", () => {
+    const ev = makeAxonEvent({
+      event_type: "session/update",
+      payload: JSON.stringify({ sessionId: "s1", update: { sessionUpdate: "usage_update" } }),
+    });
+    const result = classifyACPAxonEvent(ev as never);
+    expect(result.kind).toBe("acp_protocol");
+    if (result.kind === "acp_protocol") {
+      expect(result.eventType).toBe("session/update");
+      expect((result.data as Record<string, unknown>).sessionId).toBe("s1");
+    }
+  });
+
+  it("falls through to unknown for non-protocol non-system event", () => {
+    const ev = makeAxonEvent({
+      event_type: "custom.metric",
+      origin: "EXTERNAL_EVENT",
+    });
+    const result = classifyACPAxonEvent(ev as never);
+    expect(result.kind).toBe("unknown");
+    expect(result.data).toBeNull();
+  });
+
+  it("classifies AGENT_EVENT with non-protocol event_type as unknown", () => {
+    const ev = makeAxonEvent({
+      event_type: "some.random.type",
+      origin: "AGENT_EVENT",
+    });
+    const result = classifyACPAxonEvent(ev as never);
+    expect(result.kind).toBe("unknown");
   });
 });

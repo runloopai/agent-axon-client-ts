@@ -92,6 +92,18 @@ describe("tryParseSystemEvent", () => {
     });
   });
 
+  it("parses broker.error with JSON object missing message key", () => {
+    const ev = makeAxonEvent({
+      event_type: "broker.error",
+      payload: JSON.stringify({ code: 500 }),
+    });
+    const result = tryParseSystemEvent(ev);
+    expect(result).toEqual({
+      type: "broker.error",
+      message: JSON.stringify({ code: 500 }),
+    });
+  });
+
   it("returns null for invalid JSON on turn events", () => {
     const ev = makeAxonEvent({
       event_type: "turn.started",
