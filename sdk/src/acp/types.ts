@@ -9,6 +9,7 @@ import type {
   PromptResponse,
   RequestPermissionRequest,
   RequestPermissionResponse,
+  SessionNotification,
   SessionUpdate,
 } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
@@ -107,13 +108,14 @@ export type SessionUpdateListener = (sessionId: string | null, update: SessionUp
 // ---------------------------------------------------------------------------
 
 /**
- * A `session/update` timeline event. `data` is the parsed `SessionUpdate`.
+ * A `session/update` timeline event. `data` is the parsed `SessionNotification`
+ * containing `{ sessionId, update }` where `update` is the `SessionUpdate`.
  * @category Timeline
  */
 export interface ACPSessionUpdateTimelineEvent {
   kind: "acp_protocol";
   eventType: "session/update";
-  data: SessionUpdate;
+  data: SessionNotification;
   axonEvent: AxonEventView;
 }
 

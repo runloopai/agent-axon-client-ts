@@ -131,7 +131,10 @@ export function useNodeAgent(): UseNodeAgentReturn {
 
     if (tlEvent.kind === "acp_protocol") {
       if (tlEvent.axonEvent.event_type === "session/update") {
-        const update = tlEvent.data as SessionUpdate;
+        const payload = tlEvent.data as Record<string, unknown>;
+        const inner = (payload as { update?: unknown }).update;
+        if (!inner || typeof inner !== "object") return;
+        const update = inner as SessionUpdate;
         turnBlocks.onSessionUpdate(update);
         activity.onSessionUpdate(update);
         sessionConfig.onSessionUpdate(update);

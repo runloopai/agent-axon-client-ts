@@ -434,11 +434,11 @@ import type { ACPTimelineEvent } from "@runloop/agent-axon-client/acp";
 conn.onTimelineEvent((event: ACPTimelineEvent) => {
   switch (event.kind) {
     case "acp_protocol":
-      // event.data is SessionUpdate | unknown (parsed protocol payload)
+      // event.eventType narrows the data type (e.g. "session/update" -> SessionNotification, "initialize" -> InitializeRequest | InitializeResponse)
       // event.axonEvent.origin tells you direction: USER_EVENT (outbound) or AGENT_EVENT (inbound)
       break;
     case "system":
-      // event.data is SystemEvent: { type: "turn.started", turnId } | { type: "turn.completed", turnId, stopReason? }
+      // event.data is SystemEvent: { type: "turn.started", turnId } | { type: "turn.completed", turnId, stopReason? } | { type: "broker.error", message }
       break;
     case "unknown":
       // event.data is null — inspect event.axonEvent for raw data

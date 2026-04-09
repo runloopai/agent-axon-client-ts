@@ -413,7 +413,7 @@ export class ClaudeAxonConnection {
    *
    * Every Axon event on the channel is classified into one of:
    * - `claude_protocol` — a known Claude protocol event (user or agent message)
-   * - `system` — a broker system event (`turn.started`, `turn.completed`)
+   * - `system` — a broker system event (`turn.started`, `turn.completed`, `broker.error`)
    * - `unknown` — anything else
    *
    * @param listener - Callback invoked with each {@link ClaudeTimelineEvent}.
@@ -968,7 +968,7 @@ export function isClaudeProtocolEventType(eventType: string): boolean {
  * Classifies a raw Axon event into a {@link ClaudeTimelineEvent}.
  *
  * Classification rules:
- * 1. `SYSTEM_EVENT` with `turn.started` / `turn.completed` -> `system`
+ * 1. `SYSTEM_EVENT` with `turn.started` / `turn.completed` / `broker.error` -> `system`
  * 2. Known Claude protocol `event_type` -> `claude_protocol`
  * 3. Everything else -> `unknown`
  *

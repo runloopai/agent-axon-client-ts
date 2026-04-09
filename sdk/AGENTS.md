@@ -175,7 +175,7 @@ chat UIs that interleave protocol events, system events, and custom events.
 |------|-----------|------|
 | `acp_protocol` | `SessionUpdate \| unknown` | Known ACP protocol event (agent or client method) |
 | `claude_protocol` | `SDKMessage` | Known Claude protocol event |
-| `system` | `SystemEvent` | Broker system event (`turn.started`, `turn.completed`) |
+| `system` | `SystemEvent` | Broker system event (`turn.started`, `turn.completed`, `broker.error`) |
 | `unknown` | `null` | Anything else — inspect `axonEvent` for details |
 
 Every timeline event has `{ kind, data, axonEvent }` where `axonEvent` is the
@@ -281,7 +281,7 @@ create a new instance.
 
 ## Constraints and gotchas
 
-- **Auto-reconnect (single retry).** If an SSE stream drops unexpectedly, the SDK re-subscribes once and logs a `console.warn`. If the retry also fails, the connection is terminal — create a new instance.
+- **Auto-reconnect (single retry).** If an SSE stream drops unexpectedly, the SDK re-subscribes once. ACP logs a `console.warn`; Claude logs only when `verbose: true` is set. If the retry also fails, the connection is terminal — create a new instance.
 - **ACP permissions default to auto-approve** (`allow_always` > `allow_once` > first option). Pass `requestPermission` to customize.
 - **Claude permissions also auto-approve** all tool use. Register a `"can_use_tool"` handler via `onControlRequest()` to customize.
 - **Eager SSE** (ACP): The constructor opens an SSE subscription immediately and replays all events from the beginning of the channel (pass `afterSequence` to skip). Connection errors surface on the first awaited method call.

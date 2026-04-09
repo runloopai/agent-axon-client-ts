@@ -469,9 +469,11 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
       const axonEvent = tlEvent.axonEvent;
       if (axonEvent.event_type === "session/update") {
         const payload = tlEvent.data as Record<string, unknown>;
-        const update = payload as SessionUpdate;
         const eventSessionId = (payload as { sessionId?: string }).sessionId ?? null;
-        handleSessionUpdate(update, eventSessionId);
+        const inner = (payload as { update?: unknown }).update;
+        if (inner && typeof inner === "object") {
+          handleSessionUpdate(inner as SessionUpdate, eventSessionId);
+        }
       } else if (axonEvent.event_type === "initialize" && axonEvent.origin === "AGENT_EVENT") {
         const payload = tlEvent.data as Record<string, unknown>;
         const info = (payload.agentInfo as Record<string, unknown>) ?? null;
