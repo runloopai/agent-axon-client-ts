@@ -20,10 +20,8 @@ type AsyncHandler = (req: Request, res: Response) => Promise<void>;
 function asyncHandler(fn: AsyncHandler): (req: Request, res: Response) => void {
   return (req, res) => {
     fn(req, res).catch((err) => {
-      const status = err instanceof HttpError ? err.status : 500;
-      const message = err instanceof Error ? err.message : String(err);
-      if (status >= 500) console.error("Server error:", err);
-      res.status(status).json({ error: message });
+      console.error("Server error:", err);
+      res.status(500).json({ error: err.message });
     });
   };
 }
