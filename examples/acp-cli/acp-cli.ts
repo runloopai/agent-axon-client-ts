@@ -80,17 +80,6 @@ process.on("SIGINT", async () => {
 // Initialize + create session
 // ---------------------------------------------------------------------------
 
-// Log SYSTEM_EVENTs for debugging (e.g. turn.started, turn.completed).
-// Broker errors like "agent binary not found" will also reject initialize() below.
-// Note: for non-demo purposes you probably won't want this level of verbosity.
-agent.onAxonEvent((ev) => {
-  if (ev.origin === "SYSTEM_EVENT") {
-    if (VERBOSE) {
-      console.error(`[system] ${ev.event_type}: ${ev.payload}`);
-    }
-  }
-});
-
 console.log("Initializing ACP connection...");
 
 let initResp;
