@@ -18,8 +18,6 @@ export interface ACPStartOptions {
 }
 
 const CLIENT_CAPABILITIES = {
-  fs: { readTextFile: true, writeTextFile: true },
-  terminal: true,
   elicitation: { form: {} },
 } as const;
 
@@ -147,26 +145,10 @@ export class ACPConnectionManager {
 
     conn.onAxonEvent((ev) => {
       this.axonEvents.push(ev);
-      this.ws.broadcast(this.tag({ type: "axon_event", event: ev }));
     });
 
     conn.onTimelineEvent((event: ACPTimelineEvent) => {
       this.ws.broadcast(this.tag({ type: "timeline_event", event }));
-
-      if (event.kind === "system") {
-        if (event.data.type === "turn.started") {
-          this.ws.broadcast(this.tag({
-            type: "turn_started",
-            turnId: event.data.turnId,
-          }));
-        } else if (event.data.type === "turn.completed") {
-          this.ws.broadcast(this.tag({
-            type: "turn_completed",
-            turnId: event.data.turnId,
-            stopReason: event.data.stopReason ?? "EndTurn",
-          }));
-        }
-      }
     });
 
     this.connection = conn;

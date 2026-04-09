@@ -168,7 +168,6 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
         const content = message.content as Array<Record<string, unknown>>;
         if (!Array.isArray(content)) break;
 
-        // TodoWrite results -> unified PlanBlock
         const toolUseResult = msg.tool_use_result as Record<string, unknown> | undefined;
         if (toolUseResult?.newTodos) {
           const newTodos = toolUseResult.newTodos as Array<Record<string, unknown>>;
@@ -313,25 +312,34 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
             const slashCommands = (msg.slash_commands as string[]) ?? [];
             const initModel = (msg.model as string) ?? "unknown";
 
-            setInitInfo({ model: initModel, tools, mcpServers, permissionMode: initPermissionMode, slashCommands });
-            setCurrentModel(initModel ?? null);
-            setPermissionMode(initPermissionMode ?? null);
+            setInitInfo((prev) => {
+              if (prev) {
+                setCurrentModel(initModel ?? null);
+                setPermissionMode(initPermissionMode ?? null);
+                return { ...prev, model: initModel, tools, mcpServers, permissionMode: initPermissionMode, slashCommands };
+              }
 
-            const extensions: ClaudeInitExtensions = {
-              protocol: "claude",
-              tools,
-              mcpServers,
-              permissionMode: initPermissionMode,
-            };
-            pushBlock({
-              type: "system_init",
-              id: nextBlockId("init"),
-              agentName: "Claude Code",
-              agentVersion: null,
-              model: initModel,
-              commands: slashCommands,
-              extensions,
-              extra: { ...msg },
+              setCurrentModel(initModel ?? null);
+              setPermissionMode(initPermissionMode ?? null);
+
+              const extensions: ClaudeInitExtensions = {
+                protocol: "claude",
+                tools,
+                mcpServers,
+                permissionMode: initPermissionMode,
+              };
+              pushBlock({
+                type: "system_init",
+                id: nextBlockId("init"),
+                agentName: "Claude Code",
+                agentVersion: null,
+                model: initModel,
+                commands: slashCommands,
+                extensions,
+                extra: { ...msg },
+              });
+
+              return { model: initModel, tools, mcpServers, permissionMode: initPermissionMode, slashCommands };
             });
             break;
           }
@@ -558,6 +566,28 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
     });
   }
 
+  function handleTimelineEvent(tlEvent: ClaudeTimelineEvent): void {
+    setTimelineEvents((prev) => [...prev, tlEvent]);
+    setAxonEvents((prev) => [...prev, tlEvent.axonEvent]);
+
+    const userMsg = extractClaudeUserMessage(tlEvent.data, tlEvent.axonEvent);
+    if (userMsg) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `user-${userMsg.sequence}`,
+          role: "user" as const,
+          content: userMsg.text,
+        },
+      ]);
+      return;
+    }
+
+    if (tlEvent.kind === "claude_protocol") {
+      handleSDKMessage(tlEvent.data as Record<string, unknown>);
+    }
+  }
+
   useEffect(() => {
     resetAllState();
 
@@ -585,26 +615,8 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
 
       if (parsed.agentId !== agentId) return;
 
-      if (parsed.type === "axon_event") {
-        setAxonEvents((prev) => [...prev, parsed.event as AxonEventView]);
-        return;
-      }
-
       if (parsed.type === "timeline_event") {
-        const tlEvent = parsed.event as ClaudeTimelineEvent;
-        setTimelineEvents((prev) => [...prev, tlEvent]);
-
-        const userMsg = extractClaudeUserMessage(tlEvent.data, tlEvent.axonEvent);
-        if (userMsg) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `user-${userMsg.sequence}`,
-              role: "user" as const,
-              content: userMsg.text,
-            },
-          ]);
-        }
+        handleTimelineEvent(parsed.event as ClaudeTimelineEvent);
         return;
       }
 
@@ -613,9 +625,7 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
         return;
       }
 
-      if (parsed.type === "sdk_message") {
-        handleSDKMessage(parsed.message as Record<string, unknown>);
-      } else if (parsed.type === "control_request") {
+      if (parsed.type === "control_request") {
         handleControlRequest(parsed.controlRequest as Record<string, unknown>);
       } else if (parsed.type === "turn_error") {
         finalizeTurn();
@@ -640,7 +650,6 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
 
   const start = useCallback(async (_config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; autoApprovePermissions?: boolean }) => {
     // Start is handled by App.tsx directly via /api/start
-    // This hook auto-connects WS when agentId is set
   }, []);
 
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {

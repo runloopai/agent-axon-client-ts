@@ -22,8 +22,6 @@ import type {
   PendingPermission,
   PendingElicitation,
   ToolActivity,
-  FileOp,
-  TerminalState,
   SessionMode,
   ModelInfo,
   AvailableCommand,
@@ -56,8 +54,6 @@ export interface UseACPAgentReturn {
   usage: UsageState | null;
   plan: PlanEntry[] | null;
   toolActivity: ToolActivity[];
-  fileOps: FileOp[];
-  terminals: Map<string, TerminalState>;
   currentMode: string | null;
   availableModes: SessionMode[];
   configOptions: SessionConfigOption[];
@@ -77,6 +73,7 @@ export interface UseACPAgentReturn {
   authDismissed: boolean;
   availableCommands: AvailableCommand[];
   axonEvents: AxonEventView[];
+  timelineEvents: ACPTimelineEvent[];
   sessions: SessionInfo[];
   isLoadingSessions: boolean;
   start: (config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string }) => Promise<void>;
@@ -122,8 +119,8 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [usage, setUsage] = useState<UsageState | null>(null);
   const [axonEvents, setAxonEvents] = useState<AxonEventView[]>([]);
+  const [timelineEvents, setTimelineEvents] = useState<ACPTimelineEvent[]>([]);
 
-  // Turn blocks state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentTurnBlocks, setCurrentTurnBlocks] = useState<TurnBlock[]>([]);
   const [isAgentTurn, setIsAgentTurn] = useState(false);
@@ -134,12 +131,8 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
   const thinkingStartRef = useRef<number | null>(null);
   const lastStopReasonRef = useRef<string | undefined>(undefined);
 
-  // Activity state
   const [toolActivity, setToolActivity] = useState<ToolActivity[]>([]);
-  const [fileOps, setFileOps] = useState<FileOp[]>([]);
-  const [terminals, setTerminals] = useState<Map<string, TerminalState>>(new Map());
 
-  // Session config state
   const [currentMode, setCurrentMode] = useState<string | null>(null);
   const [availableModes, setAvailableModes] = useState<SessionMode[]>([]);
   const [configOptions, setConfigOptions] = useState<SessionConfigOption[]>([]);
@@ -162,10 +155,9 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
     setIsStreaming(false);
     setPlan(null);
     setToolActivity([]);
-    setFileOps([]);
-    setTerminals(new Map());
     setUsage(null);
     setAxonEvents([]);
+    setTimelineEvents([]);
     setDevboxId(null);
     setAxonId(null);
     setSessionId(null);
@@ -243,34 +235,7 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
     if (models?.currentModelId) setCurrentModelId(models.currentModelId);
   }
 
-  function handleTurnBlockEvent(data: WsEvent) {
-    if (data.type === "turn_started") {
-      setIsAgentTurn(true);
-      setIsStreaming(false);
-      return;
-    }
-
-    if (data.type === "turn_completed") {
-      setIsAgentTurn(false);
-      setIsStreaming(false);
-      lastStopReasonRef.current = data.stopReason;
-      return;
-    }
-
-    if (data.type === "turn_complete") return;
-
-    if (data.type === "turn_error") {
-      flushBlocksToMessages();
-      setIsAgentTurn(false);
-      setIsStreaming(false);
-      setError(data.error ?? "Turn failed");
-      return;
-    }
-
-    if (data.type !== "session_update") return;
-
-    const update = data.update as SessionUpdate;
-
+  function handleSessionUpdate(update: SessionUpdate, eventSessionId: string | null) {
     if (isAgentMessageChunk(update)) {
       finalizeThinking();
       const { content, messageId = null } = update as { content: Record<string, unknown>; messageId?: string | null };
@@ -372,7 +337,6 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
         duration: null,
       } as ToolCallBlock);
 
-      // Activity tracking
       const command = rawInput && typeof rawInput === "object"
         ? ((rawInput as Record<string, unknown>).command as string | undefined)
         : undefined;
@@ -416,7 +380,6 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
         }),
       );
 
-      // Activity tracking
       const command = rawInput && typeof rawInput === "object"
         ? ((rawInput as Record<string, unknown>).command as string | undefined)
         : undefined;
@@ -445,7 +408,6 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
       return;
     }
 
-    // Session config updates
     if (isCurrentModeUpdate(update)) {
       setCurrentMode((update as { currentModeId: string }).currentModeId);
     } else if (isConfigOptionUpdate(update)) {
@@ -462,41 +424,86 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
     if (isSessionInfoUpdate(update)) {
       const u = update as { title?: string; updatedAt?: string };
       if (u.title) {
-        const sid = (data as { sessionId: string | null }).sessionId;
         setSessions((prev) =>
           prev.map((s) =>
-            s.sessionId === sid ? { ...s, title: u.title, updatedAt: u.updatedAt } : s,
+            s.sessionId === eventSessionId ? { ...s, title: u.title, updatedAt: u.updatedAt } : s,
           ),
         );
       }
     }
   }
 
-  function handleActivityEvent(data: WsEvent) {
-    if (data.type === "file_read") {
-      setFileOps((prev) => [...prev, { id: `fr-${Date.now()}`, type: "read", path: data.path, detail: `${data.lines} lines`, timestamp: Date.now() }]);
-    } else if (data.type === "file_write") {
-      setFileOps((prev) => [...prev, { id: `fw-${Date.now()}`, type: "write", path: data.path, detail: `${data.bytes} bytes`, timestamp: Date.now() }]);
-    } else if (data.type === "terminal_create") {
-      setTerminals((prev) => {
-        const next = new Map(prev);
-        next.set(data.terminalId, { terminalId: data.terminalId, command: data.command, output: "", exited: false, timestamp: Date.now() });
-        return next;
-      });
-    } else if (data.type === "terminal_output") {
-      setTerminals((prev) => {
-        const next = new Map(prev);
-        const existing = next.get(data.terminalId);
-        if (existing) next.set(existing.terminalId, { ...existing, output: data.output, exited: data.exited });
-        return next;
-      });
-    } else if (data.type === "terminal_kill" || data.type === "terminal_release") {
-      setTerminals((prev) => {
-        const next = new Map(prev);
-        const existing = next.get(data.terminalId);
-        if (existing) next.set(existing.terminalId, { ...existing, exited: true });
-        return next;
-      });
+  function handleTimelineEvent(tlEvent: ACPTimelineEvent): void {
+    setTimelineEvents((prev) => [...prev, tlEvent]);
+    setAxonEvents((prev) => [...prev, tlEvent.axonEvent]);
+
+    const userMsg = extractACPUserMessage(tlEvent.data, tlEvent.axonEvent);
+    if (userMsg) {
+      flushBlocksToMessages(lastStopReasonRef.current);
+      lastStopReasonRef.current = undefined;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `user-${userMsg.sequence}`,
+          role: "user" as const,
+          content: userMsg.text,
+        },
+      ]);
+      return;
+    }
+
+    if (tlEvent.kind === "system") {
+      const data = tlEvent.data as { type: string; turnId?: string; stopReason?: string };
+      if (data.type === "turn.started") {
+        setIsAgentTurn(true);
+        setIsStreaming(false);
+      } else if (data.type === "turn.completed") {
+        setIsAgentTurn(false);
+        setIsStreaming(false);
+        lastStopReasonRef.current = data.stopReason;
+      }
+      return;
+    }
+
+    if (tlEvent.kind === "acp_protocol") {
+      const axonEvent = tlEvent.axonEvent;
+      if (axonEvent.event_type === "session/update") {
+        const payload = tlEvent.data as Record<string, unknown>;
+        const update = payload as SessionUpdate;
+        const eventSessionId = (payload as { sessionId?: string }).sessionId ?? null;
+        handleSessionUpdate(update, eventSessionId);
+      } else if (axonEvent.event_type === "initialize" && axonEvent.origin === "AGENT_EVENT") {
+        const payload = tlEvent.data as Record<string, unknown>;
+        const info = (payload.agentInfo as Record<string, unknown>) ?? null;
+        const caps = (payload.agentCapabilities as AgentCapabilities) ?? null;
+        const protoVer = (payload.protocolVersion as number) ?? null;
+        const authMeta = (payload.authMethods as unknown[]) ?? [];
+
+        setAgentInfo(info as AgentInfo | null);
+        setConnectionDetails({ protocolVersion: protoVer, agentCapabilities: caps, clientCapabilities: null, sessionMeta: null });
+        setAuthMethods(authMeta as AuthMethod[]);
+
+        pushBlock({
+          type: "system_init",
+          id: nextBlockId("init"),
+          agentName: (info?.name as string) ?? null,
+          agentVersion: (info?.version as string) ?? null,
+          model: null,
+          commands: [],
+          extensions: {
+            protocol: "acp",
+            protocolVersion: protoVer,
+            modes: [],
+            models: [],
+            configOptions: [],
+            agentCapabilities: caps,
+            clientCapabilities: null,
+            authMethods: authMeta,
+          } satisfies ACPInitExtensions,
+          extra: payload,
+        });
+      }
+      return;
     }
   }
 
@@ -523,62 +530,8 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
 
       if (data.agentId !== agentId) return;
 
-      if (data.type === "axon_event") {
-        setAxonEvents((prev) => [...prev, data.event as AxonEventView]);
-        return;
-      }
-
       if (data.type === "timeline_event") {
-        const tlEvent = data.event as ACPTimelineEvent;
-
-        const userMsg = extractACPUserMessage(tlEvent.data, tlEvent.axonEvent);
-        if (userMsg) {
-          flushBlocksToMessages(lastStopReasonRef.current);
-          lastStopReasonRef.current = undefined;
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `user-${userMsg.sequence}`,
-              role: "user" as const,
-              content: userMsg.text,
-            },
-          ]);
-          return;
-        }
-
-        if (tlEvent.axonEvent.event_type === "initialize" && tlEvent.axonEvent.origin === "AGENT_EVENT") {
-          const payload = tlEvent.data as Record<string, unknown>;
-          const info = (payload.agentInfo as Record<string, unknown>) ?? null;
-          const caps = (payload.agentCapabilities as AgentCapabilities) ?? null;
-          const protoVer = (payload.protocolVersion as number) ?? null;
-          const authMeta = (payload.authMethods as unknown[]) ?? [];
-
-          setAgentInfo(info as AgentInfo | null);
-          setConnectionDetails({ protocolVersion: protoVer, agentCapabilities: caps, clientCapabilities: null, sessionMeta: null });
-          setAuthMethods(authMeta as AuthMethod[]);
-
-          pushBlock({
-            type: "system_init",
-            id: nextBlockId("init"),
-            agentName: (info?.name as string) ?? null,
-            agentVersion: (info?.version as string) ?? null,
-            model: null,
-            commands: [],
-            extensions: {
-              protocol: "acp",
-              protocolVersion: protoVer,
-              modes: [],
-              models: [],
-              configOptions: [],
-              agentCapabilities: caps,
-              clientCapabilities: null,
-              authMethods: authMeta,
-            } satisfies ACPInitExtensions,
-            extra: payload,
-          });
-          return;
-        }
-
+        handleTimelineEvent(data.event as ACPTimelineEvent);
         return;
       }
 
@@ -587,8 +540,13 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
         return;
       }
 
-      handleTurnBlockEvent(data);
-      handleActivityEvent(data);
+      if (data.type === "turn_error") {
+        flushBlocksToMessages();
+        setIsAgentTurn(false);
+        setIsStreaming(false);
+        setError(data.error ?? "Turn failed");
+        return;
+      }
 
       if (data.type === "permission_request") {
         const { requestId, request } = data as { requestId: string; request: Record<string, unknown> };
@@ -644,7 +602,6 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
 
   const start = useCallback(async (_config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string; autoApprovePermissions?: boolean }) => {
     // Start is handled by App.tsx directly via /api/start
-    // This hook auto-connects WS when agentId is set
   }, []);
 
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
@@ -790,12 +747,12 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
   return {
     connectionPhase, connectionStatus, error,
     messages, currentTurnBlocks, isAgentTurn, isStreaming, isSendingPrompt,
-    usage, plan, toolActivity, fileOps, terminals,
+    usage, plan, toolActivity,
     currentMode, availableModes, configOptions, availableModels, currentModelId,
     pendingPermission, autoApprovePermissions, pendingElicitation,
     devboxId, axonId, sessionId, runloopUrl,
     agentInfo, connectionDetails, authMethods, isAuthenticated, authDismissed,
-    availableCommands, axonEvents, sessions, isLoadingSessions,
+    availableCommands, axonEvents, timelineEvents, sessions, isLoadingSessions,
     start, sendMessage, cancel,
     setMode, setModel, setConfigOption,
     authenticate, dismissAuth,

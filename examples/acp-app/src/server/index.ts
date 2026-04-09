@@ -69,7 +69,6 @@ app.post(
       .prompt({ sessionId, prompt })
       .then((resp) => {
         console.log("[prompt] turn complete, stopReason:", resp.stopReason);
-        ws.broadcast({ type: "turn_complete", ...resp });
       })
       .catch((err) => {
         console.error("[prompt] turn error:", err);

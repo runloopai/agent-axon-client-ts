@@ -19,7 +19,6 @@ export class ClaudeConnectionManager {
 
   private axon: Axon | null = null;
   private devbox: Devbox | null = null;
-  private abortController: AbortController | null = null;
   private pendingControlResponses = new Map<
     string,
     { resolve: (data: unknown) => void; reject: (err: Error) => void }
@@ -83,8 +82,6 @@ export class ClaudeConnectionManager {
     await conn.connect();
     await conn.initialize();
 
-    this.runReadLoop(conn);
-
     return {
       devboxId: devbox.id,
       axonId: axon.id,
@@ -114,7 +111,6 @@ export class ClaudeConnectionManager {
 
     conn.onAxonEvent((ev) => {
       this.axonEvents.push(ev);
-      this.ws.broadcast(this.tag({ type: "axon_event", event: ev }));
     });
 
     conn.onTimelineEvent((ev) => {
@@ -168,30 +164,6 @@ export class ClaudeConnectionManager {
     }
     const conn = this.wireConnection(this.axon, this.devbox);
     await conn.connect();
-    this.runReadLoop(conn);
-  }
-
-  private async runReadLoop(conn: ClaudeAxonConnection): Promise<void> {
-    console.log("[read-loop] started");
-    try {
-      for await (const msg of conn.receiveAgentEvents()) {
-        const msgSubtype = "subtype" in msg ? (msg as { subtype: string }).subtype : undefined;
-        console.log(`[read-loop] received: type=${msg.type} subtype=${msgSubtype}`);
-
-        this.ws.broadcast(this.tag({ type: "sdk_message", message: msg }));
-
-        if (msg.type === "result") {
-          this.ws.broadcast(this.tag({ type: "turn_complete", result: msg } as BaseWsEvent));
-        }
-      }
-      console.log("[read-loop] ended (generator returned)");
-    } catch (err) {
-      console.error("[read-loop] error:", err);
-      this.ws.broadcast(this.tag({
-        type: "turn_error",
-        error: err instanceof Error ? err.message : String(err),
-      }));
-    }
   }
 
   resolveControlResponse(requestId: string, response: unknown): boolean {
@@ -223,12 +195,10 @@ export class ClaudeConnectionManager {
   }
 
   async shutdown(): Promise<void> {
-    this.abortController?.abort();
     if (this.connection) {
       await this.connection.disconnect();
     }
     this.connection = null;
-    this.abortController = null;
     this.axon = null;
     this.devbox = null;
     this.axonEvents = [];
