@@ -61,23 +61,23 @@ npm run dev        # serves the built client from dist/
 
 ## Server API
 
-| Method | Path              | Description                                                                                  |
-| ------ | ----------------- | -------------------------------------------------------------------------------------------- |
-| `POST` | `/api/connect`    | Provision Axon + Devbox, connect Claude. Body: `{ model? }`. Returns `{ axonId, devboxId }`. |
-| `POST` | `/api/prompt`     | Send a prompt. Body: `{ text }`. Returns `{ ok: true }` immediately.                         |
-| `POST` | `/api/interrupt`  | Interrupt the current turn.                                                                  |
-| `POST` | `/api/disconnect` | Disconnect and shut down the devbox.                                                         |
-| `GET`  | `/api/status`     | Connection status and init message.                                                          |
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/connect` | Provision Axon + Devbox, connect Claude. Body: `{ model? }`. Returns `{ axonId, devboxId }`. |
+| `POST` | `/api/prompt` | Send a prompt. Body: `{ text }`. Returns `{ ok: true }` immediately. |
+| `POST` | `/api/interrupt` | Interrupt the current turn. |
+| `POST` | `/api/disconnect` | Disconnect and shut down the devbox. |
+| `GET`  | `/api/status` | Connection status and init message. |
 
 ## WebSocket Events
 
 All messages are JSON with a `type` field, pushed to clients at `/ws`.
 
-| Type            | Description                                            |
-| --------------- | ------------------------------------------------------ |
-| `sdk_message`   | Raw `SDKMessage` from `@anthropic-ai/claude-agent-sdk` |
-| `turn_complete` | Emitted when a `result` message arrives                |
-| `turn_error`    | Emitted when an error occurs during a turn             |
+| Type | Description |
+|------|-------------|
+| `sdk_message` | Raw `SDKMessage` from `@anthropic-ai/claude-agent-sdk` |
+| `turn_complete` | Emitted when a `result` message arrives |
+| `turn_error` | Emitted when an error occurs during a turn |
 
 ## Project Structure
 

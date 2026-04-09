@@ -1,12 +1,6 @@
 import { RunloopSDK } from "@runloop/api-client";
-import {
-  ClaudeAxonConnection,
-  type AxonEventView,
-} from "@runloop/agent-axon-client/claude";
-import type {
-  SDKControlResponse,
-  SDKMessage,
-} from "@anthropic-ai/claude-agent-sdk";
+import { ClaudeAxonConnection, type AxonEventView } from "@runloop/agent-axon-client/claude";
+import type { SDKControlResponse, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { WsBroadcaster, WsEvent } from "./ws.ts";
 
 export interface ClaudeStartOptions {
@@ -44,16 +38,10 @@ export class ClaudeConnectionManager {
       ...(baseUrl ? { baseURL: baseUrl } : {}),
     });
 
-    this.ws.broadcast({
-      type: "connection_progress",
-      step: "Creating Axon channel...",
-    });
+    this.ws.broadcast({ type: "connection_progress", step: "Creating Axon channel..." });
     const axon = await sdk.axon.create({ name: "combined-app-claude" });
 
-    this.ws.broadcast({
-      type: "connection_progress",
-      step: "Provisioning sandbox...",
-    });
+    this.ws.broadcast({ type: "connection_progress", step: "Provisioning sandbox..." });
     const devbox = await sdk.devbox.create({
       name: "combined-app-claude",
       blueprint_name: opts.blueprintName ?? "runloop/agents",
@@ -110,10 +98,7 @@ export class ClaudeConnectionManager {
         };
       }
 
-      this.ws.broadcast({
-        type: "control_request",
-        controlRequest: message as unknown as Record<string, unknown>,
-      });
+      this.ws.broadcast({ type: "control_request", controlRequest: message as unknown as Record<string, unknown> });
 
       return new Promise<SDKControlResponse>((resolve, reject) => {
         this.pendingControlResponses.set(requestId, {
@@ -132,10 +117,7 @@ export class ClaudeConnectionManager {
       });
     });
 
-    this.ws.broadcast({
-      type: "connection_progress",
-      step: "Connecting to Claude Code...",
-    });
+    this.ws.broadcast({ type: "connection_progress", step: "Connecting to Claude Code..." });
     try {
       await conn.initialize();
     } catch (err) {
@@ -158,14 +140,9 @@ export class ClaudeConnectionManager {
       for await (const msg of conn.receiveMessages()) {
         const msgType = (msg as Record<string, unknown>).type;
         const msgSubtype = (msg as Record<string, unknown>).subtype;
-        console.log(
-          `[read-loop] received: type=${msgType} subtype=${msgSubtype}`,
-        );
+        console.log(`[read-loop] received: type=${msgType} subtype=${msgSubtype}`);
 
-        this.ws.broadcast({
-          type: "sdk_message",
-          message: msg as unknown as Record<string, unknown>,
-        });
+        this.ws.broadcast({ type: "sdk_message", message: msg as unknown as Record<string, unknown> });
 
         if (msg.type === "result") {
           this.ws.broadcast({ type: "turn_complete", result: msg } as WsEvent);
@@ -206,9 +183,7 @@ export class ClaudeConnectionManager {
 
   async setPermissionMode(mode: string): Promise<void> {
     if (!this.connection) throw new Error("Not connected");
-    await this.connection.setPermissionMode(
-      mode as Parameters<typeof this.connection.setPermissionMode>[0],
-    );
+    await this.connection.setPermissionMode(mode as Parameters<typeof this.connection.setPermissionMode>[0]);
   }
 
   async shutdown(): Promise<void> {

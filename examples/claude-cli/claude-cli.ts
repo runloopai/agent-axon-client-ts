@@ -43,13 +43,10 @@ let anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? "";
 if (!anthropicApiKey) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   anthropicApiKey = await new Promise<string>((resolve) =>
-    rl.question(
-      "ANTHROPIC_API_KEY not set. Enter your Anthropic API key: ",
-      (answer) => {
-        rl.close();
-        resolve(answer.trim());
-      },
-    ),
+    rl.question("ANTHROPIC_API_KEY not set. Enter your Anthropic API key: ", (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    }),
   );
   if (!anthropicApiKey) {
     console.error("No API key provided. Exiting.");
@@ -137,9 +134,7 @@ function renderMessage(msg: SDKMessage): void {
             }
             break;
           case "tool_use":
-            console.log(
-              `\n> ${block.name}(${JSON.stringify(block.input).slice(0, 120)})`,
-            );
+            console.log(`\n> ${block.name}(${JSON.stringify(block.input).slice(0, 120)})`);
             break;
         }
       }
@@ -153,9 +148,7 @@ function renderMessage(msg: SDKMessage): void {
           break;
         case "task_progress":
           if (VERBOSE) {
-            console.log(
-              `  Progress: ${msg.description} (${msg.usage.tool_uses} tool uses)`,
-            );
+            console.log(`  Progress: ${msg.description} (${msg.usage.tool_uses} tool uses)`);
           }
           break;
         case "task_notification":
@@ -163,9 +156,7 @@ function renderMessage(msg: SDKMessage): void {
           break;
         case "init":
           if (VERBOSE) {
-            console.log(
-              `  [init] model=${msg.model} tools=${msg.tools?.length ?? "?"}`,
-            );
+            console.log(`  [init] model=${msg.model} tools=${msg.tools?.length ?? "?"}`);
           }
           break;
         default:
@@ -185,9 +176,7 @@ function renderMessage(msg: SDKMessage): void {
         const cost = msg.total_cost_usd;
         const turns = msg.num_turns;
         const duration = (msg.duration_ms / 1000).toFixed(1);
-        console.log(
-          `--- ${turns} turn(s), ${duration}s, $${cost.toFixed(4)} ---`,
-        );
+        console.log(`--- ${turns} turn(s), ${duration}s, $${cost.toFixed(4)} ---`);
       }
       break;
     }
@@ -202,10 +191,7 @@ function renderMessage(msg: SDKMessage): void {
 // REPL
 // ---------------------------------------------------------------------------
 
-const rl: Interface = createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
+const rl: Interface = createInterface({ input: process.stdin, output: process.stdout });
 
 function prompt(): Promise<string> {
   return new Promise<string>((resolve) => rl.question("\n> ", resolve));

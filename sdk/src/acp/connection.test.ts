@@ -445,10 +445,7 @@ describe("ACPAxonConnection", () => {
       const { axon } = createMockAxon(ctrl);
       const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
 
-      const mockResult = {
-        protocolVersion: PROTOCOL_VERSION,
-        serverInfo: { name: "test" },
-      };
+      const mockResult = { protocolVersion: PROTOCOL_VERSION, serverInfo: { name: "test" } };
       conn.protocol.initialize = vi.fn().mockResolvedValue(mockResult);
 
       const result = await conn.initialize({
@@ -498,10 +495,7 @@ describe("ACPAxonConnection", () => {
       const mockResult = { sessionId: "s-1" };
       conn.protocol.newSession = vi.fn().mockResolvedValue(mockResult);
 
-      const result = await conn.newSession({
-        cwd: "/home/user",
-        mcpServers: [],
-      } as never);
+      const result = await conn.newSession({ cwd: "/home/user", mcpServers: [] } as never);
 
       expect(conn.protocol.newSession).toHaveBeenCalledOnce();
       expect(result).toBe(mockResult);
@@ -592,9 +586,7 @@ describe("ACPAxonConnection", () => {
 
       const result = await conn.extMethod("custom/method", { key: "value" });
 
-      expect(conn.protocol.extMethod).toHaveBeenCalledWith("custom/method", {
-        key: "value",
-      });
+      expect(conn.protocol.extMethod).toHaveBeenCalledWith("custom/method", { key: "value" });
       expect(result).toBe(mockResult);
       conn.disconnect();
     });
@@ -620,10 +612,7 @@ describe("ACPAxonConnection", () => {
       const mockResult = { success: true };
       conn.protocol.authenticate = vi.fn().mockResolvedValue(mockResult);
 
-      const result = await conn.authenticate({
-        method: "token",
-        credentials: {},
-      } as never);
+      const result = await conn.authenticate({ method: "token", credentials: {} } as never);
 
       expect(conn.protocol.authenticate).toHaveBeenCalledOnce();
       expect(result).toBe(mockResult);

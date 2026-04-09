@@ -22,8 +22,4 @@ export { ListenerSet } from "./listener-set.js";
 export { makeDefaultOnError, makeLogger } from "./logging.js";
 
 /** @category Types */
-export type {
-  AxonEventListener,
-  AxonEventView,
-  BaseConnectionOptions,
-} from "./types.js";
+export type { AxonEventListener, AxonEventView, BaseConnectionOptions } from "./types.js";

@@ -50,10 +50,7 @@ export class ConnectionManager {
       ...(baseUrl ? { baseURL: baseUrl } : {}),
     });
 
-    this.ws.broadcast({
-      type: "connection_progress",
-      step: "Creating Axon channel...",
-    });
+    this.ws.broadcast({ type: "connection_progress", step: "Creating Axon channel..." });
     const axon = await sdk.axon.create({ name: "node-demo-acp" });
     // The runloop/agents blueprint used has opencode pre-installed.
     // When using an AxonACPConnection, ensure the Agent is on the blueprint by
@@ -73,10 +70,7 @@ export class ConnectionManager {
       );
     }
 
-    this.ws.broadcast({
-      type: "connection_progress",
-      step: "Provisioning sandbox...",
-    });
+    this.ws.broadcast({ type: "connection_progress", step: "Provisioning sandbox..." });
     const devbox = await sdk.devbox.create({
       name: "acp-app",
       blueprint_name: "runloop/agents",
@@ -100,10 +94,7 @@ export class ConnectionManager {
     this.abortController = new AbortController();
     this.axonEvents = [];
 
-    this.ws.broadcast({
-      type: "connection_progress",
-      step: "Connecting to agent...",
-    });
+    this.ws.broadcast({ type: "connection_progress", step: "Connecting to agent..." });
     const stream = axonStream({
       axon,
       signal: this.abortController.signal,
@@ -157,10 +148,7 @@ export class ConnectionManager {
     const initData = initResp as Record<string, unknown>;
     this.authMethods = (initData.authMethods as unknown[]) ?? null;
 
-    this.ws.broadcast({
-      type: "connection_progress",
-      step: "Starting session...",
-    });
+    this.ws.broadcast({ type: "connection_progress", step: "Starting session..." });
     let sessionResp;
     try {
       sessionResp = await this.connection.newSession({
