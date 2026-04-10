@@ -176,7 +176,7 @@ export interface ACPNewSessionTimelineEvent extends BaseTimelineEvent {
  */
 export interface ACPOtherProtocolTimelineEvent extends BaseTimelineEvent {
   kind: "acp_protocol";
-  eventType: string;
+  eventType: string & {};
   data: unknown;
 }
 

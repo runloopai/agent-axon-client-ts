@@ -132,7 +132,7 @@ export function useNodeAgent(): UseNodeAgentReturn {
     }
 
     if (tlEvent.kind === "system") {
-      const data = tlEvent.data as { type: string; turnId?: string; stopReason?: string };
+      const { data } = tlEvent;
       if (data.type === "turn.started") {
         turnBlocks.setIsAgentTurn(true);
         turnBlocks.setIsStreaming(false);

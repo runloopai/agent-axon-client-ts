@@ -102,7 +102,7 @@ export interface ClaudeControlResponseTimelineEvent extends BaseTimelineEvent {
  */
 export interface ClaudeOtherProtocolTimelineEvent extends BaseTimelineEvent {
   kind: "claude_protocol";
-  eventType: string;
+  eventType: string & {};
   data: SDKMessage;
 }
 
