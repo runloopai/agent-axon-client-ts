@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { PendingElicitation, ElicitationFieldSchema } from "../types.js";
+import type { PendingElicitation, ElicitationPropertySchema } from "../types.js";
 
 type ElicitationContentValue = string | number | boolean | string[];
 
@@ -82,13 +82,12 @@ function ElicitationField({
   name, field, required, value, onChange,
 }: {
   name: string;
-  field: ElicitationFieldSchema;
+  field: ElicitationPropertySchema;
   required: boolean;
   value: ElicitationContentValue | undefined;
   onChange: (v: ElicitationContentValue | undefined) => void;
 }) {
   const label = field.title ?? name;
-  const isEnum = field.type === "string" && (field.enum || field.oneOf);
 
   if (field.type === "boolean") {
     return (
@@ -104,7 +103,7 @@ function ElicitationField({
     );
   }
 
-  if (isEnum) {
+  if (field.type === "string" && (field.enum || field.oneOf)) {
     const options = field.oneOf
       ? field.oneOf.map((o) => ({ value: o.const, label: o.title }))
       : (field.enum ?? []).map((v) => ({ value: v, label: v }));
@@ -130,9 +129,9 @@ function ElicitationField({
 
   if (field.type === "array") {
     const items = field.items;
-    const options = items?.oneOf
-      ? items.oneOf.map((o) => ({ value: o.const, label: o.title }))
-      : (items?.enum ?? []).map((v) => ({ value: v, label: v }));
+    const options = "anyOf" in items
+      ? items.anyOf.map((o) => ({ value: o.const, label: o.title }))
+      : items.enum.map((v) => ({ value: v, label: v }));
     const selected = new Set((value as string[]) ?? []);
     return (
       <div className="elicitation-field">

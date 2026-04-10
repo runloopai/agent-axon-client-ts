@@ -46,9 +46,6 @@ const AGENT_BINARY = args.agent ?? "opencode";
 const sdk = new RunloopSDK();
 
 console.log(`Starting devbox with agent "${AGENT_BINARY}"...`);
-// The runloop/agents blueprint used has opencode pre-installed.
-// When using ACPAxonConnection, ensure the agent binary is on the blueprint
-// (Agent API or custom blueprint).
 const axon = await sdk.axon.create({ name: "acp-transport" });
 const devbox = await sdk.devbox.create({
   name: "acp-cli",
@@ -186,7 +183,7 @@ while (true) {
       sessionId,
       prompt: [{ type: "text", text: trimmed }],
     });
-    console.log(); // newline after streamed text
+    console.log();
   } catch (err: unknown) {
     console.error(`Error: ${err}`);
   }

@@ -126,7 +126,6 @@ app.post(
   asyncHandler(async (req, res) => {
     const { agentId } = req.body;
     if (!agentId) {
-      // Shutdown all agents
       await registry.shutdownAll();
       res.json({ ok: true });
       return;

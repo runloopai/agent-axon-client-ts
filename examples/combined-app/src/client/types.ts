@@ -3,24 +3,36 @@ import type {
   Diff,
   ModelInfo,
   PermissionOption,
-  PlanEntryPriority,
-  PlanEntryStatus,
   SessionInfo,
   SessionMode,
   Terminal,
   ToolCallStatus,
   ToolKind,
+  AgentCapabilities,
+  ClientCapabilities,
+  ElicitationPropertySchema,
+  ElicitationSchema,
+  Implementation,
+  PlanEntry,
+  SessionConfigOption,
 } from "@runloop/agent-axon-client/acp";
 import type { ACPTimelineEvent, AxonEventView } from "@runloop/agent-axon-client/acp";
 import type { ClaudeTimelineEvent, SDKControlRequest } from "@runloop/agent-axon-client/claude";
 
 export type {
+  AgentCapabilities,
   AvailableCommand,
+  ClientCapabilities,
   Diff,
+  ElicitationPropertySchema,
+  ElicitationSchema,
+  Implementation,
   ModelInfo,
   PermissionOption,
+  PlanEntry,
   PlanEntryPriority,
   PlanEntryStatus,
+  SessionConfigOption,
   SessionInfo,
   SessionMode,
   Terminal,
@@ -60,14 +72,6 @@ export interface ContentItem {
   text?: string;
   diff?: Diff;
   terminal?: Terminal;
-}
-
-// --- Plan entry (unified todo + plan) ---
-
-export interface PlanEntry {
-  content: string;
-  status: PlanEntryStatus;
-  priority?: PlanEntryPriority | null;
 }
 
 // --- Turn block types ---
@@ -280,73 +284,17 @@ export interface PendingPermission {
 
 // --- ACP-specific: elicitation ---
 
-export interface ElicitationFieldSchema {
-  type: "string" | "number" | "integer" | "boolean" | "array";
-  title?: string | null;
-  description?: string | null;
-  default?: unknown;
-  enum?: string[] | null;
-  oneOf?: Array<{ const: string; title: string }> | null;
-  items?: { enum?: string[]; oneOf?: Array<{ const: string; title: string }> } | null;
-}
-
 export interface PendingElicitation {
   requestId: string;
   message: string;
   mode: "form" | "url";
-  schema?: {
-    title?: string | null;
-    description?: string | null;
-    properties?: Record<string, ElicitationFieldSchema>;
-    required?: string[] | null;
-  };
+  schema?: ElicitationSchema;
   url?: string;
-}
-
-// --- ACP-specific: session config ---
-
-export interface SessionConfigOption {
-  id: string;
-  type: string;
-  name: string;
-  currentValue?: string;
-  options?: Array<{ value?: string; name: string; options?: Array<{ value?: string; name: string }> }>;
 }
 
 // --- ACP-specific: agent info ---
 
-export interface AgentInfo {
-  name?: string;
-  title?: string | null;
-  version?: string;
-}
-
-export interface AgentCapabilities {
-  loadSession?: boolean;
-  promptCapabilities?: {
-    image?: boolean;
-    audio?: boolean;
-    embeddedContext?: boolean;
-  };
-  mcpCapabilities?: {
-    http?: boolean;
-    sse?: boolean;
-  };
-  sessionCapabilities?: {
-    list?: Record<string, unknown>;
-  };
-}
-
-export interface ClientCapabilities {
-  fs?: {
-    readTextFile?: boolean;
-    writeTextFile?: boolean;
-  };
-  terminal?: boolean;
-  elicitation?: {
-    form?: Record<string, unknown>;
-  };
-}
+export type AgentInfo = Implementation;
 
 export interface ConnectionDetails {
   protocolVersion: number | null;

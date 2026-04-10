@@ -179,7 +179,7 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
           const entries: PlanEntry[] = newTodos.map((t) => ({
             content: (t.content as string) ?? "",
             status: (t.status as PlanEntry["status"]) ?? "pending",
-            priority: null,
+            priority: (t.priority as PlanEntry["priority"]) ?? "medium",
           }));
 
           const existingPlan = blocks.blocksRef.current.find((b) => b.type === "plan");
