@@ -105,9 +105,12 @@ async function createConnectedClient(
     onError: options?.onError,
     systemPrompt: options?.systemPrompt,
     appendSystemPrompt: options?.appendSystemPrompt,
+    replay: false,
   });
 
-  // Replace internal transport with mock
+  // Replace internal transport with mock before connect() creates a real one.
+  // We cast to access the private field, then call connect() which will detect
+  // the transport is already set and skip creation.
   (conn as unknown as { transport: MockTransport }).transport = transport;
 
   // Queue up the initialize control response so initialize() succeeds.
@@ -653,7 +656,9 @@ describe("ClaudeAxonConnection", () => {
 
     it("connect() alone does not complete the handshake", async () => {
       const axon = createMockAxon();
-      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never);
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        replay: false,
+      });
       (conn as unknown as { transport: MockTransport }).transport = transport;
 
       await conn.connect();
@@ -664,7 +669,9 @@ describe("ClaudeAxonConnection", () => {
 
     it("initialize() throws when connect() has not been called", async () => {
       const axon = createMockAxon();
-      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never);
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        replay: false,
+      });
       (conn as unknown as { transport: MockTransport }).transport = transport;
 
       await expect(conn.initialize()).rejects.toThrow("Not connected. Call connect()");
@@ -806,6 +813,7 @@ describe("ClaudeAxonConnection", () => {
       const axon = createMockAxon();
       const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
         systemPrompt: "You are a helpful bot.",
+        replay: false,
       });
       (conn as unknown as { transport: MockTransport }).transport = transport;
 
@@ -840,6 +848,7 @@ describe("ClaudeAxonConnection", () => {
       const axon = createMockAxon();
       const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
         appendSystemPrompt: "Always respond in JSON.",
+        replay: false,
       });
       (conn as unknown as { transport: MockTransport }).transport = transport;
 

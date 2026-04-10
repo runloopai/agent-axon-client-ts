@@ -92,6 +92,7 @@ export class ACPConnectionManager {
     this.ws.broadcast(this.tag({ type: "connection_progress", step: "Connecting to agent..." }));
     const conn = this.wireConnection(axon, devbox, opts.autoApprovePermissions !== false);
 
+    await conn.connect();
     const initResp = await conn.initialize({
       protocolVersion: PROTOCOL_VERSION,
       clientInfo: { name: "combined-app", version: "0.1.0" },

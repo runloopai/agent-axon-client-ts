@@ -96,6 +96,24 @@ export interface BaseConnectionOptions {
    * Typical usage: persist `AxonEventView.sequence` from a previous
    * session and pass it here to avoid re-processing events you have
    * already seen.
+   *
+   * Mutually exclusive with {@link replay}.
    */
   afterSequence?: number;
+
+  /**
+   * When `true`, the connection queries the axon for the current head
+   * sequence and replays all events up to that point without invoking
+   * handlers. Unresolved permission/control requests are dispatched
+   * to handlers after replay completes. Timeline events are emitted
+   * for all replayed events regardless.
+   *
+   * Set to `false` to replay the full history with handlers firing for
+   * every event (legacy behavior).
+   *
+   * Mutually exclusive with {@link afterSequence}.
+   *
+   * @defaultValue `true`
+   */
+  replay?: boolean;
 }

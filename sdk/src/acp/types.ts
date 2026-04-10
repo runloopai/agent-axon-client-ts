@@ -44,6 +44,14 @@ export interface AxonStreamOptions {
    * Omit to replay the full event history.
    */
   afterSequence?: number;
+
+  /**
+   * When set, events with `sequence <= replayTargetSequence` are considered
+   * historical replay. During replay, `onAxonEvent` still fires (so timeline
+   * listeners work) but agent-to-client requests are buffered instead of
+   * enqueued. After replay ends, only unresolved requests are enqueued.
+   */
+  replayTargetSequence?: number;
 }
 
 /**

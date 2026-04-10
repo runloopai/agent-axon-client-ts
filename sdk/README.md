@@ -71,6 +71,7 @@ const devbox = await sdk.devbox.create({
 
 // Wrap the Axon channel in a high-level ACP connection and negotiate capabilities
 const conn = new ACPAxonConnection(axon, devbox);
+await conn.connect();
 await conn.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "my-app", version: "1.0.0" },
@@ -151,13 +152,14 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 | `requestPermission` | `(params) => Promise<Response>` | Custom permission handler (defaults to auto-approve) |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
-| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Omitting this replays all events from the beginning of the channel.** |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Mutually exclusive with `replay`.** |
+| `replay` | `boolean` | When `true` (the default), replays historical events without dispatching to session/permission handlers until replay completes; timeline listeners still receive events. Set to `false` for legacy behavior (handlers run for every replayed event). **Mutually exclusive with `afterSequence`.** |
 
 **ACP Methods** (proxied from `ClientSideConnection`):
 
 | Method | Description |
 |--------|-------------|
-| `initialize(params)` | Establishes the connection and negotiates capabilities |
+| `initialize(params)` | ACP handshake and capability negotiation (requires `connect()` first) |
 | `newSession(params)` | Creates a new conversation session |
 | `loadSession(params)` | Loads an existing session |
 | `listSessions(params)` | Lists existing sessions |
@@ -173,7 +175,8 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 
 | Property / Method | Description |
 |---|---|
-| `protocol: ClientSideConnection` | Escape hatch for experimental/unstable ACP methods |
+| `connect()` | Open the Axon SSE stream and wire the `ClientSideConnection` (call before `initialize()`) |
+| `protocol: ClientSideConnection` | Escape hatch for experimental/unstable ACP methods (available after `connect()`) |
 | `axonId: string` | The Axon channel ID |
 | `devboxId: string` | The Runloop devbox ID |
 | `signal: AbortSignal` | Fires when the connection closes |
@@ -220,11 +223,12 @@ const conn = new ACPAxonConnection(axon, devbox, {
   onError: (err) => console.warn("transport error:", err),
 });
 
-// Register listeners before initialize() so no events are missed
+// Register listeners before connect() / initialize() so no events are missed
 conn.onSessionUpdate((sessionId, update) => {
   console.log(sessionId, update);
 });
 
+await conn.connect();
 await conn.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "my-app", version: "1.0.0" },
@@ -243,7 +247,8 @@ Low-level function that creates an ACP-compatible duplex stream backed by an `Ax
 | `signal` | `AbortSignal` | No | Cancellation signal |
 | `onAxonEvent` | `(event: AxonEventView) => void` | No | Callback for every Axon event |
 | `onError` | `(error: unknown) => void` | No | Callback for swallowed parse errors |
-| `afterSequence` | `number` | No | Resume from this sequence — only events after it are delivered |
+| `afterSequence` | `number` | No | Resume from this sequence — only events after it are delivered. Mutually exclusive with `replayTargetSequence`. On `ACPAxonConnection`, the connection-level `replay` option (default `true`) is mutually exclusive with `afterSequence` — see Event replay section. |
+| `replayTargetSequence` | `number` | No | Marks the end of the historical replay window for buffered agent requests. Set by `ACPAxonConnection` when `replay` is enabled. Mutually exclusive with `afterSequence`. |
 
 **Returns**: `{ readable: ReadableStream<AnyMessage>; writable: WritableStream<AnyMessage> }`
 
@@ -336,7 +341,8 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 | `model` | `string` | Model ID (e.g. `"claude-sonnet-4-5"`) — set after initialization |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
-| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Omitting this replays all events from the beginning of the channel.** |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Mutually exclusive with `replay`.** |
+| `replay` | `boolean` | When `true` (the default), replays historical events without dispatching protocol handlers until replay completes; timeline listeners still receive events. Set to `false` for legacy behavior. **Mutually exclusive with `afterSequence`.** |
 
 **Listeners & Lifecycle**:
 
@@ -492,16 +498,24 @@ conn.onTimelineEvent((event) => {
 });
 ```
 
-### Event replay and `afterSequence`
+### Event replay, `replay`, and `afterSequence`
 
-Both modules subscribe to the Axon SSE stream, which **replays all events from the beginning of the channel** by default. Pass `afterSequence` in the connection options to start **after** a known sequence number:
+Both modules subscribe to the Axon SSE stream. By default, `replay` is **`true`**: the connection queries the channel head and replays all events up to that point **without** dispatching to session updates, permission handlers, or (Claude) control handlers — timeline listeners still receive every event. Unresolved permission/control work is flushed after replay completes.
+
+Set **`replay: false`** to restore the previous behavior: every replayed event invokes handlers immediately (useful if you rely on side effects during history replay).
+
+**`replay` and `afterSequence` are mutually exclusive** — you cannot set both on the same connection.
+
+Pass **`afterSequence`** to subscribe starting **after** a known sequence number (skips earlier events entirely — no full replay from the beginning):
 
 ```typescript
 // ACP — skip events 0–42, receive 43+
 const conn = new ACPAxonConnection(axon, devbox, { afterSequence: 42 });
+await conn.connect();
 
 // Claude — same option
 const conn = new ClaudeAxonConnection(axon, devbox, { afterSequence: 42 });
+await conn.connect();
 ```
 
 Track the cursor by persisting `AxonEventView.sequence` from `onAxonEvent`:
@@ -511,6 +525,7 @@ let lastSeq: number | undefined;
 conn.onAxonEvent((ev) => { lastSeq = ev.sequence; });
 // Later, reconnect from where you left off:
 const conn2 = new ACPAxonConnection(axon, devbox, { afterSequence: lastSeq });
+await conn2.connect();
 ```
 
 ---
@@ -557,7 +572,8 @@ Common options accepted by both `ACPAxonConnection` and `ClaudeAxonConnection`:
 | `verbose` | `boolean` | Emit verbose logs to stderr |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` |
-| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Omitting this replays all events from the beginning of the channel.** |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Mutually exclusive with `replay`.** |
+| `replay` | `boolean` | When `true` (the default), suppresses handler dispatch during replay of historical events; set `false` for legacy behavior. **Mutually exclusive with `afterSequence`.** |
 
 ### `AxonEventView`
 
@@ -603,7 +619,7 @@ type WireData = Record<string, any>;
 
 ## Known Limitations
 
-- **Eager SSE connection** (ACP): The `ACPAxonConnection` constructor immediately opens an SSE subscription via `axon.subscribeSse()`. Connection errors surface on the first awaited method call, not at construction time.
+- **Explicit `connect()` required** (ACP & Claude): Both `ACPAxonConnection` and `ClaudeAxonConnection` require an explicit `await conn.connect()` call before `initialize()`. The constructor is lightweight and synchronous.
 - **Automatic reconnection (single retry)**: If an SSE stream drops unexpectedly, the SDK re-subscribes once and logs a `console.warn`. If the retry also fails, the connection is terminal — create a new instance.
 - **Permission handling** (Claude): The `ClaudeAxonConnection` auto-approves all tool use by default. Register a `"can_use_tool"` handler via `onControlRequest()` to customize.
 

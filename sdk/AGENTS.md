@@ -46,12 +46,14 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-// Constructor opens SSE immediately and replays all events; pass afterSequence to resume
+// Constructor is lightweight (no SSE until connect)
 const conn = new ACPAxonConnection(axon, devbox, {
   onDisconnect: async () => {
     await devbox.shutdown();
   },
 });
+
+await conn.connect();
 
 // 2. Initialize
 await conn.initialize({
@@ -100,7 +102,8 @@ Available guards: `isUserMessageChunk`, `isAgentMessageChunk`,
 
 | Method | Purpose |
 |--------|---------|
-| `initialize(params)` | Negotiate capabilities (call first) |
+| `connect()` | Open the SSE subscription and underlying client; must be called before `initialize()` |
+| `initialize(params)` | Negotiate capabilities (call after `connect()`) |
 | `newSession(params)` | Create a conversation session |
 | `prompt(params)` | Send a prompt |
 | `cancel(params)` | Cancel an in-progress turn |
@@ -231,6 +234,14 @@ Pass `afterSequence` in the connection options to start the SSE subscription
 **after** a known sequence number. Only events with `sequence > afterSequence`
 are delivered.
 
+**`replay` (default `true`):** When enabled, `connect()` queries the axon for the
+current head sequence and replays events up to that point **without** dispatching
+to session/protocol handlers (timeline listeners still receive events). Unresolved
+permission or control requests are delivered to handlers after replay finishes.
+Set `replay: false` to process the full history with handlers firing for every
+event (legacy-style). **`replay` and `afterSequence` are mutually exclusive** —
+passing both throws.
+
 **Claude:**
 
 ```typescript
@@ -246,6 +257,7 @@ await conn.connect();
 const conn = new ACPAxonConnection(axon, devbox, {
   afterSequence: 42,
 });
+await conn.connect();
 ```
 
 **Low-level `axonStream`:**
@@ -270,6 +282,7 @@ conn.onAxonEvent((ev) => {
 });
 // ... later, reconnect from where you left off:
 const conn2 = new ACPAxonConnection(axon, devbox, { afterSequence: lastSeq });
+await conn2.connect();
 ```
 
 ### Automatic reconnect
@@ -284,7 +297,7 @@ create a new instance.
 - **Auto-reconnect (single retry).** If an SSE stream drops unexpectedly, the SDK re-subscribes once. ACP logs a `console.warn`; Claude logs only when `verbose: true` is set. If the retry also fails, the connection is terminal — create a new instance.
 - **ACP permissions default to auto-approve** (`allow_always` > `allow_once` > first option). Pass `requestPermission` to customize.
 - **Claude permissions also auto-approve** all tool use. Register a `"can_use_tool"` handler via `onControlRequest()` to customize.
-- **Eager SSE** (ACP): The constructor opens an SSE subscription immediately and replays all events from the beginning of the channel (pass `afterSequence` to skip). Connection errors surface on the first awaited method call.
+- **Explicit `connect()` required:** Both `ACPAxonConnection` and `ClaudeAxonConnection` require `await conn.connect()` before `initialize()`.
 - **Node >= 22** required.
 - **`@runloop/api-client`** is a peer dep — you must install it yourself.
 - **`@anthropic-ai/claude-agent-sdk`** is an optional peer dep — only needed for the Claude module.

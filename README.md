@@ -135,6 +135,7 @@ const agent = new ACPAxonConnection(axon, devbox, {
   },
 });
 
+await agent.connect();
 await agent.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "my-app", version: "1.0.0" },
@@ -172,6 +173,7 @@ const devbox = await sdk.devbox.create({
 });
 
 const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
+await conn.connect();
 await conn.initialize();
 
 await conn.send("What files are in this directory?");

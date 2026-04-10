@@ -111,6 +111,7 @@ export class ConnectionManager {
 
     this.connection = conn;
 
+    await conn.connect();
     const initResp = await conn.initialize({
       protocolVersion: PROTOCOL_VERSION,
       clientInfo: { name: "node-demo", version: "0.1.0" },

@@ -81,6 +81,7 @@ process.on("SIGINT", async () => {
 // ---------------------------------------------------------------------------
 
 console.log("Initializing ACP connection...");
+await agent.connect();
 const initResp = await agent.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "acp-cli", version: "0.1.0" },

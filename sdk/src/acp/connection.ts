@@ -29,6 +29,7 @@ import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
+import { getLastSequence } from "../shared/replay.js";
 import { tryParseSystemEvent } from "../shared/timeline.js";
 import { timelineEventGenerator } from "../shared/timeline-generator.js";
 import type { AxonEventListener, TimelineEventListener } from "../shared/types.js";
@@ -78,12 +79,29 @@ export class ACPAxonConnection {
    * Use this for direct access to experimental/unstable protocol methods
    * (e.g. `unstable_forkSession`, `unstable_closeSession`). For stable
    * methods, prefer the proxied methods on this class directly.
+   *
+   * Only available after {@link connect} has been called.
    */
-  readonly protocol: ClientSideConnection;
+  get protocol(): ClientSideConnection {
+    if (!this._protocol) {
+      throw new Error("Not connected. Call connect() first.");
+    }
+    return this._protocol;
+  }
 
   /** Controller whose signal is passed to the Axon stream; aborting it tears down the SSE subscription. */
   private abortController: AbortController;
   private disconnected = false;
+  private connected = false;
+
+  /** The Axon channel reference, kept for connect(). */
+  private axon: Axon;
+
+  /** Stored options for deferred connect(). */
+  private options: ACPAxonConnectionOptions;
+
+  /** Created during connect(). */
+  private _protocol: ClientSideConnection | null = null;
 
   /** Registered `session/update` notification listeners. */
   private sessionUpdateListeners = new Set<SessionUpdateListener>();
@@ -110,9 +128,9 @@ export class ACPAxonConnection {
   /**
    * Creates a new ACP connection over the given Axon channel and devbox.
    *
-   * The constructor immediately opens an SSE subscription on the Axon
-   * channel. Connection errors surface on the first awaited method call
-   * (typically {@link initialize}).
+   * The constructor does **not** open an SSE subscription. Call
+   * {@link connect} to open the transport, then {@link initialize}
+   * to negotiate protocol capabilities.
    *
    * @param axon    - The Axon channel to communicate over (from `@runloop/api-client`).
    * @param devbox  - The Runloop devbox hosting the ACP agent.
@@ -121,6 +139,8 @@ export class ACPAxonConnection {
   constructor(axon: Axon, devbox: Devbox, options?: ACPAxonConnectionOptions) {
     this.axonId = axon.id;
     this.devboxId = devbox.id;
+    this.axon = axon;
+    this.options = options ?? {};
     this.abortController = new AbortController();
     this.log = makeLogger("acp-sdk", options?.verbose ?? false);
     this.handleError = options?.onError ?? makeDefaultOnError("ACPAxonConnection");
@@ -130,10 +150,48 @@ export class ACPAxonConnection {
     this.timelineEventListeners = new ListenerSet<TimelineEventListener<ACPTimelineEvent>>(
       this.handleError,
     );
+    this.log("constructor", `axon=${axon.id} devbox=${this.devboxId}`);
+  }
 
-    const verbose = options?.verbose ?? false;
+  /**
+   * Opens the Axon SSE subscription and creates the underlying
+   * `ClientSideConnection`. Must be called before {@link initialize}.
+   *
+   * When `replay` is `true` (the default), queries the axon for the
+   * current head sequence and replays all events up to that point
+   * without invoking handlers. Unresolved permission requests are
+   * dispatched to handlers after replay completes.
+   *
+   * @throws If this instance has already been disconnected.
+   * @throws If already connected.
+   * @throws If both `replay` and `afterSequence` are set.
+   */
+  async connect(): Promise<void> {
+    if (this.disconnected) {
+      throw new Error(
+        "This ACPAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
+      );
+    }
+    if (this.connected) {
+      throw new Error("Already connected. Call disconnect() before reconnecting.");
+    }
+
+    const replay = this.options.replay ?? true;
+    if (replay && this.options.afterSequence != null) {
+      throw new Error("Cannot use both 'replay' and 'afterSequence'. They are mutually exclusive.");
+    }
+
+    let replayTargetSequence: number | undefined;
+    if (replay) {
+      replayTargetSequence = await getLastSequence(this.axon);
+      if (replayTargetSequence != null) {
+        this.log("connect", `replay target sequence: ${replayTargetSequence}`);
+      }
+    }
+
+    const verbose = this.options.verbose ?? false;
     const stream = axonStream({
-      axon,
+      axon: this.axon,
       signal: this.abortController.signal,
       onAxonEvent: (ev) => {
         this.axonEventListeners.emit(ev);
@@ -141,20 +199,25 @@ export class ACPAxonConnection {
       },
       onError: this.handleError,
       log: verbose ? (tag, ...args) => this.log(tag, ...args) : undefined,
-      afterSequence: options?.afterSequence,
+      afterSequence: this.options.afterSequence,
+      replayTargetSequence,
     });
 
-    const customCreateClient = options?.createClient;
-    this.protocol = new ClientSideConnection(
+    const customCreateClient = this.options.createClient;
+    this._protocol = new ClientSideConnection(
       customCreateClient ? (agent) => customCreateClient(agent) : () => this.createClient(),
       stream,
     );
-    this.log("constructor", `axon=${axon.id} devbox=${this.devboxId}`);
+    this.connected = true;
+    this.log("connect", "connected");
   }
 
   private ensureConnected(): void {
     if (this.disconnected) {
       throw new Error("Connection is disconnected. Create a new instance.");
+    }
+    if (!this.connected) {
+      throw new Error("Not connected. Call connect() first.");
     }
   }
 
@@ -164,7 +227,7 @@ export class ACPAxonConnection {
 
   /**
    * Establishes the connection and negotiates protocol capabilities.
-   * Must be called before any other agent method.
+   * Must be called after {@link connect} and before any other agent method.
    *
    * @param params - Protocol version, client info, and capability negotiation fields.
    * @returns The agent's supported capabilities and protocol version.

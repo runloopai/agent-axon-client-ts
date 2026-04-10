@@ -89,6 +89,13 @@ export interface AxonTransportOptions {
    * Omit to replay the full event history.
    */
   afterSequence?: number;
+  /**
+   * When set, events with `sequence <= replayTargetSequence` are considered
+   * historical replay. During replay, `onAxonEvent` still fires (so timeline
+   * listeners work) but `control_request` messages are buffered instead of
+   * yielded. After replay ends, only unresolved control requests are yielded.
+   */
+  replayTargetSequence?: number;
 }
 
 /**
@@ -116,6 +123,9 @@ export class AxonTransport implements Transport {
   /** Sequence number of the last received Axon event, used to resume on reconnect. */
   private lastSequence: number | undefined;
 
+  /** When set, events up to this sequence are replayed without yielding to the read loop. */
+  private replayTargetSequence: number | undefined;
+
   private log: (tag: string, ...args: unknown[]) => void;
 
   /**
@@ -129,6 +139,7 @@ export class AxonTransport implements Transport {
     this.log = makeLogger("axon-transport", options?.verbose ?? false);
     this.onAxonEvent = options?.onAxonEvent;
     this.lastSequence = options?.afterSequence;
+    this.replayTargetSequence = options?.replayTargetSequence;
   }
 
   /**
@@ -188,6 +199,12 @@ export class AxonTransport implements Transport {
    * Only `AGENT_EVENT` messages are yielded — `USER_EVENT`s (our own
    * publishes echoed back) are skipped.
    *
+   * When `replayTargetSequence` is set, events up to that sequence are
+   * replayed: `onAxonEvent` fires (timeline works) but `control_request`
+   * messages are buffered. `control_response` events during replay mark
+   * buffered requests as resolved. After replay, unresolved control
+   * requests are yielded before live events.
+   *
    * @yields Parsed {@link WireData} objects from the agent.
    * @throws If called before {@link connect}.
    */
@@ -195,6 +212,11 @@ export class AxonTransport implements Transport {
     if (!this.sseStream) {
       throw new Error("Transport not connected. Call connect() first.");
     }
+
+    const replaying = this.replayTargetSequence != null;
+    const replayTarget = this.replayTargetSequence;
+    // Buffer control_request messages during replay, keyed by request_id.
+    const replayBuffer = new Map<string, WireData>();
 
     let eventCount = 0;
     for await (const event of this.sseStream) {
@@ -204,6 +226,61 @@ export class AxonTransport implements Transport {
 
       this.onAxonEvent?.(event);
 
+      // --- Replay mode: suppress handler dispatch ---
+      if (replaying && replayTarget != null && event.sequence <= replayTarget) {
+        if (event.origin === "AGENT_EVENT" && event.event_type === "control_request") {
+          // Buffer control requests; they may be resolved by a later control_response
+          if (event.payload != null) {
+            try {
+              const parsed = JSON.parse(event.payload);
+              if (parsed != null && typeof parsed === "object") {
+                const requestId: string | undefined = parsed.request_id;
+                if (requestId) {
+                  replayBuffer.set(requestId, parsed);
+                  this.log("read", `#${eventCount} REPLAY buffered control_request ${requestId}`);
+                }
+              }
+            } catch {
+              this.log("read", `#${eventCount} REPLAY failed to parse control_request`);
+            }
+          }
+        } else if (event.origin === "USER_EVENT" && event.event_type === "control_response") {
+          // Mark matching buffered request as resolved
+          if (event.payload != null) {
+            try {
+              const parsed = JSON.parse(event.payload);
+              const response = parsed?.response;
+              const requestId: string | undefined = response?.request_id;
+              if (requestId && replayBuffer.has(requestId)) {
+                replayBuffer.delete(requestId);
+                this.log("read", `#${eventCount} REPLAY resolved control_request ${requestId}`);
+              }
+            } catch {
+              // ignore parse errors for resolution tracking
+            }
+          }
+        } else {
+          this.log("read", `#${eventCount} REPLAY skip ${event.origin} ${event.event_type}`);
+        }
+        continue;
+      }
+
+      // --- Transition out of replay: yield unresolved buffered requests ---
+      if (replaying && replayBuffer.size > 0) {
+        this.log(
+          "read",
+          `replay complete — yielding ${replayBuffer.size} unresolved control request(s)`,
+        );
+        for (const [requestId, msg] of replayBuffer) {
+          this.log("read", `yielding unresolved control_request ${requestId}`);
+          yield msg;
+        }
+        replayBuffer.clear();
+      } else if (replaying && replayTarget != null && event.sequence > replayTarget) {
+        this.log("read", "replay complete — no unresolved control requests");
+      }
+
+      // --- Normal (live) processing ---
       if (event.origin === "AGENT_EVENT") {
         this.log("read", `#${eventCount} ${event.event_type}`);
         if (event.payload == null) {
@@ -224,6 +301,20 @@ export class AxonTransport implements Transport {
         this.log("read", `#${eventCount} SKIP ${event.origin} ${event.event_type}`);
       }
     }
+
+    // If replay ended because the stream closed, flush unresolved requests
+    if (replaying && replayBuffer.size > 0) {
+      this.log(
+        "read",
+        `stream ended during replay — yielding ${replayBuffer.size} unresolved control request(s)`,
+      );
+      for (const [requestId, msg] of replayBuffer) {
+        this.log("read", `yielding unresolved control_request ${requestId}`);
+        yield msg;
+      }
+      replayBuffer.clear();
+    }
+
     this.log("read", `SSE ended after ${eventCount} events`);
   }
 

@@ -31,7 +31,7 @@ const NOTIFICATION_TYPES = new Set<string>([CLIENT_METHODS.session_update]);
  * @category Connection
  */
 export function axonStream(options: AxonStreamOptions): Stream {
-  const { axon, signal, onAxonEvent, log, afterSequence } = options;
+  const { axon, signal, onAxonEvent, log, afterSequence, replayTargetSequence } = options;
   const onError = options.onError ?? makeDefaultOnError("axonStream");
 
   // Maps outbound JSON-RPC request method -> id so we can correlate
@@ -54,6 +54,7 @@ export function axonStream(options: AxonStreamOptions): Stream {
     onError,
     log,
     afterSequence,
+    replayTargetSequence,
   );
 
   const writable = createWritable(axon, pendingRequests, pendingClientRequests, onError, log);
@@ -73,16 +74,11 @@ export function axonStream(options: AxonStreamOptions): Stream {
  * publishes echoed back). The stream closes when the SSE feed ends or
  * when the abort signal fires.
  *
- * @param axon                 - Axon channel to subscribe to.
- * @param signal               - Optional abort signal to cancel the subscription.
- * @param pendingRequests      - Shared map tracking outbound request method → JSON-RPC ID.
- * @param pendingClientRequests - Shared map tracking agent-to-client request ID → method.
- * @param onAxonEvent          - Optional callback fired for every raw Axon event.
- * @param nextId               - Factory that produces the next synthetic JSON-RPC ID for
- *   agent-to-client requests.
- * @param onError              - Error sink for unparseable payloads.
- * @param initialAfterSequence - Optional sequence number to resume from on the first subscribe.
- * @returns A `ReadableStream` of JSON-RPC messages.
+ * When `replayTargetSequence` is set, events with `sequence <= replayTargetSequence`
+ * are in replay mode: `onAxonEvent` still fires (timeline works) but
+ * agent-to-client requests are buffered. `USER_EVENT` responses during
+ * replay mark buffered requests as resolved. After replay, only unresolved
+ * requests are enqueued.
  */
 function createReadable(
   axon: Axon,
@@ -94,12 +90,19 @@ function createReadable(
   onError: (error: unknown) => void,
   log: ((tag: string, ...args: unknown[]) => void) | undefined,
   initialAfterSequence?: number,
+  replayTargetSequence?: number,
 ): ReadableStream<AnyMessage> {
   return new ReadableStream<AnyMessage>({
     async start(controller) {
       let totalEvents = 0;
       let attempt = 0;
       let lastSequence: number | undefined = initialAfterSequence;
+
+      const replaying = replayTargetSequence != null;
+      // Buffer agent-to-client requests seen during replay, keyed by event_type.
+      // Each entry holds the JSON-RPC message. When a matching USER_EVENT
+      // response is seen, the entry is deleted (resolved).
+      const replayBuffer = new Map<string, AnyMessage>();
 
       while (!signal?.aborted) {
         attempt++;
@@ -118,6 +121,54 @@ function createReadable(
 
             onAxonEvent?.(axonEvent);
 
+            // --- Replay mode: suppress handler dispatch ---
+            if (replaying && axonEvent.sequence <= replayTargetSequence) {
+              // During replay, track USER_EVENT responses to mark requests resolved
+              if (axonEvent.origin === "USER_EVENT" && isClientMethod(axonEvent.event_type)) {
+                replayBuffer.delete(axonEvent.event_type);
+                log?.("read", `#${totalEvents} REPLAY resolved ${axonEvent.event_type}`);
+              } else if (axonEvent.origin === "AGENT_EVENT") {
+                // Buffer agent-to-client requests; skip everything else
+                if (isClientMethod(axonEvent.event_type)) {
+                  const msg = axonEventToJsonRpc(
+                    axonEvent,
+                    pendingRequests,
+                    pendingClientRequests,
+                    nextId,
+                    onError,
+                  );
+                  if (msg) {
+                    replayBuffer.set(axonEvent.event_type, msg);
+                    log?.("read", `#${totalEvents} REPLAY buffered ${axonEvent.event_type}`);
+                  }
+                } else {
+                  log?.("read", `#${totalEvents} REPLAY skip ${axonEvent.event_type}`);
+                }
+              } else {
+                log?.(
+                  "read",
+                  `#${totalEvents} REPLAY skip ${axonEvent.origin} ${axonEvent.event_type}`,
+                );
+              }
+              continue;
+            }
+
+            // --- Transition out of replay ---
+            if (replaying && replayBuffer.size > 0) {
+              log?.(
+                "read",
+                `replay complete — enqueuing ${replayBuffer.size} unresolved request(s)`,
+              );
+              for (const [eventType, msg] of replayBuffer) {
+                log?.("read", `enqueuing unresolved ${eventType}`);
+                controller.enqueue(msg);
+              }
+              replayBuffer.clear();
+            } else if (replaying) {
+              log?.("read", "replay complete — no unresolved requests");
+            }
+
+            // --- Normal (live) processing ---
             if (axonEvent.origin !== "AGENT_EVENT") {
               log?.("read", `#${totalEvents} SKIP ${axonEvent.origin} ${axonEvent.event_type}`);
               continue;
@@ -156,6 +207,20 @@ function createReadable(
           continue;
         }
         break;
+      }
+
+      // If replay ended because the stream closed (all events <= target),
+      // flush any unresolved requests before closing.
+      if (replaying && replayBuffer.size > 0) {
+        log?.(
+          "read",
+          `stream ended during replay — enqueuing ${replayBuffer.size} unresolved request(s)`,
+        );
+        for (const [eventType, msg] of replayBuffer) {
+          log?.("read", `enqueuing unresolved ${eventType}`);
+          controller.enqueue(msg);
+        }
+        replayBuffer.clear();
       }
 
       pendingRequests.clear();

@@ -62,6 +62,7 @@ console.log(`Devbox ready: ${agent.devboxId}`);
 // Initialize + create session
 // ---------------------------------------------------------------------------
 
+await agent.connect();
 await agent.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "acp-hello-world", version: "0.1.0" },

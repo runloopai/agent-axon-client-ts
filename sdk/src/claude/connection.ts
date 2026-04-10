@@ -27,6 +27,7 @@ import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
+import { getLastSequence } from "../shared/replay.js";
 import { tryParseSystemEvent } from "../shared/timeline.js";
 import { timelineEventGenerator } from "../shared/timeline-generator.js";
 import type {
@@ -199,7 +200,10 @@ export class ClaudeAxonConnection {
   }
 
   /** Low-level transport that reads/writes messages over the Axon channel. */
-  private transport: Transport;
+  private transport!: Transport;
+
+  /** The Axon channel reference, kept for replay sequence query. */
+  private axon: Axon;
 
   /** Resolved options (user-provided values merged with defaults). */
   private options: ClaudeAxonConnectionOptions;
@@ -266,6 +270,7 @@ export class ClaudeAxonConnection {
   constructor(axon: Axon, devbox: Devbox, options?: ClaudeAxonConnectionOptions) {
     this.axonId = axon.id;
     this.devboxId = devbox.id;
+    this.axon = axon;
     this.options = options ?? {};
     this.handleError = options?.onError ?? makeDefaultOnError("ClaudeAxonConnection");
     this.disconnectFn = options?.onDisconnect;
@@ -274,14 +279,6 @@ export class ClaudeAxonConnection {
     this.timelineEventListeners = new ListenerSet<TimelineEventListener<ClaudeTimelineEvent>>(
       this.handleError,
     );
-    this.transport = new AxonTransport(axon, {
-      verbose: this.options.verbose,
-      onAxonEvent: (ev) => {
-        this.axonEventListeners.emit(ev);
-        this.emitTimelineEvent(ev);
-      },
-      afterSequence: this.options.afterSequence,
-    });
   }
 
   // -----------------------------------------------------------------------
@@ -292,12 +289,16 @@ export class ClaudeAxonConnection {
    * Opens the transport and starts the background read loop.
    *
    * Call this before {@link initialize} to establish the Axon connection.
-   * If you only call {@link initialize}, it will call `connect()` for you
-   * automatically.
+   *
+   * When `replay` is `true` (the default), queries the axon for the
+   * current head sequence and replays all events up to that point
+   * without invoking handlers. Unresolved control requests are
+   * dispatched to handlers after replay completes.
    *
    * @throws If this instance has already been disconnected (connections
    *   are single-use — create a new instance instead).
    * @throws If the transport is already connected.
+   * @throws If both `replay` and `afterSequence` are set.
    */
   async connect(): Promise<void> {
     if (this.closed) {
@@ -308,6 +309,32 @@ export class ClaudeAxonConnection {
     if (this.readLoopRunning) {
       throw new Error("Already connected. Call disconnect() before reconnecting.");
     }
+
+    const replay = this.options.replay ?? true;
+    if (replay && this.options.afterSequence != null) {
+      throw new Error("Cannot use both 'replay' and 'afterSequence'. They are mutually exclusive.");
+    }
+
+    let replayTargetSequence: number | undefined;
+    if (replay) {
+      replayTargetSequence = await getLastSequence(this.axon);
+      if (replayTargetSequence != null) {
+        this.log("connect", `replay target sequence: ${replayTargetSequence}`);
+      }
+    }
+
+    if (!this.transport) {
+      this.transport = new AxonTransport(this.axon, {
+        verbose: this.options.verbose,
+        onAxonEvent: (ev) => {
+          this.axonEventListeners.emit(ev);
+          this.emitTimelineEvent(ev);
+        },
+        afterSequence: this.options.afterSequence,
+        replayTargetSequence,
+      });
+    }
+
     await this.transport.connect();
     this.startReadLoop();
   }
