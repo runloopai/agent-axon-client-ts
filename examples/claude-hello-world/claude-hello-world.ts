@@ -33,10 +33,13 @@ let anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? "";
 if (!anthropicApiKey) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   anthropicApiKey = await new Promise<string>((resolve) =>
-    rl.question("ANTHROPIC_API_KEY not set. Enter your Anthropic API key: ", (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    }),
+    rl.question(
+      "ANTHROPIC_API_KEY not set. Enter your Anthropic API key: ",
+      (answer) => {
+        rl.close();
+        resolve(answer.trim());
+      },
+    ),
   );
   if (!anthropicApiKey) {
     console.error("No API key provided. Exiting.");
@@ -83,14 +86,6 @@ const client = new ClaudeAxonConnection(axon, devbox, {
   ...(MODEL && { model: MODEL }),
 });
 
-// Log SYSTEM_EVENTs for debugging (e.g. turn.started, turn.completed).
-// Broker errors like "agent binary not found" will also reject initialize() below.
-client.onAxonEvent((ev) => {
-  if (ev.origin === "SYSTEM_EVENT") {
-    console.error(`[system] ${ev.event_type}: ${ev.payload}`);
-  }
-});
-
 console.log("Connecting to Claude...");
 try {
   await client.initialize();
@@ -129,7 +124,9 @@ function renderMessage(msg: SDKMessage): void {
         const cost = msg.total_cost_usd;
         const turns = msg.num_turns;
         const duration = (msg.duration_ms / 1000).toFixed(1);
-        console.log(`--- ${turns} turn(s), ${duration}s, $${cost.toFixed(4)} ---`);
+        console.log(
+          `--- ${turns} turn(s), ${duration}s, $${cost.toFixed(4)} ---`,
+        );
       }
       break;
   }
