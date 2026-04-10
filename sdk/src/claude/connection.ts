@@ -21,6 +21,7 @@ import { timelineEventGenerator } from "../shared/timeline-generator.js";
 import type {
   AxonEventListener,
   BaseConnectionOptions,
+  LogFn,
   TimelineEventListener,
 } from "../shared/types.js";
 import { AxonTransport, MESSAGE_TYPE_TO_EVENT_TYPE, type Transport } from "./transport.js";
@@ -243,7 +244,7 @@ export class ClaudeAxonConnection {
   /** Registered timeline event listeners. */
   private timelineEventListeners: ListenerSet<TimelineEventListener<ClaudeTimelineEvent>>;
 
-  private log: (tag: string, ...args: unknown[]) => void;
+  private log: LogFn;
 
   /**
    * Creates a new Claude connection over the given Axon channel and devbox.
@@ -413,12 +414,16 @@ export class ClaudeAxonConnection {
   }
 
   /**
-   * Registers a listener for classified timeline events.
+   * Registers a listener for classified timeline events (push API).
    *
    * Every Axon event on the channel is classified into one of:
    * - `claude_protocol` — a known Claude protocol event (user or agent message)
    * - `system` — a broker system event (`turn.started`, `turn.completed`, `broker.error`)
    * - `unknown` — anything else
+   *
+   * For a pull-based alternative, see {@link receiveTimelineEvents}.
+   * Both APIs deliver the same events; choose whichever fits your
+   * consumption pattern.
    *
    * @param listener - Callback invoked with each {@link ClaudeTimelineEvent}.
    * @returns An unsubscribe function that removes the listener.
@@ -428,11 +433,15 @@ export class ClaudeAxonConnection {
   }
 
   /**
-   * Async generator that yields classified timeline events.
+   * Async generator that yields classified timeline events (pull API).
    *
    * Mirrors the pull-based pattern of {@link receiveAgentEvents}. The
    * generator completes when the connection is disconnected or the
    * read loop ends.
+   *
+   * For a push-based alternative, see {@link onTimelineEvent}.
+   * Both APIs deliver the same events; choose whichever fits your
+   * consumption pattern.
    *
    * @returns An async generator of {@link ClaudeTimelineEvent}.
    */

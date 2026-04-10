@@ -13,6 +13,7 @@ import type { Axon } from "@runloop/api-client/sdk";
 import type { Stream } from "@runloop/api-client/streaming";
 import { isSystemError, SystemError } from "../shared/errors/system-error.js";
 import { makeLogger } from "../shared/logging.js";
+import type { LogFn } from "../shared/types.js";
 import type { WireData } from "./types.js";
 
 /**
@@ -102,10 +103,7 @@ export interface AxonTransportOptions {
 /**
  * Yields all unresolved control requests from the replay buffer, then clears it.
  */
-function* flushReplayBuffer(
-  replayBuffer: Map<string, WireData>,
-  log: (tag: string, ...args: unknown[]) => void,
-): Generator<WireData> {
+function* flushReplayBuffer(replayBuffer: Map<string, WireData>, log: LogFn): Generator<WireData> {
   if (replayBuffer.size === 0) return;
   log("read", `replay complete — yielding ${replayBuffer.size} unresolved control request(s)`);
   for (const [requestId, msg] of replayBuffer) {
@@ -143,7 +141,7 @@ export class AxonTransport implements Transport {
   /** When set, events up to this sequence are replayed without yielding to the read loop. */
   private replayTargetSequence: number | undefined;
 
-  private log: (tag: string, ...args: unknown[]) => void;
+  private log: LogFn;
 
   /**
    * Creates a new Axon-backed transport.

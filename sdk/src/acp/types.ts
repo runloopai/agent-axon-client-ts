@@ -16,6 +16,8 @@ import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
 import type {
   BaseConnectionOptions,
+  BaseTimelineEvent,
+  LogFn,
   SystemTimelineEvent,
   UnknownTimelineEvent,
 } from "../shared/types.js";
@@ -37,7 +39,7 @@ export interface AxonStreamOptions {
    */
   onError?: (error: unknown) => void;
   /** Diagnostic log callback. When provided, the stream emits verbose logs. */
-  log?: (tag: string, ...args: unknown[]) => void;
+  log?: LogFn;
   /**
    * Axon sequence number to resume from. When set, the initial SSE
    * subscription starts **after** this sequence — earlier events are skipped.
@@ -126,44 +128,40 @@ export type SessionUpdateListener = (sessionId: string | null, update: SessionUp
  * containing `{ sessionId, update }` where `update` is the `SessionUpdate`.
  * @category Timeline
  */
-export interface ACPSessionUpdateTimelineEvent {
+export interface ACPSessionUpdateTimelineEvent extends BaseTimelineEvent {
   kind: "acp_protocol";
   eventType: "session/update";
   data: SessionNotification;
-  axonEvent: AxonEventView;
 }
 
 /**
  * An `initialize` timeline event.
  * @category Timeline
  */
-export interface ACPInitializeTimelineEvent {
+export interface ACPInitializeTimelineEvent extends BaseTimelineEvent {
   kind: "acp_protocol";
   eventType: "initialize";
   data: InitializeRequest | InitializeResponse;
-  axonEvent: AxonEventView;
 }
 
 /**
  * A `session/prompt` timeline event.
  * @category Timeline
  */
-export interface ACPPromptTimelineEvent {
+export interface ACPPromptTimelineEvent extends BaseTimelineEvent {
   kind: "acp_protocol";
   eventType: "session/prompt";
   data: PromptRequest | PromptResponse;
-  axonEvent: AxonEventView;
 }
 
 /**
  * A `session/new` timeline event.
  * @category Timeline
  */
-export interface ACPNewSessionTimelineEvent {
+export interface ACPNewSessionTimelineEvent extends BaseTimelineEvent {
   kind: "acp_protocol";
   eventType: "session/new";
   data: NewSessionRequest | NewSessionResponse;
-  axonEvent: AxonEventView;
 }
 
 /**
@@ -176,11 +174,10 @@ export interface ACPNewSessionTimelineEvent {
  *
  * @category Timeline
  */
-export interface ACPOtherProtocolTimelineEvent {
+export interface ACPOtherProtocolTimelineEvent extends BaseTimelineEvent {
   kind: "acp_protocol";
   eventType: string;
   data: unknown;
-  axonEvent: AxonEventView;
 }
 
 /**

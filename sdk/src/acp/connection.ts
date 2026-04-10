@@ -37,7 +37,7 @@ import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
 import { createClassifier } from "../shared/timeline.js";
 import { timelineEventGenerator } from "../shared/timeline-generator.js";
-import type { AxonEventListener, TimelineEventListener } from "../shared/types.js";
+import type { AxonEventListener, LogFn, TimelineEventListener } from "../shared/types.js";
 import { axonStream } from "./axon-stream.js";
 import type {
   ACPAxonConnectionOptions,
@@ -46,6 +46,9 @@ import type {
   SessionUpdateListener,
 } from "./types.js";
 
+// The @agentclientprotocol/sdk package does not expose an `isKnownMethod()`
+// helper, so we build a lookup Set from the exported method-name constants.
+// `isACPProtocolEventType()` below wraps this as the public API.
 const ACP_KNOWN_EVENT_TYPES: Set<string> = new Set([
   ...Object.values(AGENT_METHODS),
   ...Object.values(CLIENT_METHODS),
@@ -133,7 +136,7 @@ export class ACPAxonConnection {
   /** Optional teardown callback invoked by {@link disconnect}. */
   private disconnectFn: (() => void | Promise<void>) | undefined;
 
-  private log: (tag: string, ...args: unknown[]) => void;
+  private log: LogFn;
 
   /**
    * Creates a new ACP connection over the given Axon channel and devbox.
@@ -391,12 +394,16 @@ export class ACPAxonConnection {
   }
 
   /**
-   * Registers a listener for classified timeline events.
+   * Registers a listener for classified timeline events (push API).
    *
    * Every Axon event on the channel is classified into one of:
    * - `acp_protocol` — a known ACP protocol event (agent or client method)
    * - `system` — a broker system event (`turn.started`, `turn.completed`, `broker.error`)
    * - `unknown` — anything else
+   *
+   * For a pull-based alternative, see {@link receiveTimelineEvents}.
+   * Both APIs deliver the same events; choose whichever fits your
+   * consumption pattern.
    *
    * @param listener - Callback invoked with each {@link ACPTimelineEvent}.
    * @returns An unsubscribe function that removes the listener.
@@ -420,11 +427,15 @@ export class ACPAxonConnection {
   }
 
   /**
-   * Async generator that yields classified timeline events.
+   * Async generator that yields classified timeline events (pull API).
    *
    * Mirrors the pull-based pattern of `receiveMessages()` in the Claude
    * module. The generator completes when the connection is disconnected
    * or the abort signal fires.
+   *
+   * For a push-based alternative, see {@link onTimelineEvent}.
+   * Both APIs deliver the same events; choose whichever fits your
+   * consumption pattern.
    *
    * @returns An async generator of {@link ACPTimelineEvent}.
    */

@@ -1,20 +1,20 @@
 import type {
+  ACPTimelineEvent,
   Client,
+  ElicitationRequest,
+  ElicitationResponse,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
-  ElicitationRequest,
-  ElicitationResponse,
 } from "@runloop/agent-axon-client/acp";
 import { CLIENT_METHODS } from "@runloop/agent-axon-client/acp";
-import type { ACPTimelineEvent, RequestPermissionRequest as PermReq } from "@runloop/agent-axon-client/acp";
 
 export type ClientEvent =
   | { type: "timeline_event"; event: ACPTimelineEvent }
   | {
       type: "permission_request";
       requestId: string;
-      request: PermReq;
+      request: RequestPermissionRequest;
     }
   | { type: "permission_dismissed" }
   | {

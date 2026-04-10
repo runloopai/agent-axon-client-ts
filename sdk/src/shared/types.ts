@@ -23,13 +23,27 @@ export type SystemEvent =
   | { type: "broker.error"; message: string };
 
 /**
+ * Common shape shared by every timeline event variant.
+ *
+ * Protocol-specific event interfaces (ACP, Claude) extend this with
+ * narrower `kind` and `data` types plus optional extra fields like
+ * `eventType`.
+ *
+ * @category Timeline
+ */
+export interface BaseTimelineEvent {
+  kind: string;
+  data: unknown;
+  axonEvent: AxonEventView;
+}
+
+/**
  * A timeline event carrying a recognized broker system event.
  * @category Timeline
  */
-export interface SystemTimelineEvent {
+export interface SystemTimelineEvent extends BaseTimelineEvent {
   kind: "system";
   data: SystemEvent;
-  axonEvent: AxonEventView;
 }
 
 /**
@@ -37,10 +51,9 @@ export interface SystemTimelineEvent {
  * `axonEvent.origin` and `axonEvent.event_type` to decide how to handle it.
  * @category Timeline
  */
-export interface UnknownTimelineEvent {
+export interface UnknownTimelineEvent extends BaseTimelineEvent {
   kind: "unknown";
   data: null;
-  axonEvent: AxonEventView;
 }
 
 /**
@@ -48,6 +61,16 @@ export interface UnknownTimelineEvent {
  * @category Timeline
  */
 export type TimelineEventListener<T> = (event: T) => void;
+
+/**
+ * Diagnostic log callback used throughout the SDK for verbose logging.
+ *
+ * @param tag  - Short label identifying the call site (e.g. `"connect"`, `"readLoop"`).
+ * @param args - Arbitrary data to log alongside the tag.
+ *
+ * @category Configuration
+ */
+export type LogFn = (tag: string, ...args: unknown[]) => void;
 
 /**
  * Callback invoked for every Axon event (before protocol-specific processing).

@@ -1,6 +1,6 @@
 import type { Axon } from "@runloop/api-client/sdk";
 import { getLastSequence } from "./replay.js";
-import type { BaseConnectionOptions } from "./types.js";
+import type { BaseConnectionOptions, LogFn } from "./types.js";
 
 /**
  * Validates replay/afterSequence options and resolves the replay target
@@ -12,7 +12,7 @@ import type { BaseConnectionOptions } from "./types.js";
 export async function resolveReplayTarget(
   axon: Axon,
   options: Pick<BaseConnectionOptions, "replay" | "afterSequence">,
-  log: (tag: string, ...args: unknown[]) => void,
+  log: LogFn,
 ): Promise<number | undefined> {
   const replay = options.replay ?? true;
   if (replay && options.afterSequence != null) {

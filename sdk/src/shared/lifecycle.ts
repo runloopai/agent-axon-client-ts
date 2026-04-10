@@ -2,6 +2,8 @@
  * Shared lifecycle utilities for connection teardown.
  */
 
+import type { LogFn } from "./types.js";
+
 /**
  * Runs an optional `onDisconnect` callback with error isolation.
  *
@@ -16,7 +18,7 @@
  */
 export async function runDisconnectHook(
   fn: (() => void | Promise<void>) | undefined,
-  log: (tag: string, ...args: unknown[]) => void,
+  log: LogFn,
   onError: (error: unknown) => void,
 ): Promise<void> {
   if (!fn) return;

@@ -32,6 +32,8 @@ export type {
   AxonEventListener,
   AxonEventView,
   BaseConnectionOptions,
+  BaseTimelineEvent,
+  LogFn,
   SystemEvent,
   SystemTimelineEvent,
   TimelineEventListener,

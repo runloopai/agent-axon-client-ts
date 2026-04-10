@@ -11,8 +11,11 @@ import type {
   SDKSystemMessage,
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { AxonEventView } from "@runloop/api-client/resources/axons";
-import type { SystemTimelineEvent, UnknownTimelineEvent } from "../shared/types.js";
+import type {
+  BaseTimelineEvent,
+  SystemTimelineEvent,
+  UnknownTimelineEvent,
+} from "../shared/types.js";
 
 /**
  * Raw JSON data from the transport layer.
@@ -29,33 +32,30 @@ export type WireData = Record<string, any>;
  * A user query timeline event.
  * @category Timeline
  */
-export interface ClaudeQueryTimelineEvent {
+export interface ClaudeQueryTimelineEvent extends BaseTimelineEvent {
   kind: "claude_protocol";
   eventType: "query";
   data: SDKUserMessage;
-  axonEvent: AxonEventView;
 }
 
 /**
  * An assistant message timeline event.
  * @category Timeline
  */
-export interface ClaudeAssistantTimelineEvent {
+export interface ClaudeAssistantTimelineEvent extends BaseTimelineEvent {
   kind: "claude_protocol";
   eventType: "assistant";
   data: SDKAssistantMessage;
-  axonEvent: AxonEventView;
 }
 
 /**
  * A result (turn-complete) timeline event.
  * @category Timeline
  */
-export interface ClaudeResultTimelineEvent {
+export interface ClaudeResultTimelineEvent extends BaseTimelineEvent {
   kind: "claude_protocol";
   eventType: "result";
   data: SDKResultMessage;
-  axonEvent: AxonEventView;
 }
 
 /**
@@ -64,33 +64,30 @@ export interface ClaudeResultTimelineEvent {
  * control handshake (`control_request` / `control_response`).
  * @category Timeline
  */
-export interface ClaudeSystemInitTimelineEvent {
+export interface ClaudeSystemInitTimelineEvent extends BaseTimelineEvent {
   kind: "claude_protocol";
   eventType: "system";
   data: SDKSystemMessage;
-  axonEvent: AxonEventView;
 }
 
 /**
  * A control request timeline event (e.g. `initialize`, `can_use_tool`).
  * @category Timeline
  */
-export interface ClaudeControlRequestTimelineEvent {
+export interface ClaudeControlRequestTimelineEvent extends BaseTimelineEvent {
   kind: "claude_protocol";
   eventType: "control_request";
   data: SDKControlRequest;
-  axonEvent: AxonEventView;
 }
 
 /**
  * A control response timeline event.
  * @category Timeline
  */
-export interface ClaudeControlResponseTimelineEvent {
+export interface ClaudeControlResponseTimelineEvent extends BaseTimelineEvent {
   kind: "claude_protocol";
   eventType: "control_response";
   data: SDKControlResponse;
-  axonEvent: AxonEventView;
 }
 
 /**
@@ -103,11 +100,10 @@ export interface ClaudeControlResponseTimelineEvent {
  *
  * @category Timeline
  */
-export interface ClaudeOtherProtocolTimelineEvent {
+export interface ClaudeOtherProtocolTimelineEvent extends BaseTimelineEvent {
   kind: "claude_protocol";
   eventType: string;
   data: SDKMessage;
-  axonEvent: AxonEventView;
 }
 
 /**

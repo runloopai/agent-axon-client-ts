@@ -4,6 +4,7 @@ import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
 import { isSystemError, SystemError } from "../shared/errors/system-error.js";
 import { makeDefaultOnError } from "../shared/logging.js";
+import type { LogFn } from "../shared/types.js";
 import type { AxonStreamOptions } from "./types.js";
 
 /**
@@ -100,7 +101,7 @@ function createReadable(
   onAxonEvent: ((event: AxonEventView) => void) | undefined,
   nextId: () => number,
   onError: (error: unknown) => void,
-  log: ((tag: string, ...args: unknown[]) => void) | undefined,
+  log: LogFn | undefined,
   initialAfterSequence?: number,
   replayTargetSequence?: number,
 ): ReadableStream<AnyMessage> {
@@ -252,7 +253,7 @@ function processReplayEvent(
   pendingClientRequests: Map<string | number, string>,
   nextId: () => number,
   onError: (error: unknown) => void,
-  log: ((tag: string, ...args: unknown[]) => void) | undefined,
+  log: LogFn | undefined,
   eventIndex: number,
 ): void {
   if (axonEvent.origin === "USER_EVENT" && isClientMethod(axonEvent.event_type)) {
@@ -289,7 +290,7 @@ function processReplayEvent(
 function flushReplayBuffer(
   replayBuffer: Map<string, AnyMessage>,
   controller: ReadableStreamDefaultController<AnyMessage>,
-  log: ((tag: string, ...args: unknown[]) => void) | undefined,
+  log: LogFn | undefined,
 ): void {
   if (replayBuffer.size === 0) return;
   log?.("read", `replay complete — enqueuing ${replayBuffer.size} unresolved request(s)`);
@@ -418,7 +419,7 @@ function createWritable(
   pendingRequests: Map<string, string | number | null>,
   pendingClientRequests: Map<string | number, string>,
   onError: (error: unknown) => void,
-  log: ((tag: string, ...args: unknown[]) => void) | undefined,
+  log: LogFn | undefined,
 ): WritableStream<AnyMessage> {
   return new WritableStream<AnyMessage>({
     async write(message) {
