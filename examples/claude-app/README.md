@@ -4,6 +4,8 @@
 
 A full-stack demo app for chatting with Claude Code running in a Runloop devbox. An Express backend manages the Claude connection and streams SDK messages to a React frontend over WebSocket.
 
+See how to work with agents in a multi-turn example that demonstrates how to create workflows with humans in the loop using permission-prompts and axons.
+
 ## Prerequisites
 
 - Node.js 22+

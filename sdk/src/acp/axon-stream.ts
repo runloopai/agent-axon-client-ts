@@ -2,6 +2,7 @@ import type { AnyMessage, Stream } from "@agentclientprotocol/sdk";
 import { AGENT_METHODS, CLIENT_METHODS } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
+import { isSystemError, SystemError } from "../shared/errors/system-error.js";
 import { makeDefaultOnError } from "../shared/logging.js";
 import type { AxonStreamOptions } from "./types.js";
 
@@ -170,6 +171,34 @@ function createReadable(
             }
 
             // --- Normal (live) processing ---
+
+            if (isSystemError(axonEvent)) {
+              log?.("read", `#${totalEvents} SYSTEM_ERROR: ${axonEvent.payload}`);
+              if (pendingRequests.size === 0) {
+                controller.error(SystemError.fromEvent(axonEvent));
+                return;
+              }
+              for (const [method, id] of pendingRequests) {
+                if (id !== undefined && id !== null) {
+                  // FIXME: this is a temporary fix to tell the client that we couldn't process the pending request
+                  // but this isn't quite right -- this message didn't originate from the agent, so this will cause
+                  // asymmetry.
+                  controller.enqueue({
+                    jsonrpc: "2.0",
+                    id,
+                    error: {
+                      code: -32000,
+                      message: axonEvent.payload,
+                      data: { event_type: axonEvent.event_type },
+                    },
+                  });
+                }
+                pendingRequests.delete(method);
+              }
+              controller.close();
+              return;
+            }
+
             if (axonEvent.origin !== "AGENT_EVENT") {
               log?.("read", `#${totalEvents} SKIP ${axonEvent.origin} ${axonEvent.event_type}`);
               continue;

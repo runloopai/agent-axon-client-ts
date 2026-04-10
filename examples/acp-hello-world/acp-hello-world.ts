@@ -52,6 +52,7 @@ const devbox = await sdk.devbox.create({
   ],
 });
 const agent = new ACPAxonConnection(axon, devbox, {
+  // Shut down the devbox when we're finished using the axon.
   onDisconnect: async () => {
     await devbox.shutdown();
   },
@@ -63,12 +64,26 @@ console.log(`Devbox ready: ${agent.devboxId}`);
 // ---------------------------------------------------------------------------
 
 await agent.connect();
-await agent.initialize({
-  protocolVersion: PROTOCOL_VERSION,
-  clientInfo: { name: "acp-hello-world", version: "0.1.0" },
-});
+try {
+  await agent.initialize({
+    protocolVersion: PROTOCOL_VERSION,
+    clientInfo: { name: "acp-hello-world", version: "0.1.0" },
+  });
+} catch (err) {
+  console.error("Failed to initialize agent:", err);
+  // invoke the onDisconnect callback, which shuts down the devbox.
+  await agent.disconnect();
+  process.exit(1);
+}
 
-const session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
+let session;
+try {
+  session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
+} catch (err) {
+  console.error("Failed to create session:", err);
+  await agent.disconnect();
+  process.exit(1);
+}
 console.log(`Session ready: ${session.sessionId}\n`);
 
 // ---------------------------------------------------------------------------

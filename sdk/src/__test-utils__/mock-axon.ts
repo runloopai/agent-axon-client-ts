@@ -1,5 +1,6 @@
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import { vi } from "vitest";
+import { SYSTEM_EVENT_ORIGIN } from "../shared/errors/system-error.js";
 
 export interface MockAxonEvent {
   event_type: string;
@@ -46,6 +47,19 @@ export function makeFullAxonEvent(overrides: Partial<AxonEventView> = {}): AxonE
     source: "test",
     timestamp_ms: Date.now(),
     ...overrides,
+  };
+}
+
+export function makeRawSystemEvent(
+  eventType: string,
+  payload: string,
+  sequence?: number,
+): MockAxonEvent {
+  return {
+    event_type: eventType,
+    payload,
+    origin: SYSTEM_EVENT_ORIGIN,
+    ...(sequence != null ? { sequence } : {}),
   };
 }
 

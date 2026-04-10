@@ -8,6 +8,7 @@ import {
   makeFullAxonEvent,
   makeSystemEvent,
 } from "../__test-utils__/mock-axon.js";
+import { InitializationError } from "../shared/errors/initialization-error.js";
 import { ACPAxonConnection, classifyACPAxonEvent, isACPProtocolEventType } from "./connection.js";
 import type { ACPTimelineEvent } from "./types.js";
 
@@ -516,6 +517,32 @@ describe("ACPAxonConnection", () => {
       conn.disconnect();
     });
 
+    it("initialize() wraps failures in InitializationError", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        replay: false,
+      });
+      await conn.connect();
+
+      const originalError = new Error("agent binary not found");
+      conn.protocol.initialize = vi.fn().mockRejectedValue(originalError);
+
+      try {
+        await conn.initialize({
+          protocolVersion: PROTOCOL_VERSION,
+          clientInfo: { name: "test", version: "1.0" },
+        });
+        expect.fail("Expected InitializationError to be thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(InitializationError);
+        expect((err as InitializationError).message).toBe("agent binary not found");
+        expect((err as InitializationError).cause).toBe(originalError);
+      }
+
+      conn.disconnect();
+    });
+
     it("newSession() delegates to protocol.newSession()", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
@@ -787,7 +814,7 @@ describe("ACPAxonConnection", () => {
 
       await conn.disconnect();
 
-      expect(() => conn.initialize({} as never)).toThrow("disconnected");
+      await expect(conn.initialize({} as never)).rejects.toThrow("disconnected");
       expect(() => conn.newSession({} as never)).toThrow("disconnected");
       expect(() => conn.loadSession({} as never)).toThrow("disconnected");
       expect(() => conn.listSessions({} as never)).toThrow("disconnected");
@@ -925,29 +952,20 @@ describe("ACPAxonConnection", () => {
       conn.disconnect();
     });
 
-    it("classifies SYSTEM_EVENT broker.error as system", async () => {
-      const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl);
-      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never, {
-        replay: false,
+    it("classifies SYSTEM_EVENT broker.error as system", () => {
+      const ev = makeFullAxonEvent({
+        event_type: "broker.error",
+        origin: "SYSTEM_EVENT",
+        payload: JSON.stringify({ message: "something broke" }),
       });
-      await conn.connect();
-
-      const events: ACPTimelineEvent[] = [];
-      conn.onTimelineEvent((ev) => events.push(ev));
-
-      ctrl.push(makeSystemEvent("broker.error", { message: "something broke" }));
-
-      await waitFor(() => events.length > 0);
-      expect(events[0].kind).toBe("system");
-      if (events[0].kind === "system") {
-        expect(events[0].data.type).toBe("broker.error");
-        if (events[0].data.type === "broker.error") {
-          expect(events[0].data.message).toBe("something broke");
+      const result = classifyACPAxonEvent(ev as never);
+      expect(result.kind).toBe("system");
+      if (result.kind === "system") {
+        expect(result.data.type).toBe("broker.error");
+        if (result.data.type === "broker.error") {
+          expect(result.data.message).toBe("something broke");
         }
       }
-
-      conn.disconnect();
     });
 
     it("classifies unknown EXTERNAL_EVENT as unknown", async () => {

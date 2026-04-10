@@ -11,6 +11,8 @@
  */
 
 export { resolveReplayTarget } from "./connect-guards.js";
+export { InitializationError } from "./errors/initialization-error.js";
+export { SystemError, type SystemErrorEventInfo } from "./errors/system-error.js";
 export { runDisconnectHook } from "./lifecycle.js";
 export { ListenerSet } from "./listener-set.js";
 export { makeDefaultOnError, makeLogger } from "./logging.js";

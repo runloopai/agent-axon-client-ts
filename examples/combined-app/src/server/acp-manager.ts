@@ -7,6 +7,7 @@ import {
   type AxonEventView,
 } from "@runloop/agent-axon-client/acp";
 import { NodeACPClient } from "./acp-client.ts";
+import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster, WsEvent, BaseWsEvent } from "./ws.ts";
 
 export interface ACPStartOptions {
@@ -44,7 +45,7 @@ export class ACPConnectionManager {
     const apiKey = process.env.RUNLOOP_API_KEY;
     const baseUrl = process.env.RUNLOOP_BASE_URL;
 
-    if (!apiKey) throw new Error("RUNLOOP_API_KEY not set in server .env");
+    if (!apiKey) throw new HttpError(401, "RUNLOOP_API_KEY not set in server .env");
 
     const sdk = new RunloopSDK({
       bearerToken: apiKey,
@@ -93,19 +94,31 @@ export class ACPConnectionManager {
     const conn = this.wireConnection(axon, devbox, opts.autoApprovePermissions !== false);
 
     await conn.connect();
-    const initResp = await conn.initialize({
-      protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "combined-app", version: "0.1.0" },
-      clientCapabilities: CLIENT_CAPABILITIES,
-    });
+    let initResp;
+    try {
+      initResp = await conn.initialize({
+        protocolVersion: PROTOCOL_VERSION,
+        clientInfo: { name: "combined-app", version: "0.1.0" },
+        clientCapabilities: CLIENT_CAPABILITIES,
+      });
+    } catch (err) {
+      this.shutdown().catch(() => {});
+      throw err;
+    }
 
     this.authMethods = initResp.authMethods ?? null;
 
     this.ws.broadcast(this.tag({ type: "connection_progress", step: "Starting session..." }));
-    const sessionResp = await conn.newSession({
-      cwd: "/home/user",
-      mcpServers: [],
-    });
+    let sessionResp;
+    try {
+      sessionResp = await conn.newSession({
+        cwd: "/home/user",
+        mcpServers: [],
+      });
+    } catch (err) {
+      await this.shutdown();
+      throw err;
+    }
     this.activeSessionId = sessionResp.sessionId;
 
     return {
@@ -166,18 +179,18 @@ export class ACPConnectionManager {
   }
 
   requireConnection(): ACPAxonConnection {
-    if (!this.connection) throw new Error("Not connected");
+    if (!this.connection) throw new HttpError(400, "Not connected");
     return this.connection;
   }
 
   requireSession(): { connection: ACPAxonConnection; sessionId: string } {
     const connection = this.requireConnection();
-    if (!this.activeSessionId) throw new Error("No active session");
+    if (!this.activeSessionId) throw new HttpError(400, "No active session");
     return { connection, sessionId: this.activeSessionId };
   }
 
   requireClient(): NodeACPClient {
-    if (!this.nodeClient) throw new Error("Not connected");
+    if (!this.nodeClient) throw new HttpError(400, "Not connected");
     return this.nodeClient;
   }
 

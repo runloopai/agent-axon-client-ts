@@ -6,6 +6,7 @@ import {
   type AxonEventView,
 } from "@runloop/agent-axon-client/acp";
 import { NodeACPClient } from "./acp-client.ts";
+import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster } from "./ws.ts";
 
 export interface StartOptions {
@@ -18,14 +19,6 @@ export interface StartOptions {
 const CLIENT_CAPABILITIES = {
   elicitation: { form: {} },
 } as const;
-
-export class HttpError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
 
 export class ConnectionManager {
   connection: ACPAxonConnection | null = null;
@@ -43,7 +36,7 @@ export class ConnectionManager {
     const baseUrl = process.env.RUNLOOP_BASE_URL;
 
     if (!apiKey) {
-      throw new HttpError(500, "RUNLOOP_API_KEY not set in server .env");
+      throw new HttpError(401, "RUNLOOP_API_KEY not set in server .env");
     }
 
     const sdk = new RunloopSDK({
@@ -112,19 +105,31 @@ export class ConnectionManager {
     this.connection = conn;
 
     await conn.connect();
-    const initResp = await conn.initialize({
-      protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "node-demo", version: "0.1.0" },
-      clientCapabilities: CLIENT_CAPABILITIES,
-    });
+    let initResp;
+    try {
+      initResp = await conn.initialize({
+        protocolVersion: PROTOCOL_VERSION,
+        clientInfo: { name: "node-demo", version: "0.1.0" },
+        clientCapabilities: CLIENT_CAPABILITIES,
+      });
+    } catch (err) {
+      this.shutdown().catch(() => {});
+      throw err;
+    }
 
     this.authMethods = initResp.authMethods ?? null;
 
     this.ws.broadcast({ type: "connection_progress", step: "Starting session..." });
-    const sessionResp = await conn.newSession({
-      cwd: "/home/user",
-      mcpServers: [],
-    });
+    let sessionResp;
+    try {
+      sessionResp = await conn.newSession({
+        cwd: "/home/user",
+        mcpServers: [],
+      });
+    } catch (err) {
+      await this.shutdown();
+      throw err;
+    }
     this.activeSessionId = sessionResp.sessionId;
 
     return {

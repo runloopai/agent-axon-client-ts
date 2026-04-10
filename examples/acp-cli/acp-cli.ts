@@ -82,11 +82,19 @@ process.on("SIGINT", async () => {
 
 console.log("Initializing ACP connection...");
 await agent.connect();
-const initResp = await agent.initialize({
-  protocolVersion: PROTOCOL_VERSION,
-  clientInfo: { name: "acp-cli", version: "0.1.0" },
-  clientCapabilities: {},
-});
+
+let initResp;
+try {
+  initResp = await agent.initialize({
+    protocolVersion: PROTOCOL_VERSION,
+    clientInfo: { name: "acp-cli", version: "0.1.0" },
+    clientCapabilities: {},
+  });
+} catch (err) {
+  console.error("Failed to initialize agent:", err);
+  await agent.disconnect();
+  process.exit(1);
+}
 
 if (VERBOSE) {
   const agentInfo = initResp.agentInfo;
@@ -95,7 +103,14 @@ if (VERBOSE) {
   );
 }
 
-const session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
+let session;
+try {
+  session = await agent.newSession({ cwd: "/home/user", mcpServers: [] });
+} catch (err) {
+  console.error("Failed to create session:", err);
+  await agent.disconnect();
+  process.exit(1);
+}
 const sessionId = session.sessionId;
 console.log(`Session ready: ${sessionId}\n`);
 

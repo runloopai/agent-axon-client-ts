@@ -31,6 +31,7 @@ import type {
 } from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { resolveReplayTarget } from "../shared/connect-guards.js";
+import { InitializationError } from "../shared/errors/initialization-error.js";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
@@ -229,10 +230,16 @@ export class ACPAxonConnection {
    *
    * @param params - Protocol version, client info, and capability negotiation fields.
    * @returns The agent's supported capabilities and protocol version.
+   * @throws {InitializationError} If the handshake fails (wraps the underlying cause).
    */
-  initialize(params: InitializeRequest): Promise<InitializeResponse> {
+  async initialize(params: InitializeRequest): Promise<InitializeResponse> {
     this.ensureConnected();
-    return this.protocol.initialize(params);
+    try {
+      return await this.protocol.initialize(params);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new InitializationError(message, { cause: err });
+    }
   }
 
   /**

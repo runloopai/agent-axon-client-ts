@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { makeFullAxonEvent } from "../__test-utils__/mock-axon.js";
+import { SystemError } from "../shared/errors/system-error.js";
 import {
   ClaudeAxonConnection,
   classifyClaudeAxonEvent,
@@ -15,10 +16,12 @@ import type { ClaudeTimelineEvent, WireData } from "./types.js";
 interface MockTransport extends Transport {
   _messages: WireData[];
   _waiter: ((v: IteratorResult<WireData>) => void) | null;
+  _errorWaiter: ((err: Error) => void) | null;
   _done: boolean;
   _written: string[];
   _push(msg: WireData): void;
   _end(): void;
+  _throw(err: Error): void;
   abortStream: Mock<() => void>;
   reconnect: Mock<() => Promise<void>>;
 }
@@ -27,6 +30,7 @@ function createMockTransport(): MockTransport {
   const transport: MockTransport = {
     _messages: [],
     _waiter: null,
+    _errorWaiter: null,
     _done: false,
     _written: [],
 
@@ -48,11 +52,12 @@ function createMockTransport(): MockTransport {
           continue;
         }
         if (transport._done) return;
-        const msg = await new Promise<WireData | null>((resolve) => {
+        const msg = await new Promise<WireData | null>((resolve, reject) => {
           transport._waiter = (result) => {
             if (result.done) resolve(null);
             else resolve(result.value);
           };
+          transport._errorWaiter = reject;
         });
         if (msg === null) return;
         yield msg;
@@ -63,6 +68,7 @@ function createMockTransport(): MockTransport {
       if (transport._waiter) {
         const resolve = transport._waiter;
         transport._waiter = null;
+        transport._errorWaiter = null;
         resolve({ value: msg, done: false });
       } else {
         transport._messages.push(msg);
@@ -74,7 +80,17 @@ function createMockTransport(): MockTransport {
       if (transport._waiter) {
         const resolve = transport._waiter;
         transport._waiter = null;
+        transport._errorWaiter = null;
         resolve({ value: undefined as never, done: true });
+      }
+    },
+
+    _throw(err: Error) {
+      if (transport._errorWaiter) {
+        const reject = transport._errorWaiter;
+        transport._waiter = null;
+        transport._errorWaiter = null;
+        reject(err);
       }
     },
   };
@@ -1028,6 +1044,35 @@ describe("ClaudeAxonConnection", () => {
 
       expect(messages).toHaveLength(2);
       expect(messages[0]).toMatchObject({ type: "assistant", content: "after-reconnect" });
+    });
+
+    it("does not reconnect on fatal broker errors (agent binary not found)", async () => {
+      await createConnectedClient(transport);
+
+      transport._throw(
+        new SystemError("agent failed: agent binary 'bad_binary' not found on PATH", {
+          event_type: "broker.error",
+        }),
+      );
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(transport.reconnect).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("reconnecting"));
+    });
+
+    it("does not reconnect on fatal broker errors (generic agent failed)", async () => {
+      await createConnectedClient(transport);
+
+      transport._throw(
+        new SystemError("agent failed: process exited with code 127", {
+          event_type: "broker.error",
+        }),
+      );
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(transport.reconnect).not.toHaveBeenCalled();
     });
   });
 

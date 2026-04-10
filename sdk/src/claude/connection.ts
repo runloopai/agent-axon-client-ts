@@ -12,6 +12,7 @@ import type {
 } from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { resolveReplayTarget } from "../shared/connect-guards.js";
+import { SystemError } from "../shared/errors/system-error.js";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
@@ -468,6 +469,10 @@ export class ClaudeAxonConnection {
           return "ended";
         } catch (err) {
           this.log("readLoop", `error: ${err}`);
+          if (err instanceof SystemError) {
+            // this is a fatal error. We never started the connection, so mark it closed.
+            this.closed = true;
+          }
           for (const [, pending] of this.pendingControlRequests) {
             pending.reject(err instanceof Error ? err : new Error(String(err)));
           }
@@ -673,7 +678,9 @@ export class ClaudeAxonConnection {
       {
         subtype: "initialize",
         hooks: null,
-        ...(this.options.systemPrompt && { systemPrompt: this.options.systemPrompt }),
+        ...(this.options.systemPrompt && {
+          systemPrompt: this.options.systemPrompt,
+        }),
         ...(this.options.appendSystemPrompt && {
           appendSystemPrompt: this.options.appendSystemPrompt,
         }),
@@ -737,7 +744,9 @@ export class ClaudeAxonConnection {
             break;
           }
           case "mcp_message": {
-            responseData = { error: "SDK MCP servers not supported in AxonTransport" };
+            responseData = {
+              error: "SDK MCP servers not supported in AxonTransport",
+            };
             break;
           }
           default:
