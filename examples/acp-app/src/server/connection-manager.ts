@@ -6,7 +6,7 @@ import {
 } from "@runloop/agent-axon-client/acp";
 import { axonStream, type AxonEventView } from "@runloop/agent-axon-client/acp";
 import { NodeACPClient } from "./acp-client.ts";
-import { BadRequestError, UnauthorizedError } from "./http-errors.ts";
+import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster } from "./ws.ts";
 
 export interface StartOptions {
@@ -42,7 +42,7 @@ export class ConnectionManager {
     const baseUrl = process.env.RUNLOOP_BASE_URL;
 
     if (!apiKey) {
-      throw new UnauthorizedError("RUNLOOP_API_KEY not set in server .env");
+      throw new HttpError(401, "RUNLOOP_API_KEY not set in server .env");
     }
 
     const sdk = new RunloopSDK({
@@ -185,18 +185,18 @@ export class ConnectionManager {
   }
 
   requireConnection(): ClientSideConnection {
-    if (!this.connection) throw new BadRequestError("Not connected");
+    if (!this.connection) throw new HttpError(400, "Not connected");
     return this.connection;
   }
 
   requireSession(): { connection: ClientSideConnection; sessionId: string } {
     const connection = this.requireConnection();
-    if (!this.activeSessionId) throw new BadRequestError("No active session");
+    if (!this.activeSessionId) throw new HttpError(400, "No active session");
     return { connection, sessionId: this.activeSessionId };
   }
 
   requireClient(): NodeACPClient {
-    if (!this.nodeClient) throw new BadRequestError("Not connected");
+    if (!this.nodeClient) throw new HttpError(400, "Not connected");
     return this.nodeClient;
   }
 
