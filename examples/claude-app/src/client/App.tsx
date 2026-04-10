@@ -119,7 +119,7 @@ export default function App() {
   const [launchCommands, setLaunchCommands] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [startModel, setStartModel] = useState("claude-haiku-4-5");
-  const [startAutoApprove, setStartAutoApprove] = useState(true);
+  const [dangerouslySkipPermissions, setDangerouslySkipPermissions] = useState(true);
   const [inputText, setInputText] = useState("");
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [rightTab, setRightTab] = useState<"activity" | "axon">("activity");
@@ -162,7 +162,7 @@ export default function App() {
         : undefined,
       systemPrompt: systemPrompt || undefined,
       model: startModel || undefined,
-      autoApprovePermissions: startAutoApprove,
+      dangerouslySkipPermissions,
     });
   };
 
@@ -260,8 +260,8 @@ export default function App() {
             setSystemPrompt={setSystemPrompt}
             startModel={startModel}
             setStartModel={setStartModel}
-            autoApprovePermissions={startAutoApprove}
-            setAutoApprovePermissions={setStartAutoApprove}
+            dangerouslySkipPermissions={dangerouslySkipPermissions}
+            setDangerouslySkipPermissions={setDangerouslySkipPermissions}
             onStart={handleStart}
             connectionPhase={agent.connectionPhase}
             connectionStatus={agent.connectionStatus}
@@ -331,10 +331,8 @@ export default function App() {
           <ControlsBar
             permissionMode={agent.permissionMode}
             currentModel={agent.currentModel}
-            autoApprovePermissions={agent.autoApprovePermissions}
             onSetPermissionMode={agent.setPermissionMode}
             onSetModel={agent.setModel}
-            onSetAutoApprovePermissions={agent.setAutoApprovePermissions}
           />
         )}
 
@@ -1018,17 +1016,13 @@ function UsageBar({ usage }: { usage: UsageState }) {
 function ControlsBar({
   permissionMode,
   currentModel,
-  autoApprovePermissions,
   onSetPermissionMode,
   onSetModel,
-  onSetAutoApprovePermissions,
 }: {
   permissionMode: string | null;
   currentModel: string | null;
-  autoApprovePermissions: boolean;
   onSetPermissionMode: (mode: string) => void;
   onSetModel: (model: string) => void;
-  onSetAutoApprovePermissions: (enabled: boolean) => void;
 }) {
   const [showModelInput, setShowModelInput] = useState(false);
   const [modelInput, setModelInput] = useState(currentModel ?? "");
@@ -1077,14 +1071,6 @@ function ControlsBar({
           )}
         </span>
       )}
-      <label className="config-toggle">
-        <input
-          type="checkbox"
-          checked={autoApprovePermissions}
-          onChange={(e) => onSetAutoApprovePermissions(e.target.checked)}
-        />
-        <span className="config-toggle-label">Auto-approve permissions</span>
-      </label>
     </div>
   );
 }
@@ -1100,8 +1086,8 @@ function SetupCard({
   setSystemPrompt,
   startModel,
   setStartModel,
-  autoApprovePermissions,
-  setAutoApprovePermissions,
+  dangerouslySkipPermissions,
+  setDangerouslySkipPermissions,
   onStart,
   connectionPhase,
   connectionStatus,
@@ -1115,8 +1101,8 @@ function SetupCard({
   setSystemPrompt: (v: string) => void;
   startModel: string;
   setStartModel: (v: string) => void;
-  autoApprovePermissions: boolean;
-  setAutoApprovePermissions: (v: boolean) => void;
+  dangerouslySkipPermissions: boolean;
+  setDangerouslySkipPermissions: (v: boolean) => void;
   onStart: () => void;
   connectionPhase: ConnectionPhase;
   connectionStatus: string | null;
@@ -1232,11 +1218,11 @@ function SetupCard({
         <label className="config-toggle">
           <input
             type="checkbox"
-            checked={autoApprovePermissions}
-            onChange={(e) => setAutoApprovePermissions(e.target.checked)}
+            checked={dangerouslySkipPermissions}
+            onChange={(e) => setDangerouslySkipPermissions(e.target.checked)}
             disabled={connecting}
           />
-          <span className="config-toggle-label">Auto-approve permissions</span>
+          <span className="config-toggle-label">Skip permissions (--dangerously-skip-permissions)</span>
         </label>
       </div>
 

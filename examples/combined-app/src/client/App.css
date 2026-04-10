@@ -3694,6 +3694,67 @@ html, body, #root {
   color: var(--text-secondary);
 }
 
+.control-request-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.control-request-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.control-request-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.control-request-option:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
+}
+
+.control-request-option.selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-secondary));
+}
+
+.control-request-option-indicator {
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.control-request-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.control-request-option-label {
+  font-weight: 500;
+}
+
+.control-request-option-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
 .plan-entry-text p,
 .task-description p,
 .task-summary p,
