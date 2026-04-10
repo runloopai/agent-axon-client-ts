@@ -466,18 +466,12 @@ describe("ACPAxonConnection", () => {
       const originalError = new Error("agent binary not found");
       conn.protocol.initialize = vi.fn().mockRejectedValue(originalError);
 
-      await expect(
-        conn.initialize({
-          protocolVersion: PROTOCOL_VERSION,
-          clientInfo: { name: "test", version: "1.0" },
-        }),
-      ).rejects.toThrow(InitializationError);
-
       try {
         await conn.initialize({
           protocolVersion: PROTOCOL_VERSION,
           clientInfo: { name: "test", version: "1.0" },
         });
+        expect.fail("Expected InitializationError to be thrown");
       } catch (err) {
         expect(err).toBeInstanceOf(InitializationError);
         expect((err as InitializationError).message).toBe("agent binary not found");

@@ -141,7 +141,8 @@ export class ConnectionManager {
         clientCapabilities: CLIENT_CAPABILITIES,
       });
     } catch (err) {
-      await this.shutdown();
+      // issue shutdown and return the message right away (no need to wait for it to complete)
+      this.shutdown().catch(() => {});
       throw err;
     }
 
@@ -156,8 +157,7 @@ export class ConnectionManager {
         mcpServers: [],
       });
     } catch (err) {
-      // issue shutdown and return the message right away (no need to wait for it to complete)
-      this.shutdown().catch(() => {});
+      await this.shutdown();
       throw err;
     }
     this.activeSessionId = sessionResp.sessionId;

@@ -136,7 +136,8 @@ function createReadable(
                 }
                 pendingRequests.delete(method);
               }
-              continue;
+              controller.close();
+              return;
             }
 
             if (axonEvent.origin !== "AGENT_EVENT") {

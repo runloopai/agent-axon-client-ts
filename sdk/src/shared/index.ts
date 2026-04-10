@@ -11,12 +11,7 @@
  */
 
 export { InitializationError } from "./errors/initialization-error.js";
-export {
-  isSystemError,
-  SYSTEM_ERROR_EVENT_TYPE,
-  SYSTEM_EVENT_ORIGIN,
-  SystemError,
-} from "./errors/system-error.js";
+export { SystemError, type SystemErrorEventInfo } from "./errors/system-error.js";
 export { runDisconnectHook } from "./lifecycle.js";
 export { ListenerSet } from "./listener-set.js";
 export { makeDefaultOnError, makeLogger } from "./logging.js";

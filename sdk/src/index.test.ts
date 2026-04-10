@@ -41,4 +41,8 @@ describe("root exports", () => {
   it("shared namespace contains InitializationError", () => {
     expect(SDK.shared.InitializationError).toBeDefined();
   });
+
+  it("shared namespace contains SystemError", () => {
+    expect(SDK.shared.SystemError).toBeDefined();
+  });
 });
