@@ -2,6 +2,7 @@ import express, { type Request, type Response } from "express";
 import { createServer } from "node:http";
 import { ACPConnectionManager } from "./acp-manager.ts";
 import { ClaudeConnectionManager } from "./claude-manager.ts";
+import { HttpError } from "./http-errors.ts";
 import { WsBroadcaster } from "./ws.ts";
 
 const app = express();
@@ -19,8 +20,10 @@ type AsyncHandler = (req: Request, res: Response) => Promise<void>;
 function asyncHandler(fn: AsyncHandler): (req: Request, res: Response) => void {
   return (req, res) => {
     fn(req, res).catch((err) => {
-      console.error("Server error:", err);
-      res.status(500).json({ error: err.message });
+      const status = err instanceof HttpError ? err.status : 500;
+      const message = err instanceof Error ? err.message : String(err);
+      if (status >= 500) console.error("Server error:", err);
+      res.status(status).json({ error: message });
     });
   };
 }
