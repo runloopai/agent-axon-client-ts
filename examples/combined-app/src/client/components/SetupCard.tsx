@@ -134,7 +134,9 @@ export function SetupCard({
             onChange={(e) => setAutoApprovePermissions(e.target.checked)}
             disabled={connecting}
           />
-          <span className="config-toggle-label">Auto-approve permissions</span>
+          <span className="config-toggle-label">
+            {agentType === "claude" ? "Skip permissions (--dangerously-skip-permissions)" : "Auto-approve permissions"}
+          </span>
         </label>
       </div>
 

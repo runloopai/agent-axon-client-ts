@@ -222,9 +222,7 @@ app.post("/api/set-permission-mode", asyncHandler(async (req, res) => {
 
 app.post("/api/set-auto-approve-permissions", (req, res) => {
   const { enabled } = req.body;
-  if (activeAgentType === "claude" && claudeManager) {
-    claudeManager.autoApprovePermissions = !!enabled;
-  } else if (activeAgentType === "acp" && acpManager?.nodeClient) {
+  if (activeAgentType === "acp" && acpManager?.nodeClient) {
     acpManager.nodeClient.autoApprovePermissions = !!enabled;
   }
   res.json({ ok: true, autoApprovePermissions: !!enabled });
