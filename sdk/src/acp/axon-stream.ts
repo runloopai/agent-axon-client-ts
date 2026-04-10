@@ -150,20 +150,21 @@ function createReadable(
                   `#${totalEvents} REPLAY skip ${axonEvent.origin} ${axonEvent.event_type}`,
                 );
               }
+
+              // Flush unresolved requests as soon as we reach the replay target,
+              // rather than waiting for the next live event (which may never arrive
+              // if the replay target is the last event on the axon).
+              if (axonEvent.sequence === replayTargetSequence) {
+                flushReplayBuffer(replayBuffer, controller, log);
+              }
               continue;
             }
 
             // --- Transition out of replay ---
+            // This handles the case where events arrived between getLastSequence()
+            // and the SSE subscription, so the first live event has sequence > target.
             if (replaying && replayBuffer.size > 0) {
-              log?.(
-                "read",
-                `replay complete — enqueuing ${replayBuffer.size} unresolved request(s)`,
-              );
-              for (const [eventType, msg] of replayBuffer) {
-                log?.("read", `enqueuing unresolved ${eventType}`);
-                controller.enqueue(msg);
-              }
-              replayBuffer.clear();
+              flushReplayBuffer(replayBuffer, controller, log);
             } else if (replaying) {
               log?.("read", "replay complete — no unresolved requests");
             }
@@ -209,18 +210,10 @@ function createReadable(
         break;
       }
 
-      // If replay ended because the stream closed (all events <= target),
-      // flush any unresolved requests before closing.
+      // If replay ended because the stream closed before reaching the target,
+      // flush any remaining unresolved requests.
       if (replaying && replayBuffer.size > 0) {
-        log?.(
-          "read",
-          `stream ended during replay — enqueuing ${replayBuffer.size} unresolved request(s)`,
-        );
-        for (const [eventType, msg] of replayBuffer) {
-          log?.("read", `enqueuing unresolved ${eventType}`);
-          controller.enqueue(msg);
-        }
-        replayBuffer.clear();
+        flushReplayBuffer(replayBuffer, controller, log);
       }
 
       pendingRequests.clear();
@@ -229,6 +222,23 @@ function createReadable(
       controller.close();
     },
   });
+}
+
+/**
+ * Enqueues all unresolved requests from the replay buffer, then clears it.
+ */
+function flushReplayBuffer(
+  replayBuffer: Map<string, AnyMessage>,
+  controller: ReadableStreamDefaultController<AnyMessage>,
+  log: ((tag: string, ...args: unknown[]) => void) | undefined,
+): void {
+  if (replayBuffer.size === 0) return;
+  log?.("read", `replay complete — enqueuing ${replayBuffer.size} unresolved request(s)`);
+  for (const [eventType, msg] of replayBuffer) {
+    log?.("read", `enqueuing unresolved ${eventType}`);
+    controller.enqueue(msg);
+  }
+  replayBuffer.clear();
 }
 
 /**

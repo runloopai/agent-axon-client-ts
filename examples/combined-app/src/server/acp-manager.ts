@@ -156,12 +156,13 @@ export class ACPConnectionManager {
     return conn;
   }
 
-  subscribe(): void {
+  async subscribe(): Promise<void> {
     if (!this.axon || !this.devbox) throw new Error("No axon — agent not started");
     const autoApprove = this.nodeClient?.autoApprovePermissions ?? true;
     this.connection?.abortStream();
     this.nodeClient?.shutdown();
-    this.wireConnection(this.axon, this.devbox, autoApprove);
+    const conn = this.wireConnection(this.axon, this.devbox, autoApprove);
+    await conn.connect();
   }
 
   requireConnection(): ACPAxonConnection {

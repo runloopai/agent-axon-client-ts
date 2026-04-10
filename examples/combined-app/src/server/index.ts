@@ -56,7 +56,7 @@ app.post(
     if (entry.agentType === "claude" && entry.claudeManager) {
       await entry.claudeManager.subscribe();
     } else if (entry.agentType === "acp" && entry.acpManager) {
-      entry.acpManager.subscribe();
+      await entry.acpManager.subscribe();
     }
     res.json({ ok: true });
   }),
