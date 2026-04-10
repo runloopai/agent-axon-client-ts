@@ -633,19 +633,29 @@ The Axon broker delivers events in this order for a given turn:
 
 This means **`await conn.prompt(...)` returns before the agent's response text has been delivered via `onSessionUpdate`**. If you need to know when all content for a turn has arrived, use one of these strategies:
 
-- **Use `onTimelineEvent` to watch for `system` events** (recommended). These bracket all content for a turn. Use the exported `SYSTEM_EVENT_TYPES` constants for type-safe matching:
+- **Use `onTimelineEvent` to watch for `system` events** (recommended). These bracket all content for a turn. Use a `switch` on `event.kind` and the exported `SYSTEM_EVENT_TYPES` constants for exhaustive, type-safe matching:
 
   ```typescript
   import { SYSTEM_EVENT_TYPES } from "@runloop/agent-axon-client/shared";
 
   conn.onTimelineEvent((event) => {
-    if (event.kind === "system") {
-      if (event.data.type === SYSTEM_EVENT_TYPES.TURN_STARTED) {
-        // Agent turn began — disable input, show cancel button
-      }
-      if (event.data.type === SYSTEM_EVENT_TYPES.TURN_COMPLETED) {
-        // All content for this turn has been delivered
-      }
+    switch (event.kind) {
+      case "system":
+        switch (event.data.type) {
+          case SYSTEM_EVENT_TYPES.TURN_STARTED:
+            // Agent turn began — disable input, show cancel button
+            break;
+          case SYSTEM_EVENT_TYPES.TURN_COMPLETED:
+            // All content for this turn has been delivered
+            break;
+        }
+        break;
+      case "acp_protocol":
+        // Protocol event — event.data is the session update payload
+        break;
+      case "unknown":
+        // Unrecognized event — inspect event.axonEvent for raw data
+        break;
     }
   });
   ```

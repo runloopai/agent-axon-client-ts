@@ -227,10 +227,13 @@ conn.onTimelineEvent((event) => {
 
 ## Event replay and `afterSequence`
 
-Both modules subscribe to the Axon SSE stream, which **replays all events from
-the beginning of the channel** by default. This means a new connection sees the
-full history — useful for rebuilding UI state, but potentially expensive on
-long-lived channels.
+> **Important:** Calling `connect()` subscribes to the Axon SSE stream, which
+> **replays every event from the very beginning of the channel** by default.
+> This effectively replays the entire session — every prompt, response, tool
+> call, and system event is re-delivered to your listeners in order. This is
+> useful for rebuilding UI state from scratch (e.g. after a page refresh), but
+> can be expensive on long-lived channels with many events. Use `afterSequence`
+> or `replay: false` to control this behavior (see below).
 
 ### Skipping already-seen events
 
