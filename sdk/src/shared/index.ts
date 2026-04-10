@@ -10,11 +10,17 @@
  * @module
  */
 
+export { resolveReplayTarget } from "./connect-guards.js";
 export { runDisconnectHook } from "./lifecycle.js";
 export { ListenerSet } from "./listener-set.js";
 export { makeDefaultOnError, makeLogger } from "./logging.js";
 export { getLastSequence } from "./replay.js";
-export { parseTimelinePayload, tryParseSystemEvent } from "./timeline.js";
+export {
+  type ClassifyConfig,
+  createClassifier,
+  parseTimelinePayload,
+  tryParseSystemEvent,
+} from "./timeline.js";
 export { timelineEventGenerator } from "./timeline-generator.js";
 /** @category Types */
 /** @category Timeline */

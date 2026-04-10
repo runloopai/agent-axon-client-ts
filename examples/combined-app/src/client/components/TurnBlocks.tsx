@@ -17,13 +17,21 @@ import type {
   TerminalState,
   ContentItem,
 } from "../types.js";
-import { CopyButton, MarkdownContent, toolKindMeta, statusIndicator, planStatusIcon } from "./shared.js";
+import {
+  CopyButton,
+  MarkdownContent,
+  toolKindMeta,
+  statusIndicator,
+  planStatusIcon,
+} from "./shared.js";
 import { ExtraDataView } from "./ExtraDataView.js";
 
 const THINKING_COLLAPSED_HEIGHT = 60;
 
 export function ThinkingBlockView({
-  block, expanded, onToggle,
+  block,
+  expanded,
+  onToggle,
 }: {
   block: ThinkingBlock;
   expanded: boolean;
@@ -56,7 +64,9 @@ export function ThinkingBlockView({
           ref={contentRef}
           text={block.text}
           className={`thinking-content${expanded ? " thinking-content-expanded" : ""}${isCollapsedOverflow ? " thinking-content-overflow" : ""}`}
-          style={!expanded ? { maxHeight: THINKING_COLLAPSED_HEIGHT } : undefined}
+          style={
+            !expanded ? { maxHeight: THINKING_COLLAPSED_HEIGHT } : undefined
+          }
         />
       )}
       {overflows && !block.isActive && (
@@ -69,23 +79,38 @@ export function ThinkingBlockView({
   );
 }
 
-function getToolCallDisplay(block: ToolCallBlock): { displayTitle: string; command?: string; description?: string } {
+function formatToolTitle(title: string): string {
+  return title.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ");
+}
+
+function getToolCallDisplay(block: ToolCallBlock): {
+  displayTitle: string;
+  command?: string;
+  description?: string;
+} {
   const ri = block.rawInput as Record<string, unknown> | undefined;
   if (block.kind === "execute" && ri) {
     const cmd = (ri.command as string) ?? (ri.cmd as string);
     const desc = (ri.description as string) ?? undefined;
     if (cmd) return { displayTitle: cmd, command: cmd, description: desc };
   }
-  if (block.kind === "edit" || block.kind === "read" || block.kind === "delete") {
+  if (
+    block.kind === "edit" ||
+    block.kind === "read" ||
+    block.kind === "delete"
+  ) {
     if (block.locations.length > 0) {
       return { displayTitle: block.locations[0].path };
     }
   }
-  return { displayTitle: block.title };
+  return { displayTitle: formatToolTitle(block.title) };
 }
 
 export function ToolCallBlockView({
-  block, expanded, onToggle, terminals,
+  block,
+  expanded,
+  onToggle,
+  terminals,
 }: {
   block: ToolCallBlock;
   expanded: boolean;
@@ -101,9 +126,10 @@ export function ToolCallBlockView({
   const autoExpand = (isExecute && hasContent) || isFailed;
   const showBody = autoExpand || expanded;
 
-  const durationLabel = block.duration != null && block.status === "completed"
-    ? `${block.duration}s`
-    : null;
+  const durationLabel =
+    block.duration != null && block.status === "completed"
+      ? `${block.duration}s`
+      : null;
 
   const contentText = block.content
     .filter((c) => c.type === "content" && c.text)
@@ -112,14 +138,26 @@ export function ToolCallBlockView({
 
   if (isExecute) {
     return (
-      <div className={`turn-block tool-call-block tc-execute ${meta.color} status-${block.status}`}>
-        <div className="tc-header tc-header-exec" onClick={hasContent ? onToggle : undefined} style={hasContent ? { cursor: "pointer" } : undefined}>
+      <div
+        className={`turn-block tool-call-block tc-execute ${meta.color} status-${block.status}`}
+      >
+        <div
+          className="tc-header tc-header-exec"
+          onClick={hasContent ? onToggle : undefined}
+          style={hasContent ? { cursor: "pointer" } : undefined}
+        >
           {statusIndicator(block.status)}
           <span className="tc-kind-icon">{meta.icon}</span>
           <span className="tc-title tc-title-cmd">{display.displayTitle}</span>
-          {durationLabel && <span className="tc-duration">{durationLabel}</span>}
+          {durationLabel && (
+            <span className="tc-duration">{durationLabel}</span>
+          )}
           {hasContent && !autoExpand && (
-            <span className={`chevron tc-chevron ${expanded ? "expanded" : ""}`}>{"\u25B6"}</span>
+            <span
+              className={`chevron tc-chevron ${expanded ? "expanded" : ""}`}
+            >
+              {"\u25B6"}
+            </span>
           )}
         </div>
         {showBody && contentText && (
@@ -134,13 +172,20 @@ export function ToolCallBlockView({
     );
   }
 
-  const basename = block.locations.length > 0
-    ? block.locations[0].path.split("/").pop()
-    : null;
+  const basename =
+    block.locations.length > 0
+      ? block.locations[0].path.split("/").pop()
+      : null;
 
   return (
-    <div className={`turn-block tool-call-block ${meta.color} status-${block.status}`}>
-      <div className="tc-header" onClick={hasContent ? onToggle : undefined} style={hasContent ? { cursor: "pointer" } : undefined}>
+    <div
+      className={`turn-block tool-call-block ${meta.color} status-${block.status}`}
+    >
+      <div
+        className="tc-header"
+        onClick={hasContent ? onToggle : undefined}
+        style={hasContent ? { cursor: "pointer" } : undefined}
+      >
         {statusIndicator(block.status)}
         <span className="tc-kind-icon">{meta.icon}</span>
         <span className="tc-title">{display.displayTitle}</span>
@@ -151,12 +196,18 @@ export function ToolCallBlockView({
           </span>
         )}
         {hasContent && (
-          <span className={`chevron tc-chevron ${expanded ? "expanded" : ""}`}>{"\u25B6"}</span>
+          <span className={`chevron tc-chevron ${expanded ? "expanded" : ""}`}>
+            {"\u25B6"}
+          </span>
         )}
       </div>
       {showBody && (
         <div className="tc-body">
-          <ToolCallContentView content={block.content} terminals={terminals} rawOutput={block.rawOutput} />
+          <ToolCallContentView
+            content={block.content}
+            terminals={terminals}
+            rawOutput={block.rawOutput}
+          />
         </div>
       )}
       {isFailed && <ToolCallErrorView rawOutput={block.rawOutput} />}
@@ -172,7 +223,10 @@ function ToolCallErrorView({ rawOutput }: { rawOutput?: unknown }) {
     msg = rawOutput;
   } else if (typeof rawOutput === "object") {
     const obj = rawOutput as Record<string, unknown>;
-    msg = (obj.message as string) ?? (obj.error as string) ?? JSON.stringify(rawOutput, null, 2);
+    msg =
+      (obj.message as string) ??
+      (obj.error as string) ??
+      JSON.stringify(rawOutput, null, 2);
   } else {
     msg = String(rawOutput);
   }
@@ -184,16 +238,19 @@ function ToolCallErrorView({ rawOutput }: { rawOutput?: unknown }) {
 }
 
 function ToolCallContentView({
-  content, terminals, rawOutput,
+  content,
+  terminals,
+  rawOutput,
 }: {
   content: ContentItem[];
   terminals: Map<string, TerminalState>;
   rawOutput?: unknown;
 }) {
   if (content.length === 0 && rawOutput != null) {
-    const text = typeof rawOutput === "string"
-      ? rawOutput
-      : JSON.stringify(rawOutput, null, 2);
+    const text =
+      typeof rawOutput === "string"
+        ? rawOutput
+        : JSON.stringify(rawOutput, null, 2);
     return (
       <div className="tc-content-wrapper">
         <CopyButton text={text} />
@@ -213,7 +270,9 @@ function ToolCallContentView({
           const output = term?.output || "(no output yet)";
           return (
             <div key={i} className="tc-terminal-view">
-              <div className="tc-terminal-id">Terminal: {item.terminal.terminalId}</div>
+              <div className="tc-terminal-id">
+                Terminal: {item.terminal.terminalId}
+              </div>
               <CopyButton text={output} />
               <pre className="tc-output-pre">{output}</pre>
             </div>
@@ -233,11 +292,23 @@ function ToolCallContentView({
   );
 }
 
-function UnifiedDiffView({ diff }: { diff: { path: string; oldText?: string | null; newText: string } }) {
+function UnifiedDiffView({
+  diff,
+}: {
+  diff: { path: string; oldText?: string | null; newText: string };
+}) {
   const oldStr = diff.oldText ?? "";
   const newStr = diff.newText;
 
-  const changes = Diff.structuredPatch(diff.path, diff.path, oldStr, newStr, "", "", { context: 3 });
+  const changes = Diff.structuredPatch(
+    diff.path,
+    diff.path,
+    oldStr,
+    newStr,
+    "",
+    "",
+    { context: 3 },
+  );
 
   return (
     <div className="tc-diff-view">
@@ -249,14 +320,17 @@ function UnifiedDiffView({ diff }: { diff: { path: string; oldText?: string | nu
         {changes.hunks.map((hunk, hi) => (
           <div key={hi} className="diff-hunk">
             <div className="diff-line diff-hunk-header">
-              @@ -{hunk.oldStart},{hunk.oldLines} +{hunk.newStart},{hunk.newLines} @@
+              @@ -{hunk.oldStart},{hunk.oldLines} +{hunk.newStart},
+              {hunk.newLines} @@
             </div>
             {hunk.lines.map((line, li) => {
               const prefix = line[0];
               const cls =
-                prefix === "+" ? "diff-add" :
-                prefix === "-" ? "diff-remove" :
-                "diff-context";
+                prefix === "+"
+                  ? "diff-add"
+                  : prefix === "-"
+                    ? "diff-remove"
+                    : "diff-context";
               return (
                 <div key={li} className={`diff-line ${cls}`}>
                   <span className="diff-line-prefix">{prefix}</span>
@@ -271,7 +345,13 @@ function UnifiedDiffView({ diff }: { diff: { path: string; oldText?: string | nu
   );
 }
 
-export function TextBlockView({ block, showCursor }: { block: TextBlock; showCursor: boolean }) {
+export function TextBlockView({
+  block,
+  showCursor,
+}: {
+  block: TextBlock;
+  showCursor: boolean;
+}) {
   return (
     <div className="turn-block text-block">
       <MarkdownContent text={block.text} />
@@ -285,7 +365,12 @@ export function ResourceLinkBlockView({ block }: { block: ResourceLinkBlock }) {
   const label = block.title ?? block.name ?? block.uri;
   return (
     <div className="turn-block resource-link-block">
-      <a href={block.uri} target="_blank" rel="noopener noreferrer" className="resource-link">
+      <a
+        href={block.uri}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="resource-link"
+      >
         <span className="resource-link-icon">{"\u{1F517}"}</span>
         <span className="resource-link-label">{label}</span>
         {block.name && block.title && block.name !== block.title && (
@@ -303,7 +388,12 @@ export function ImageBlockView({ block }: { block: ImageBlock }) {
     <div className="turn-block image-block">
       <img src={src} alt="" className="image-block-img" />
       {block.uri && (
-        <a href={block.uri} target="_blank" rel="noopener noreferrer" className="image-block-link">
+        <a
+          href={block.uri}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="image-block-link"
+        >
           Open original
         </a>
       )}
@@ -343,7 +433,11 @@ const MIME_TO_LANG: Record<string, string> = {
   "text/x-shell": "bash",
 };
 
-export function EmbeddedResourceBlockView({ block }: { block: EmbeddedResourceBlock }) {
+export function EmbeddedResourceBlockView({
+  block,
+}: {
+  block: EmbeddedResourceBlock;
+}) {
   const basename = block.uri.split("/").pop() ?? block.uri;
 
   if (block.text != null) {
@@ -359,7 +453,11 @@ export function EmbeddedResourceBlockView({ block }: { block: EmbeddedResourceBl
           <SyntaxHighlighter
             style={vscDarkPlus}
             language={lang}
-            customStyle={{ margin: 0, borderRadius: "0 0 6px 6px", fontSize: "12px" }}
+            customStyle={{
+              margin: 0,
+              borderRadius: "0 0 6px 6px",
+              fontSize: "12px",
+            }}
           >
             {block.text}
           </SyntaxHighlighter>
@@ -418,7 +516,9 @@ function PlanEntryView({ entry }: { entry: PlanEntry }) {
       {planStatusIcon(entry.status)}
       <MarkdownContent text={entry.content} className="plan-entry-text" />
       {entry.priority && (
-        <span className={`plan-priority plan-priority-${entry.priority}`}>{entry.priority}</span>
+        <span className={`plan-priority plan-priority-${entry.priority}`}>
+          {entry.priority}
+        </span>
       )}
     </div>
   );
@@ -436,7 +536,10 @@ export function TaskBlockView({ block }: { block: TaskBlock }) {
         ) : (
           <span className="tc-status-fail">{"\u2717"}</span>
         )}
-        <MarkdownContent text={block.description} className="task-description" />
+        <MarkdownContent
+          text={block.description}
+          className="task-description"
+        />
         {block.toolUses != null && (
           <span className="task-meta">{block.toolUses} tools</span>
         )}
@@ -449,114 +552,266 @@ export function TaskBlockView({ block }: { block: TaskBlock }) {
   );
 }
 
-function InitSection({ label, children }: { label: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+/* ── Shared init sub-components ──────────────────────────── */
+
+function InitPillSection({
+  icon,
+  label,
+  count,
+  items,
+}: {
+  icon: string;
+  label: string;
+  count: number;
+  items: string[];
+}) {
+  if (count === 0) return null;
   return (
-    <div className="init-section">
-      <div className="init-section-header" onClick={() => setOpen(!open)}>
-        <span className={`chevron init-chevron ${open ? "expanded" : ""}`}>{"\u25B6"}</span>
-        <span className="init-section-label">{label}</span>
+    <div className="init-pill-section">
+      <div className="init-pill-section-header">
+        <span className="init-pill-section-icon">{icon}</span>
+        <span className="init-pill-section-label">{label}</span>
+        <span className="init-pill-section-count">{count}</span>
       </div>
-      {open && <div className="init-section-body">{children}</div>}
+      <div className="init-pill-list">
+        {items.map((item, i) => (
+          <span key={i} className="init-pill">
+            {item}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
-function InitTagList({ items }: { items: string[] }) {
-  if (items.length === 0) return null;
+function InitKVRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="init-tag-list">
-      {items.map((item, i) => (
-        <span key={i} className="init-tag">{item}</span>
+    <div className="init-kv-row">
+      <span className="init-kv-row-icon">{icon}</span>
+      <span className="init-kv-row-label">{label}</span>
+      <span className="init-kv-row-value">{value}</span>
+    </div>
+  );
+}
+
+function capabilityBadges(
+  caps: Record<string, unknown>,
+  prefix = "",
+): Array<{ label: string; enabled: boolean }> {
+  const badges: Array<{ label: string; enabled: boolean }> = [];
+  for (const [key, val] of Object.entries(caps)) {
+    if (val != null && typeof val === "object" && !Array.isArray(val)) {
+      badges.push(
+        ...capabilityBadges(
+          val as Record<string, unknown>,
+          prefix ? `${prefix}.${key}` : key,
+        ),
+      );
+    } else {
+      const label = prefix ? `${prefix}.${key}` : key;
+      badges.push({ label, enabled: !!val });
+    }
+  }
+  return badges;
+}
+
+function InitCapsBadges({ caps }: { caps: Record<string, unknown> }) {
+  const badges = capabilityBadges(caps);
+  if (badges.length === 0) return null;
+  return (
+    <div className="init-pill-list">
+      {badges.map((b, i) => (
+        <span
+          key={i}
+          className={`init-pill ${b.enabled ? "init-pill-yes" : "init-pill-no"}`}
+        >
+          {b.label}
+        </span>
       ))}
     </div>
   );
 }
 
-export function SystemInitBlockView({ block, expanded, onToggle }: { block: SystemInitBlock; expanded: boolean; onToggle: () => void }) {
+function buildSummaryParts(block: SystemInitBlock): string[] {
   const ext = block.extensions;
-  const title = [block.agentName, block.agentVersion ? `v${block.agentVersion}` : null].filter(Boolean).join(" ");
+  const parts: string[] = [];
+  if (ext?.protocol === "claude") {
+    parts.push(`${ext.tools.length} tools`);
+    if (ext.mcpServers.length > 0)
+      parts.push(`${ext.mcpServers.length} MCP servers`);
+  }
+  if (ext?.protocol === "acp") {
+    parts.push(`${ext.modes.length} modes`);
+    parts.push(`${ext.models.length} models`);
+    if (ext.configOptions.length > 0)
+      parts.push(`${ext.configOptions.length} config options`);
+  }
+  if (block.commands.length > 0)
+    parts.push(`${block.commands.length} commands`);
+  return parts;
+}
+
+/* ── Protocol-specific body sections ────────────────────── */
+
+function ClaudeInitSections({ block }: { block: SystemInitBlock }) {
+  const ext = block.extensions;
+  if (ext?.protocol !== "claude") return null;
+  return (
+    <>
+      <div className="init-kv-rows">
+        {block.model && (
+          <InitKVRow icon={"\u2699"} label="Model" value={block.model} />
+        )}
+        {ext.permissionMode && (
+          <InitKVRow
+            icon={"\u25CB"}
+            label="Permissions"
+            value={ext.permissionMode}
+          />
+        )}
+      </div>
+      <InitPillSection
+        icon={"\u{1F527}"}
+        label="Tools"
+        count={ext.tools.length}
+        items={ext.tools}
+      />
+      {ext.mcpServers.length > 0 && (
+        <InitPillSection
+          icon={"\u26A1"}
+          label="MCP Servers"
+          count={ext.mcpServers.length}
+          items={ext.mcpServers.map((s) => s.name)}
+        />
+      )}
+    </>
+  );
+}
+
+function ACPInitSections({ block }: { block: SystemInitBlock }) {
+  const ext = block.extensions;
+  if (ext?.protocol !== "acp") return null;
+  return (
+    <>
+      <div className="init-kv-rows">
+        {block.model && (
+          <InitKVRow icon={"\u2699"} label="Model" value={block.model} />
+        )}
+        {ext.protocolVersion != null && (
+          <InitKVRow
+            icon={"\u{1F4E1}"}
+            label="Protocol"
+            value={`v${ext.protocolVersion}`}
+          />
+        )}
+      </div>
+      <InitPillSection
+        icon={"\u{1F3AD}"}
+        label="Modes"
+        count={ext.modes.length}
+        items={ext.modes.map((m) => m.name ?? m.id)}
+      />
+      <InitPillSection
+        icon={"\u{1F916}"}
+        label="Models"
+        count={ext.models.length}
+        items={ext.models.map((m) => m.name ?? m.modelId)}
+      />
+      {ext.configOptions.length > 0 && (
+        <InitPillSection
+          icon={"\u2699"}
+          label="Config"
+          count={ext.configOptions.length}
+          items={ext.configOptions.map(
+            (o) => `${o.name}: ${o.currentValue ?? "-"}`,
+          )}
+        />
+      )}
+      {ext.agentCapabilities && (
+        <div className="init-pill-section">
+          <div className="init-pill-section-header">
+            <span className="init-pill-section-icon">{"\u{1F527}"}</span>
+            <span className="init-pill-section-label">Agent Capabilities</span>
+          </div>
+          <InitCapsBadges
+            caps={ext.agentCapabilities as unknown as Record<string, unknown>}
+          />
+        </div>
+      )}
+      {ext.clientCapabilities && (
+        <div className="init-pill-section">
+          <div className="init-pill-section-header">
+            <span className="init-pill-section-icon">{"\u{1F4BB}"}</span>
+            <span className="init-pill-section-label">Client Capabilities</span>
+          </div>
+          <InitCapsBadges
+            caps={ext.clientCapabilities as unknown as Record<string, unknown>}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── Main SystemInitBlockView ───────────────────────────── */
+
+export function SystemInitBlockView({
+  block,
+  expanded,
+  onToggle,
+}: {
+  block: SystemInitBlock;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const title = [
+    block.agentName,
+    block.agentVersion ? `v${block.agentVersion}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const summaryParts = buildSummaryParts(block);
 
   return (
-    <div className="turn-block system-init-block">
-      <div className="init-header" onClick={onToggle} style={{ cursor: "pointer" }}>
-        <span className="init-icon">{"\u26A1"}</span>
-        <span className="init-title">{title || "Agent Initialized"}</span>
-        {block.model && <span className="init-model-badge">{block.model}</span>}
-        <span className={`chevron init-chevron ${expanded ? "expanded" : ""}`}>{"\u25B6"}</span>
+    <div className="turn-block system-init-block system-init-session">
+      <div
+        className="init-session-header"
+        onClick={onToggle}
+        style={{ cursor: "pointer" }}
+      >
+        <span className="init-session-dot" />
+        <span className="init-session-title">
+          <strong>{title || "Session initialized"}</strong>
+        </span>
+        <span className={`chevron init-chevron ${expanded ? "expanded" : ""}`}>
+          {"\u25B6"}
+        </span>
       </div>
       {expanded && (
-        <div className="init-body">
+        <div className="init-session-body">
+          <ClaudeInitSections block={block} />
+          <ACPInitSections block={block} />
           {block.commands.length > 0 && (
-            <InitSection label={`Commands (${block.commands.length})`}>
-              <InitTagList items={block.commands} />
-            </InitSection>
+            <InitPillSection
+              icon={"\u{1F4AC}"}
+              label="Commands"
+              count={block.commands.length}
+              items={block.commands}
+            />
           )}
-
-          {ext?.protocol === "claude" && (
-            <>
-              {ext.tools.length > 0 && (
-                <InitSection label={`Tools (${ext.tools.length})`}>
-                  <InitTagList items={ext.tools} />
-                </InitSection>
-              )}
-              {ext.mcpServers.length > 0 && (
-                <InitSection label={`MCP Servers (${ext.mcpServers.length})`}>
-                  <div className="init-mcp-list">
-                    {ext.mcpServers.map((s, i) => (
-                      <div key={i} className="init-mcp-item">
-                        <span className={`init-mcp-status init-mcp-${s.status}`}>{"\u25CF"}</span>
-                        <span>{s.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </InitSection>
-              )}
-              <div className="init-kv">
-                <span className="init-kv-label">Permission Mode</span>
-                <span className="init-kv-value">{ext.permissionMode}</span>
-              </div>
-            </>
+          {summaryParts.length > 0 && (
+            <div className="init-session-footer">
+              {summaryParts.join(" \u00b7 ")}
+            </div>
           )}
-
-          {ext?.protocol === "acp" && (
-            <>
-              {ext.modes.length > 0 && (
-                <InitSection label={`Modes (${ext.modes.length})`}>
-                  <InitTagList items={ext.modes.map((m) => m.name ?? m.id)} />
-                </InitSection>
-              )}
-              {ext.models.length > 0 && (
-                <InitSection label={`Models (${ext.models.length})`}>
-                  <InitTagList items={ext.models.map((m) => m.name ?? m.modelId)} />
-                </InitSection>
-              )}
-              {ext.configOptions.length > 0 && (
-                <InitSection label={`Config Options (${ext.configOptions.length})`}>
-                  <div className="init-config-list">
-                    {ext.configOptions.map((opt) => (
-                      <div key={opt.id} className="init-kv">
-                        <span className="init-kv-label">{opt.name}</span>
-                        <span className="init-kv-value">{opt.currentValue ?? "-"}</span>
-                      </div>
-                    ))}
-                  </div>
-                </InitSection>
-              )}
-              {ext.agentCapabilities && (
-                <InitSection label="Capabilities">
-                  <pre className="init-capabilities-pre">{JSON.stringify(ext.agentCapabilities, null, 2)}</pre>
-                </InitSection>
-              )}
-              {ext.protocolVersion != null && (
-                <div className="init-kv">
-                  <span className="init-kv-label">Protocol Version</span>
-                  <span className="init-kv-value">{ext.protocolVersion}</span>
-                </div>
-              )}
-            </>
-          )}
-
           <ExtraDataView extra={block.extra} />
         </div>
       )}

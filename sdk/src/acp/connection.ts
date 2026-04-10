@@ -24,17 +24,26 @@ import {
   type SetSessionModeRequest,
   type SetSessionModeResponse,
 } from "@agentclientprotocol/sdk";
-import type { AxonEventView } from "@runloop/api-client/resources/axons";
+import type {
+  AxonEventView,
+  AxonPublishParams,
+  PublishResultView,
+} from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
+import { resolveReplayTarget } from "../shared/connect-guards.js";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
-import { getLastSequence } from "../shared/replay.js";
-import { tryParseSystemEvent } from "../shared/timeline.js";
+import { createClassifier } from "../shared/timeline.js";
 import { timelineEventGenerator } from "../shared/timeline-generator.js";
 import type { AxonEventListener, TimelineEventListener } from "../shared/types.js";
 import { axonStream } from "./axon-stream.js";
-import type { ACPAxonConnectionOptions, ACPTimelineEvent, SessionUpdateListener } from "./types.js";
+import type {
+  ACPAxonConnectionOptions,
+  ACPProtocolTimelineEvent,
+  ACPTimelineEvent,
+  SessionUpdateListener,
+} from "./types.js";
 
 const ACP_KNOWN_EVENT_TYPES: Set<string> = new Set([
   ...Object.values(AGENT_METHODS),
@@ -176,18 +185,7 @@ export class ACPAxonConnection {
       throw new Error("Already connected. Call disconnect() before reconnecting.");
     }
 
-    const replay = this.options.replay ?? true;
-    if (replay && this.options.afterSequence != null) {
-      throw new Error("Cannot use both 'replay' and 'afterSequence'. They are mutually exclusive.");
-    }
-
-    let replayTargetSequence: number | undefined;
-    if (replay) {
-      replayTargetSequence = await getLastSequence(this.axon);
-      if (replayTargetSequence != null) {
-        this.log("connect", `replay target sequence: ${replayTargetSequence}`);
-      }
-    }
+    const replayTargetSequence = await resolveReplayTarget(this.axon, this.options, this.log);
 
     const verbose = this.options.verbose ?? false;
     const stream = axonStream({
@@ -401,6 +399,20 @@ export class ACPAxonConnection {
   }
 
   /**
+   * Publishes a custom event to the Axon channel.
+   *
+   * The event will appear in the SSE stream and be classified by the
+   * timeline (typically as `kind: "unknown"` unless the `event_type`
+   * matches a known ACP protocol method).
+   *
+   * @param params - The event to publish (same shape as `Axon.publish()`).
+   * @returns The publish result with sequence number and timestamp.
+   */
+  async publish(params: AxonPublishParams): Promise<PublishResultView> {
+    return this.axon.publish(params);
+  }
+
+  /**
    * Async generator that yields classified timeline events.
    *
    * Mirrors the pull-based pattern of `receiveMessages()` in the Claude
@@ -540,35 +552,14 @@ export class ACPAxonConnection {
  *
  * @category Timeline
  */
-export function classifyACPAxonEvent(ev: AxonEventView): ACPTimelineEvent {
-  if (ev.origin === "SYSTEM_EVENT") {
-    const systemEvent = tryParseSystemEvent(ev);
-    if (systemEvent) {
-      return { kind: "system", data: systemEvent, axonEvent: ev };
-    }
-  }
-
-  if (isACPProtocolEventType(ev.event_type)) {
-    let data: unknown = null;
-    if (typeof ev.payload === "string") {
-      try {
-        data = JSON.parse(ev.payload);
-      } catch (err) {
-        console.warn(
-          `[classifyACPAxonEvent] Failed to parse payload for event_type="${ev.event_type}":`,
-          err,
-        );
-      }
-    } else if (ev.payload != null) {
-      data = ev.payload;
-    }
-    return {
+export const classifyACPAxonEvent = createClassifier<ACPProtocolTimelineEvent>({
+  label: "classifyACPAxonEvent",
+  isProtocolEventType: isACPProtocolEventType,
+  toProtocolEvent: (data, ev) =>
+    ({
       kind: "acp_protocol",
       eventType: ev.event_type,
       data,
       axonEvent: ev,
-    } as ACPTimelineEvent;
-  }
-
-  return { kind: "unknown", data: null, axonEvent: ev };
-}
+    }) as ACPProtocolTimelineEvent,
+});

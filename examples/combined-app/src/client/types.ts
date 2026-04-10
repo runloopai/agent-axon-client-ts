@@ -224,6 +224,15 @@ export interface ChatMessage {
   durationMs?: number;
 }
 
+export interface AgentConfigItem {
+  id: string;
+  role: "system";
+  itemType: "agent_started";
+  config: Record<string, unknown>;
+}
+
+export type ChatItem = ChatMessage | AgentConfigItem;
+
 // --- Usage ---
 
 export interface UsageState {
@@ -391,7 +400,7 @@ export interface SharedAgentState {
   connectionPhase: ConnectionPhase;
   connectionStatus: string | null;
   error: string | null;
-  messages: ChatMessage[];
+  messages: ChatItem[];
   currentTurnBlocks: TurnBlock[];
   isAgentTurn: boolean;
   isStreaming: boolean;

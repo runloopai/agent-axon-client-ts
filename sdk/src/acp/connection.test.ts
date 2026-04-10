@@ -5,6 +5,7 @@ import {
   createMockAxon,
   makeAgentEvent,
   makeExternalEvent,
+  makeFullAxonEvent,
   makeSystemEvent,
 } from "../__test-utils__/mock-axon.js";
 import { ACPAxonConnection, classifyACPAxonEvent, isACPProtocolEventType } from "./connection.js";
@@ -748,6 +749,33 @@ describe("ACPAxonConnection", () => {
     });
   });
 
+  describe("publish()", () => {
+    it("delegates to axon.publish() with the provided params", async () => {
+      const ctrl = createControllableStream();
+      const { axon, published } = createMockAxon(ctrl);
+
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        replay: false,
+      });
+
+      const params = {
+        event_type: "agent_config",
+        origin: "EXTERNAL_EVENT" as const,
+        payload: JSON.stringify({ agentType: "acp", model: "test" }),
+        source: "combined-app",
+      };
+
+      await conn.publish(params);
+
+      expect(axon.publish).toHaveBeenCalledOnce();
+      expect(axon.publish).toHaveBeenCalledWith(params);
+      expect(published).toHaveLength(1);
+      expect(published[0]).toEqual(params);
+
+      conn.disconnect();
+    });
+  });
+
   describe("disconnect guard", () => {
     it("throws when calling methods after disconnect()", async () => {
       const ctrl = createControllableStream();
@@ -1034,10 +1062,7 @@ describe("ACPAxonConnection", () => {
       if (events[0].kind === "acp_protocol") {
         expect(events[0].data).toBeNull();
       }
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[classifyACPAxonEvent]"),
-        expect.anything(),
-      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("[classifyACPAxonEvent]"));
 
       warnSpy.mockRestore();
       conn.disconnect();
@@ -1078,25 +1103,12 @@ describe("isACPProtocolEventType", () => {
 // ---------------------------------------------------------------------------
 
 describe("classifyACPAxonEvent", () => {
-  function makeAxonEvent(
-    overrides: Partial<{
-      event_type: string;
-      payload: string;
-      origin: string;
-      sequence: number;
-    }>,
-  ) {
-    return {
-      axon_id: "axn_test",
+  const makeAxonEvent = (overrides: Partial<Parameters<typeof makeFullAxonEvent>[0]> = {}) =>
+    makeFullAxonEvent({
       event_type: "session/update",
       origin: "AGENT_EVENT",
-      payload: "{}",
-      sequence: 1,
-      source: "test",
-      timestamp_ms: Date.now(),
       ...overrides,
-    };
-  }
+    });
 
   it("classifies known protocol event with valid JSON", () => {
     const ev = makeAxonEvent({

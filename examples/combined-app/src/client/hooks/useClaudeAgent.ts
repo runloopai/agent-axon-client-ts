@@ -5,6 +5,8 @@ import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,
   ChatMessage,
+  ChatItem,
+  AgentConfigItem,
   UserAttachment,
   UsageState,
   InitInfo,
@@ -24,7 +26,7 @@ export interface UseClaudeAgentReturn {
   connectionPhase: "idle" | "connecting" | "ready" | "error";
   connectionStatus: string | null;
   error: string | null;
-  messages: ChatMessage[];
+  messages: ChatItem[];
   currentTurnBlocks: TurnBlock[];
   isAgentTurn: boolean;
   isStreaming: boolean;
@@ -54,7 +56,7 @@ interface ClaudeState {
   connectionStatus: string | null;
   error: string | null;
   isSendingPrompt: boolean;
-  messages: ChatMessage[];
+  messages: ChatItem[];
   isAgentTurn: boolean;
   isStreaming: boolean;
   usage: UsageState | null;
@@ -94,7 +96,7 @@ const INITIAL_CLAUDE_STATE: ClaudeState = {
 type ClaudeAction =
   | { type: "RESET" }
   | { type: "SET"; patch: Partial<ClaudeState> }
-  | { type: "APPEND_MESSAGE"; message: ChatMessage }
+  | { type: "APPEND_MESSAGE"; message: ChatItem }
   | { type: "APPEND_TIMELINE_EVENT"; event: ClaudeTimelineEvent }
   | { type: "MERGE_USAGE"; delta: Partial<UsageState> };
 
@@ -596,6 +598,22 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
 
     if (tlEvent.kind === "claude_protocol") {
       handleSDKMessage(tlEvent.data as Record<string, unknown>);
+      return;
+    }
+
+    if (tlEvent.kind === "unknown" && tlEvent.axonEvent.event_type === "agent_started") {
+      let config: Record<string, unknown> = {};
+      try {
+        config = typeof tlEvent.axonEvent.payload === "string"
+          ? JSON.parse(tlEvent.axonEvent.payload)
+          : (tlEvent.axonEvent.payload as Record<string, unknown>) ?? {};
+      } catch { /* use empty */ }
+      dispatch({ type: "APPEND_MESSAGE", message: {
+        id: `config-${tlEvent.axonEvent.sequence}`,
+        role: "system",
+        itemType: "agent_started",
+        config,
+      } satisfies AgentConfigItem });
     }
   }
 

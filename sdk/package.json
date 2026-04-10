@@ -47,7 +47,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/__test-utils__"
   ],
   "sideEffects": false,
   "publishConfig": {

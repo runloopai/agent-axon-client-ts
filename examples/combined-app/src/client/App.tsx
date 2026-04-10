@@ -5,7 +5,7 @@ import {
   useCallback,
   type KeyboardEvent,
 } from "react";
-import type { AgentType, AvailableCommand, AxonEventView, UserAttachment } from "./types.js";
+import type { AgentType, AgentConfigItem, AvailableCommand, AxonEventView, UserAttachment } from "./types.js";
 import { useAgent } from "./hooks/useAgent.js";
 import { useAgentList } from "./hooks/useAgentList.js";
 import { useAttachments } from "./hooks/useAttachments.js";
@@ -37,6 +37,70 @@ function UserAttachments({ attachments }: { attachments: UserAttachment[] }) {
             <span className="user-attachment-file-name">{a.name ?? "file"}</span>
           </div>
         ) : null,
+      )}
+    </div>
+  );
+}
+
+const CONFIG_LABELS: Record<string, string> = {
+  agentType: "Agent Type",
+  agentId: "Agent ID",
+  agentBinary: "Agent Binary",
+  blueprintName: "Blueprint",
+  model: "Model",
+  launchArgs: "Launch Args",
+  launchCommands: "Launch Commands",
+  systemPrompt: "System Prompt",
+  autoApprovePermissions: "Auto-approve",
+  dangerouslySkipPermissions: "Skip Permissions",
+};
+
+function formatConfigValue(val: unknown): string {
+  if (Array.isArray(val)) return val.join(" ");
+  if (typeof val === "boolean") return val ? "true" : "false";
+  return String(val);
+}
+
+function buildConfigEntries(cfg: Record<string, unknown>): Array<[string, string]> {
+  const entries: Array<[string, string]> = [];
+  const seen = new Set<string>();
+
+  for (const [key, label] of Object.entries(CONFIG_LABELS)) {
+    const val = cfg[key];
+    seen.add(key);
+    if (val == null || val === "") continue;
+    entries.push([label, formatConfigValue(val)]);
+  }
+
+  for (const [key, val] of Object.entries(cfg)) {
+    if (seen.has(key)) continue;
+    if (val == null || val === "") continue;
+    entries.push([key, formatConfigValue(val)]);
+  }
+
+  return entries;
+}
+
+function AgentConfigBanner({ item }: { item: AgentConfigItem }) {
+  const [expanded, setExpanded] = useState(false);
+  const entries = buildConfigEntries(item.config);
+
+  return (
+    <div className="chat-config-banner" onClick={() => setExpanded(!expanded)}>
+      <div className="chat-config-header">
+        <span className="chat-config-icon">{"\u2699\uFE0F"}</span>
+        <span className="chat-config-title">Agent Started</span>
+        <span className={`chevron chat-config-chevron ${expanded ? "expanded" : ""}`}>{"\u25B6"}</span>
+      </div>
+      {expanded && (
+        <div className="chat-config-body" onClick={(e) => e.stopPropagation()}>
+          {entries.map(([label, value]) => (
+            <div key={label} className="agent-config-row">
+              <span className="agent-config-key">{label}</span>
+              <span className="agent-config-val">{value}</span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -393,7 +457,9 @@ export default function App() {
                 )}
 
                 {agent.messages.map((msg) =>
-                  msg.role === "user" ? (
+                  msg.role === "system" ? (
+                    <AgentConfigBanner key={msg.id} item={msg} />
+                  ) : msg.role === "user" ? (
                     <div key={msg.id} className="message user">
                       <div className="message-text">{msg.content}</div>
                       {msg.attachments && msg.attachments.length > 0 && (
@@ -527,7 +593,7 @@ export default function App() {
                 Activity
                 {agent.messages.length + agent.currentTurnBlocks.length > 0 && (
                   <span className="tab-count">
-                    {agent.messages.reduce((s, m) => s + (m.blocks?.length ?? 0), 0) + agent.currentTurnBlocks.length}
+                    {agent.messages.reduce((s, m) => s + ("blocks" in m ? (m.blocks?.length ?? 0) : 0), 0) + agent.currentTurnBlocks.length}
                   </span>
                 )}
               </button>

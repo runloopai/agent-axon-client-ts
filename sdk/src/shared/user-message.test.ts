@@ -1,18 +1,13 @@
-import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import { describe, expect, it } from "vitest";
+import { makeFullAxonEvent } from "../__test-utils__/mock-axon.js";
 import { extractACPUserMessage, extractClaudeUserMessage } from "./user-message.js";
 
-function makeAxonEvent(overrides: Partial<AxonEventView> = {}): AxonEventView {
-  return {
-    axon_id: "axn_test",
+function makeAxonEvent(overrides: Partial<Parameters<typeof makeFullAxonEvent>[0]> = {}) {
+  return makeFullAxonEvent({
     event_type: "session/prompt",
     origin: "USER_EVENT",
-    payload: "{}",
-    sequence: 1,
-    source: "test",
-    timestamp_ms: Date.now(),
     ...overrides,
-  };
+  });
 }
 
 describe("extractACPUserMessage", () => {

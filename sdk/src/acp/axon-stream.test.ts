@@ -206,7 +206,6 @@ describe("axonStream", () => {
       const { readable } = axonStream({ axon: axon as never, onError });
       const messages = await drain(readable);
 
-      expect(onError).toHaveBeenCalledOnce();
       expect(onError.mock.calls[0][0]).toBeInstanceOf(SyntaxError);
       expect(messages).toHaveLength(1);
     });
@@ -269,7 +268,7 @@ describe("axonStream", () => {
         }),
       };
 
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       const { readable } = axonStream({ axon: axon as never });
 
@@ -284,9 +283,12 @@ describe("axonStream", () => {
       expect(messages[0]).toMatchObject({ params: { msg: "first" } });
       expect(messages[1]).toMatchObject({ params: { msg: "second" } });
       expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("SSE stream ended"));
+      expect(errorSpy).toHaveBeenCalledWith(
+        "[axonStream]",
+        expect.stringContaining("SSE stream ended"),
+      );
 
-      warnSpy.mockRestore();
+      errorSpy.mockRestore();
     });
 
     it("passes after_sequence on re-subscribe using last seen sequence", async () => {
@@ -301,7 +303,7 @@ describe("axonStream", () => {
         publish: vi.fn(),
       };
 
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       const { readable } = axonStream({ axon: axon as never });
 
@@ -318,7 +320,7 @@ describe("axonStream", () => {
       expect(axon.subscribeSse).toHaveBeenNthCalledWith(1, undefined);
       expect(axon.subscribeSse).toHaveBeenNthCalledWith(2, { after_sequence: 15 });
 
-      warnSpy.mockRestore();
+      errorSpy.mockRestore();
     });
 
     it("re-subscribes once on SSE stream error and continues", async () => {
@@ -344,7 +346,7 @@ describe("axonStream", () => {
         publish: vi.fn(),
       };
 
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       const { readable } = axonStream({ axon: axon as never });
 
@@ -355,12 +357,12 @@ describe("axonStream", () => {
       expect(messages).toHaveLength(1);
       expect(messages[0]).toMatchObject({ params: { msg: "recovered" } });
       expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(errorSpy).toHaveBeenCalledWith(
+        "[axonStream]",
         expect.stringContaining("SSE stream error"),
-        expect.any(Error),
       );
 
-      warnSpy.mockRestore();
+      errorSpy.mockRestore();
     });
 
     it("closes the stream if the second subscription also fails", async () => {
@@ -378,7 +380,7 @@ describe("axonStream", () => {
         publish: vi.fn(),
       };
 
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       const { readable } = axonStream({ axon: axon as never });
 
@@ -386,7 +388,7 @@ describe("axonStream", () => {
       await expect(reader.read()).rejects.toThrow("permanent failure");
       expect(axon.subscribeSse).toHaveBeenCalledTimes(2);
 
-      warnSpy.mockRestore();
+      errorSpy.mockRestore();
     });
 
     it("does NOT re-subscribe when signal is aborted", async () => {

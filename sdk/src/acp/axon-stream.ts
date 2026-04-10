@@ -188,9 +188,8 @@ function createReadable(
         } catch (err) {
           if (signal?.aborted) break;
           if (attempt === 1) {
-            console.warn(
-              `[axonStream] SSE stream error after ${eventCount} events, re-subscribing...`,
-              err,
+            onError(
+              `[axonStream] SSE stream error after ${eventCount} events, re-subscribing: ${err}`,
             );
             continue;
           }
@@ -202,9 +201,7 @@ function createReadable(
         if (signal?.aborted) break;
 
         if (attempt === 1) {
-          console.warn(
-            `[axonStream] SSE stream ended after ${eventCount} events, re-subscribing...`,
-          );
+          onError(`[axonStream] SSE stream ended after ${eventCount} events, re-subscribing`);
           continue;
         }
         break;

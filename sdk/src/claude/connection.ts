@@ -1,20 +1,3 @@
-/**
- * ClaudeAxonConnection — bidirectional, interactive client for Claude Code via Axon.
- *
- * Provides:
- * - connect() / initialize() / disconnect() lifecycle
- * - send() to send user messages
- * - receiveMessages() / receiveResponse() async iterators
- * - Control protocol: interrupt, setPermissionMode, setModel
- * - onControlRequest() to intercept incoming control requests (e.g. tool permissions)
- *
- * Messages are yielded as `SDKMessage` from `@anthropic-ai/claude-agent-sdk` —
- * the exact types the Claude Code CLI emits. No parsing/translation layer needed.
- *
- * Communication happens over a Runloop Axon channel: outbound messages are
- * published via axon.publish(), inbound messages arrive via axon.subscribeSse().
- */
-
 import type {
   PermissionMode,
   SDKControlRequest,
@@ -22,13 +5,17 @@ import type {
   SDKMessage,
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { AxonEventView } from "@runloop/api-client/resources/axons";
+import type {
+  AxonEventView,
+  AxonPublishParams,
+  PublishResultView,
+} from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
+import { resolveReplayTarget } from "../shared/connect-guards.js";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
-import { getLastSequence } from "../shared/replay.js";
-import { tryParseSystemEvent } from "../shared/timeline.js";
+import { createClassifier } from "../shared/timeline.js";
 import { timelineEventGenerator } from "../shared/timeline-generator.js";
 import type {
   AxonEventListener,
@@ -36,7 +23,7 @@ import type {
   TimelineEventListener,
 } from "../shared/types.js";
 import { AxonTransport, MESSAGE_TYPE_TO_EVENT_TYPE, type Transport } from "./transport.js";
-import type { ClaudeTimelineEvent, WireData } from "./types.js";
+import type { ClaudeProtocolTimelineEvent, ClaudeTimelineEvent, WireData } from "./types.js";
 
 /** The inner request payload — discriminated by `subtype`. */
 export type ControlRequestInner = SDKControlRequest["request"];
@@ -310,18 +297,7 @@ export class ClaudeAxonConnection {
       throw new Error("Already connected. Call disconnect() before reconnecting.");
     }
 
-    const replay = this.options.replay ?? true;
-    if (replay && this.options.afterSequence != null) {
-      throw new Error("Cannot use both 'replay' and 'afterSequence'. They are mutually exclusive.");
-    }
-
-    let replayTargetSequence: number | undefined;
-    if (replay) {
-      replayTargetSequence = await getLastSequence(this.axon);
-      if (replayTargetSequence != null) {
-        this.log("connect", `replay target sequence: ${replayTargetSequence}`);
-      }
-    }
+    const replayTargetSequence = await resolveReplayTarget(this.axon, this.options, this.log);
 
     if (!this.transport) {
       this.transport = new AxonTransport(this.axon, {
@@ -604,7 +580,7 @@ export class ClaudeAxonConnection {
         this.messageQueue.length >= ClaudeAxonConnection.MESSAGE_QUEUE_HIGH_WATER_MARK
       ) {
         this.messageQueueWarned = true;
-        console.warn(
+        this.handleError(
           `[ClaudeAxonConnection] Message queue has ${this.messageQueue.length} buffered messages. ` +
             "Ensure you are consuming messages via receiveMessages() or receiveResponse().",
         );
@@ -831,6 +807,20 @@ export class ClaudeAxonConnection {
     await this.transport.write(JSON.stringify(message));
   }
 
+  /**
+   * Publishes a custom event to the Axon channel.
+   *
+   * The event will appear in the SSE stream and be classified by the
+   * timeline (typically as `kind: "unknown"` unless the `event_type`
+   * matches a known Claude protocol message type).
+   *
+   * @param params - The event to publish (same shape as `Axon.publish()`).
+   * @returns The publish result with sequence number and timestamp.
+   */
+  async publish(params: AxonPublishParams): Promise<PublishResultView> {
+    return this.axon.publish(params);
+  }
+
   // -----------------------------------------------------------------------
   // Public API — receiving messages
   // -----------------------------------------------------------------------
@@ -1001,37 +991,18 @@ export function isClaudeProtocolEventType(eventType: string): boolean {
  *
  * @category Timeline
  */
-export function classifyClaudeAxonEvent(ev: AxonEventView): ClaudeTimelineEvent {
-  if (ev.origin === "SYSTEM_EVENT") {
-    const systemEvent = tryParseSystemEvent(ev);
-    if (systemEvent) {
-      return { kind: "system", data: systemEvent, axonEvent: ev };
-    }
-  }
-
-  if (isClaudeProtocolEventType(ev.event_type)) {
-    let data: SDKMessage | null = null;
-    if (typeof ev.payload === "string") {
-      try {
-        data = JSON.parse(ev.payload) as SDKMessage;
-      } catch (err) {
-        console.warn(
-          `[classifyClaudeAxonEvent] Failed to parse payload for event_type="${ev.event_type}":`,
-          err,
-        );
-      }
-    } else if (ev.payload != null && typeof ev.payload === "object") {
-      data = ev.payload as SDKMessage;
-    }
+export const classifyClaudeAxonEvent = createClassifier<ClaudeProtocolTimelineEvent>({
+  label: "classifyClaudeAxonEvent",
+  isProtocolEventType: isClaudeProtocolEventType,
+  toProtocolEvent: (data, ev) => {
     if (data && typeof data === "object" && "type" in data) {
       return {
         kind: "claude_protocol",
         eventType: ev.event_type,
         data,
         axonEvent: ev,
-      } as ClaudeTimelineEvent;
+      } as ClaudeProtocolTimelineEvent;
     }
-  }
-
-  return { kind: "unknown", data: null, axonEvent: ev };
-}
+    return null;
+  },
+});

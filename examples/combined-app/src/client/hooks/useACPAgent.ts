@@ -17,6 +17,8 @@ import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,
   ChatMessage,
+  ChatItem,
+  AgentConfigItem,
   PlanEntry,
   UsageState,
   PendingPermission,
@@ -48,7 +50,7 @@ export interface UseACPAgentReturn {
   connectionPhase: "idle" | "connecting" | "ready" | "error";
   connectionStatus: string | null;
   error: string | null;
-  messages: ChatMessage[];
+  messages: ChatItem[];
   currentTurnBlocks: TurnBlock[];
   isAgentTurn: boolean;
   isStreaming: boolean;
@@ -104,7 +106,7 @@ interface ACPState {
   connectionStatus: string | null;
   error: string | null;
   isSendingPrompt: boolean;
-  messages: ChatMessage[];
+  messages: ChatItem[];
   isAgentTurn: boolean;
   isStreaming: boolean;
   plan: PlanEntry[] | null;
@@ -172,7 +174,7 @@ const INITIAL_ACP_STATE: ACPState = {
 type ACPAction =
   | { type: "RESET" }
   | { type: "SET"; patch: Partial<ACPState> }
-  | { type: "APPEND_MESSAGE"; message: ChatMessage }
+  | { type: "APPEND_MESSAGE"; message: ChatItem }
   | { type: "APPEND_TIMELINE_EVENT"; event: ACPTimelineEvent }
   | { type: "UPDATE_TOOL_ACTIVITY"; updater: (prev: ToolActivity[]) => ToolActivity[] }
   | { type: "UPDATE_SESSIONS"; updater: (prev: SessionInfo[]) => SessionInfo[] };
@@ -510,6 +512,22 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
           extra: payload,
         });
       }
+      return;
+    }
+
+    if (tlEvent.kind === "unknown" && tlEvent.axonEvent.event_type === "agent_started") {
+      let config: Record<string, unknown> = {};
+      try {
+        config = typeof tlEvent.axonEvent.payload === "string"
+          ? JSON.parse(tlEvent.axonEvent.payload)
+          : (tlEvent.axonEvent.payload as Record<string, unknown>) ?? {};
+      } catch { /* use empty */ }
+      dispatch({ type: "APPEND_MESSAGE", message: {
+        id: `config-${tlEvent.axonEvent.sequence}`,
+        role: "system",
+        itemType: "agent_started",
+        config,
+      } satisfies AgentConfigItem });
       return;
     }
   }

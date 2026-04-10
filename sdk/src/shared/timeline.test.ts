@@ -1,19 +1,6 @@
-import type { AxonEventView } from "@runloop/api-client/resources/axons";
-import { describe, expect, it } from "vitest";
-import { parseTimelinePayload, tryParseSystemEvent } from "./timeline.js";
-
-function makeAxonEvent(overrides: Partial<AxonEventView> = {}): AxonEventView {
-  return {
-    axon_id: "axn_test",
-    event_type: "turn.started",
-    origin: "SYSTEM_EVENT",
-    payload: "{}",
-    sequence: 1,
-    source: "test",
-    timestamp_ms: Date.now(),
-    ...overrides,
-  };
-}
+import { describe, expect, it, vi } from "vitest";
+import { makeFullAxonEvent as makeAxonEvent } from "../__test-utils__/mock-axon.js";
+import { createClassifier, parseTimelinePayload, tryParseSystemEvent } from "./timeline.js";
 
 describe("parseTimelinePayload", () => {
   it("parses a JSON string payload", () => {
@@ -115,5 +102,75 @@ describe("tryParseSystemEvent", () => {
   it("returns null for unrecognized event_type", () => {
     const ev = makeAxonEvent({ event_type: "custom.event" });
     expect(tryParseSystemEvent(ev)).toBeNull();
+  });
+});
+
+describe("createClassifier", () => {
+  const classify = createClassifier<{ kind: "test"; data: unknown; axonEvent: unknown }>({
+    label: "testClassifier",
+    isProtocolEventType: (t) => t.startsWith("test."),
+    toProtocolEvent: (data, ev) => ({ kind: "test", data, axonEvent: ev }),
+  });
+
+  it("classifies SYSTEM_EVENT origin as system timeline events", () => {
+    const ev = makeAxonEvent({
+      origin: "SYSTEM_EVENT",
+      event_type: "turn.started",
+      payload: JSON.stringify({ turn_id: "t-1" }),
+    });
+    const result = classify(ev);
+    expect(result.kind).toBe("system");
+  });
+
+  it("classifies known protocol event types as protocol events", () => {
+    const ev = makeAxonEvent({
+      origin: "AGENT_EVENT",
+      event_type: "test.foo",
+      payload: JSON.stringify({ bar: 1 }),
+    });
+    const result = classify(ev);
+    expect(result.kind).toBe("test");
+    expect(result.data).toEqual({ bar: 1 });
+  });
+
+  it("classifies unknown event types as unknown", () => {
+    const ev = makeAxonEvent({
+      origin: "AGENT_EVENT",
+      event_type: "other.event",
+      payload: "{}",
+    });
+    const result = classify(ev);
+    expect(result.kind).toBe("unknown");
+  });
+
+  it("routes parse errors to onError callback instead of console.warn", () => {
+    const onError = vi.fn();
+    const classifyWithHandler = createClassifier({
+      label: "errTest",
+      isProtocolEventType: (t) => t === "bad.json",
+      toProtocolEvent: () => null,
+      onError,
+    });
+
+    const ev = makeAxonEvent({
+      origin: "AGENT_EVENT",
+      event_type: "bad.json",
+      payload: "not valid json",
+    });
+    classifyWithHandler(ev);
+
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0][0]).toContain("[errTest] Failed to parse payload");
+  });
+
+  it("handles non-string payload as-is", () => {
+    const ev = makeAxonEvent({
+      origin: "AGENT_EVENT",
+      event_type: "test.obj",
+      payload: { nested: true } as unknown as string,
+    });
+    const result = classify(ev);
+    expect(result.kind).toBe("test");
+    expect(result.data).toEqual({ nested: true });
   });
 });

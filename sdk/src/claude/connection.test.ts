@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { makeFullAxonEvent } from "../__test-utils__/mock-axon.js";
 import {
   ClaudeAxonConnection,
   classifyClaudeAxonEvent,
@@ -81,7 +82,10 @@ function createMockTransport(): MockTransport {
 }
 
 function createMockAxon() {
-  return { id: "test-axon" };
+  return {
+    id: "test-axon",
+    publish: vi.fn().mockResolvedValue({ sequence: 1, timestamp_ms: Date.now() }),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +238,26 @@ describe("ClaudeAxonConnection", () => {
         return p.type === "user" && p.parent_tool_use_id === "tool_123";
       });
       expect(sent).toBeDefined();
+    });
+  });
+
+  describe("publish()", () => {
+    it("delegates to axon.publish() with the provided params", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const params = {
+        event_type: "agent_config",
+        origin: "EXTERNAL_EVENT" as const,
+        payload: JSON.stringify({ agentType: "claude", model: "test" }),
+        source: "combined-app",
+      };
+
+      const result = await conn.publish(params);
+
+      const axon = (conn as unknown as { axon: ReturnType<typeof createMockAxon> }).axon;
+      expect(axon.publish).toHaveBeenCalledOnce();
+      expect(axon.publish).toHaveBeenCalledWith(params);
+      expect(result).toEqual(expect.objectContaining({ sequence: 1 }));
     });
   });
 
@@ -1299,10 +1323,7 @@ describe("ClaudeAxonConnection", () => {
 
       expect(events).toHaveLength(1);
       expect(events[0].kind).toBe("unknown");
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[classifyClaudeAxonEvent]"),
-        expect.anything(),
-      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("[classifyClaudeAxonEvent]"));
 
       warnSpy.mockRestore();
     });
@@ -1408,25 +1429,13 @@ describe("isClaudeProtocolEventType", () => {
 // ---------------------------------------------------------------------------
 
 describe("classifyClaudeAxonEvent", () => {
-  function makeAxonEvent(
-    overrides: Partial<{
-      event_type: string;
-      payload: string;
-      origin: string;
-      sequence: number;
-    }>,
-  ) {
-    return {
-      axon_id: "axn_test",
+  const makeAxonEvent = (overrides: Partial<Parameters<typeof makeFullAxonEvent>[0]> = {}) =>
+    makeFullAxonEvent({
       event_type: "assistant",
       origin: "AGENT_EVENT",
       payload: JSON.stringify({ type: "assistant", content: "Hi" }),
-      sequence: 1,
-      source: "test",
-      timestamp_ms: Date.now(),
       ...overrides,
-    };
-  }
+    });
 
   it("classifies known protocol event with valid JSON and eventType", () => {
     const ev = makeAxonEvent({
