@@ -13,7 +13,7 @@ An interactive REPL for chatting with ACP-compatible agents (e.g. OpenCode) runn
 
 ```bash
 # From the monorepo root
-bun install
+bun install && bun run build
 
 # Set your API key
 export RUNLOOP_API_KEY=your_key
@@ -22,9 +22,15 @@ export RUNLOOP_API_KEY=your_key
 ## Running
 
 ```bash
-bun run start
-bun run start -- --agent opencode
-VERBOSE=1 bun run start
+bun run acp-cli.ts
+bun run acp-cli.ts --agent opencode
+VERBOSE=1 bun run acp-cli.ts
+```
+
+Or via the package script:
+
+```bash
+npm start
 ```
 
 ## Usage

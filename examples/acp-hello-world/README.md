@@ -15,7 +15,7 @@ This shows you how to start an axon and attach it to a devbox and register lifec
 
 ```bash
 # From the monorepo root
-bun install
+bun install && bun run build
 
 # Set your API key
 export RUNLOOP_API_KEY=your_key
@@ -24,7 +24,9 @@ export RUNLOOP_API_KEY=your_key
 ## Running
 
 ```bash
-bun run start
+npm start
+# or
+bun run acp-hello-world.ts
 ```
 
 ## What it does
