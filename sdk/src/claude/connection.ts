@@ -478,8 +478,8 @@ export class ClaudeAxonConnection {
           return "ended";
         } catch (err) {
           this.log("readLoop", `error: ${err}`);
+          this.handleError(err);
           if (err instanceof SystemError) {
-            // this is a fatal error. We never started the connection, so mark it closed.
             this.closed = true;
           }
           for (const [, pending] of this.pendingControlRequests) {
