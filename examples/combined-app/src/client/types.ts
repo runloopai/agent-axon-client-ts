@@ -12,7 +12,7 @@ import type {
   ToolKind,
 } from "@runloop/agent-axon-client/acp";
 import type { ACPTimelineEvent, AxonEventView } from "@runloop/agent-axon-client/acp";
-import type { ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
+import type { ClaudeTimelineEvent, SDKControlRequest } from "@runloop/agent-axon-client/claude";
 
 export type {
   AvailableCommand,
@@ -255,7 +255,7 @@ export interface PendingControlRequest {
   toolName: string;
   toolUseId: string;
   questions: ControlRequestQuestion[];
-  rawRequest: Record<string, unknown>;
+  rawRequest: SDKControlRequest;
 }
 
 // --- ACP-specific: permission ---
@@ -407,10 +407,9 @@ export type StartConfig =
   | { agentType: "claude"; config: ClaudeStartConfig }
   | { agentType: "acp"; config: ACPStartConfig };
 
-// --- Unified hook return type ---
+// --- Unified hook return type (discriminated union) ---
 
-export interface UseAgentReturn {
-  agentType: AgentType | null;
+export interface SharedAgentState {
   connectionPhase: ConnectionPhase;
   connectionStatus: string | null;
   error: string | null;
@@ -420,14 +419,34 @@ export interface UseAgentReturn {
   isStreaming: boolean;
   isSendingPrompt: boolean;
   usage: UsageState | null;
+  autoApprovePermissions: boolean;
+  devboxId: string | null;
+  axonId: string | null;
+  runloopUrl: string | null;
+  axonEvents: AxonEventView[];
+  timelineEvents: TimelineEvent[];
+  availableCommands: AvailableCommand[];
 
-  // Claude-specific
+  start: (params: StartConfig) => Promise<void>;
+  sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
+  cancel: () => Promise<void>;
+  shutdown: () => Promise<void>;
+  setAutoApprovePermissions: (enabled: boolean) => Promise<void>;
+}
+
+export interface ClaudeAgentState extends SharedAgentState {
+  agentType: "claude";
   initInfo: InitInfo | null;
   permissionMode: string | null;
   currentModel: string | null;
   pendingControlRequest: PendingControlRequest | null;
+  setModel: (model: string) => Promise<void>;
+  setPermissionMode: (mode: string) => Promise<void>;
+  sendControlResponse: (requestId: string, response: Record<string, unknown>) => Promise<void>;
+}
 
-  // ACP-specific
+export interface ACPAgentState extends SharedAgentState {
+  agentType: "acp";
   plan: PlanEntry[] | null;
   toolActivity: ToolActivity[];
   fileOps: FileOp[];
@@ -444,32 +463,9 @@ export interface UseAgentReturn {
   authMethods: unknown[];
   isAuthenticated: boolean;
   authDismissed: boolean;
-  availableCommands: AvailableCommand[];
   sessions: SessionInfo[];
   isLoadingSessions: boolean;
-
-  // Common
-  autoApprovePermissions: boolean;
-  devboxId: string | null;
-  axonId: string | null;
   sessionId: string | null;
-  runloopUrl: string | null;
-  axonEvents: AxonEventView[];
-  timelineEvents: TimelineEvent[];
-
-  // Actions
-  start: (params: StartConfig) => Promise<void>;
-  sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
-  cancel: () => Promise<void>;
-  shutdown: () => Promise<void>;
-  setAutoApprovePermissions: (enabled: boolean) => Promise<void>;
-
-  // Claude actions
-  setModel: (model: string) => Promise<void>;
-  setPermissionMode: (mode: string) => Promise<void>;
-  sendControlResponse: (requestId: string, response: Record<string, unknown>) => Promise<void>;
-
-  // ACP actions
   setMode: (modeId: string) => Promise<void>;
   setACPModel: (modelId: string) => Promise<void>;
   setConfigOption: (optionId: string, valueId: string) => Promise<void>;
@@ -482,3 +478,9 @@ export interface UseAgentReturn {
   switchSession: (sessionId: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
 }
+
+export interface IdleAgentState extends SharedAgentState {
+  agentType: null;
+}
+
+export type UseAgentReturn = ClaudeAgentState | ACPAgentState | IdleAgentState;

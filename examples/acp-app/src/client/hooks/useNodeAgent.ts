@@ -12,6 +12,7 @@ import type {
   PendingElicitation,
   SessionListEntry,
   UsageState,
+  UserAttachment,
   UseNodeAgentReturn,
 } from "./types.js";
 import { api } from "./api.js";
@@ -112,7 +113,21 @@ export function useNodeAgent(): UseNodeAgentReturn {
 
     const userMsg = extractACPUserMessage(tlEvent.data, tlEvent.axonEvent);
     if (userMsg) {
-      turnBlocks.addUserMessage(userMsg.text, `user-${userMsg.sequence}`);
+      const attachments: UserAttachment[] = [];
+      for (const block of userMsg.content) {
+        if (block.type === "image" && "data" in block && "mimeType" in block) {
+          attachments.push({
+            type: "image",
+            data: (block as { data: string }).data,
+            mimeType: (block as { mimeType: string }).mimeType,
+          });
+        }
+      }
+      turnBlocks.addUserMessage(
+        userMsg.text,
+        `user-${userMsg.sequence}`,
+        attachments.length > 0 ? attachments : undefined,
+      );
       return;
     }
 

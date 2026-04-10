@@ -14,7 +14,7 @@ import type {
   SystemInitBlock,
   ToolKind,
 } from "../types.js";
-import { toolKindMeta, statusIndicator } from "./shared.js";
+import { toolKindMeta, statusIndicator, groupBlocks } from "./shared.js";
 
 function getToolCallDisplayTitle(block: ToolCallBlock): string {
   const ri = block.rawInput as Record<string, unknown> | undefined;
@@ -206,45 +206,6 @@ function SystemInitSummary({ block }: { block: SystemInitBlock }) {
       </div>
     </div>
   );
-}
-
-type RenderItem =
-  | { kind: "block"; block: TurnBlock }
-  | { kind: "group"; groupKind: ToolKind; blocks: ToolCallBlock[] };
-
-function groupBlocks(blocks: TurnBlock[], isLive: boolean): RenderItem[] {
-  if (isLive) {
-    return blocks.map((block) => ({ kind: "block" as const, block }));
-  }
-
-  const items: RenderItem[] = [];
-  let i = 0;
-  while (i < blocks.length) {
-    const block = blocks[i];
-    if (block.type === "tool_call" && block.status === "completed") {
-      let j = i + 1;
-      while (
-        j < blocks.length &&
-        blocks[j].type === "tool_call" &&
-        (blocks[j] as ToolCallBlock).kind === block.kind &&
-        (blocks[j] as ToolCallBlock).status === "completed"
-      ) {
-        j++;
-      }
-      if (j - i >= 3) {
-        items.push({
-          kind: "group",
-          groupKind: block.kind,
-          blocks: blocks.slice(i, j) as ToolCallBlock[],
-        });
-        i = j;
-        continue;
-      }
-    }
-    items.push({ kind: "block", block });
-    i++;
-  }
-  return items;
 }
 
 function BlockRenderer({ block, isLive, isLastBlock }: { block: TurnBlock; isLive: boolean; isLastBlock: boolean }) {

@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useReducer, useRef, useCallback, useEffect } from "react";
 import { extractClaudeUserMessage } from "@runloop/agent-axon-client/claude";
-import type { ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
+import type { ClaudeTimelineEvent, SDKControlRequest, ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
 import type { WsEvent } from "../../server/ws.js";
 import type {
   TurnBlock,
@@ -16,6 +16,7 @@ import type {
   ClaudeInitExtensions,
 } from "../types.js";
 import { nextBlockId, inferToolKind } from "./parsers.js";
+import { useBlockManager } from "./useBlockManager.js";
 import { api } from "./api.js";
 
 export interface UseClaudeAgentReturn {
@@ -48,107 +49,96 @@ export interface UseClaudeAgentReturn {
   shutdown: () => Promise<void>;
 }
 
-export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
-  const [connectionPhase, setConnectionPhase] = useState<"idle" | "connecting" | "ready" | "error">("idle");
-  const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isSendingPrompt, setIsSendingPrompt] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [currentTurnBlocks, setCurrentTurnBlocks] = useState<TurnBlock[]>([]);
-  const [isAgentTurn, setIsAgentTurn] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [usage, setUsage] = useState<UsageState | null>(null);
-  const [initInfo, setInitInfo] = useState<InitInfo | null>(null);
-  const [devboxId, setDevboxId] = useState<string | null>(null);
-  const [axonId, setAxonId] = useState<string | null>(null);
-  const [runloopUrl, setRunloopUrl] = useState<string | null>(null);
-  const [permissionMode, setPermissionMode] = useState<string | null>(null);
-  const [currentModel, setCurrentModel] = useState<string | null>(null);
-  const [pendingControlRequest, setPendingControlRequest] = useState<PendingControlRequest | null>(null);
-  const [autoApprovePermissions, setAutoApprovePermissionsState] = useState(true);
-  const [axonEvents, setAxonEvents] = useState<AxonEventView[]>([]);
-  const [timelineEvents, setTimelineEvents] = useState<ClaudeTimelineEvent[]>([]);
+interface ClaudeState {
+  connectionPhase: "idle" | "connecting" | "ready" | "error";
+  connectionStatus: string | null;
+  error: string | null;
+  isSendingPrompt: boolean;
+  messages: ChatMessage[];
+  isAgentTurn: boolean;
+  isStreaming: boolean;
+  usage: UsageState | null;
+  initInfo: InitInfo | null;
+  devboxId: string | null;
+  axonId: string | null;
+  runloopUrl: string | null;
+  permissionMode: string | null;
+  currentModel: string | null;
+  pendingControlRequest: PendingControlRequest | null;
+  autoApprovePermissions: boolean;
+  axonEvents: AxonEventView[];
+  timelineEvents: ClaudeTimelineEvent[];
+}
 
+const INITIAL_CLAUDE_STATE: ClaudeState = {
+  connectionPhase: "idle",
+  connectionStatus: null,
+  error: null,
+  isSendingPrompt: false,
+  messages: [],
+  isAgentTurn: false,
+  isStreaming: false,
+  usage: null,
+  initInfo: null,
+  devboxId: null,
+  axonId: null,
+  runloopUrl: null,
+  permissionMode: null,
+  currentModel: null,
+  pendingControlRequest: null,
+  autoApprovePermissions: true,
+  axonEvents: [],
+  timelineEvents: [],
+};
+
+type ClaudeAction =
+  | { type: "RESET" }
+  | { type: "SET"; patch: Partial<ClaudeState> }
+  | { type: "APPEND_MESSAGE"; message: ChatMessage }
+  | { type: "APPEND_TIMELINE_EVENT"; event: ClaudeTimelineEvent };
+
+function claudeReducer(state: ClaudeState, action: ClaudeAction): ClaudeState {
+  switch (action.type) {
+    case "RESET":
+      return INITIAL_CLAUDE_STATE;
+    case "SET":
+      return { ...state, ...action.patch };
+    case "APPEND_MESSAGE":
+      return { ...state, messages: [...state.messages, action.message] };
+    case "APPEND_TIMELINE_EVENT":
+      return {
+        ...state,
+        timelineEvents: [...state.timelineEvents, action.event],
+        axonEvents: [...state.axonEvents, action.event.axonEvent],
+      };
+  }
+}
+
+export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
+  const [s, dispatch] = useReducer(claudeReducer, INITIAL_CLAUDE_STATE);
+  const blocks = useBlockManager();
   const wsRef = useRef<WebSocket | null>(null);
-  const blocksRef = useRef<TurnBlock[]>([]);
-  const thinkingStartRef = useRef<number | null>(null);
   const activeBlockIndexRef = useRef<Map<number, string>>(new Map());
 
   function resetAllState() {
-    setConnectionStatus(null);
-    setError(null);
-    setIsSendingPrompt(false);
-    setMessages([]);
-    setCurrentTurnBlocks([]);
-    setIsAgentTurn(false);
-    setIsStreaming(false);
-    setUsage(null);
-    setInitInfo(null);
-    setDevboxId(null);
-    setAxonId(null);
-    setRunloopUrl(null);
-    setPermissionMode(null);
-    setCurrentModel(null);
-    setPendingControlRequest(null);
-    setAutoApprovePermissionsState(true);
-    setAxonEvents([]);
-    setTimelineEvents([]);
-    blocksRef.current = [];
-    thinkingStartRef.current = null;
+    blocks.reset();
     activeBlockIndexRef.current.clear();
-  }
-
-  function pushBlock(block: TurnBlock) {
-    blocksRef.current = [...blocksRef.current, block];
-    setCurrentTurnBlocks(blocksRef.current);
-  }
-
-  function updateBlocks(updater: (blocks: TurnBlock[]) => TurnBlock[]) {
-    blocksRef.current = updater(blocksRef.current);
-    setCurrentTurnBlocks(blocksRef.current);
-  }
-
-  function lastBlock(): TurnBlock | undefined {
-    return blocksRef.current[blocksRef.current.length - 1];
-  }
-
-  function finalizeThinking() {
-    if (!thinkingStartRef.current) return;
-    const duration = Math.round((Date.now() - thinkingStartRef.current) / 1000);
-    updateBlocks((blocks) =>
-      blocks.map((b) =>
-        b.type === "thinking" && b.isActive
-          ? { ...b, isActive: false, duration }
-          : b,
-      ),
-    );
-    thinkingStartRef.current = null;
+    dispatch({ type: "RESET" });
   }
 
   function finalizeTurn(stopReason?: string, cost?: number, numTurns?: number, durationMs?: number) {
-    finalizeThinking();
-    const turnBlocks = blocksRef.current;
-    if (turnBlocks.length > 0) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: "",
-          blocks: turnBlocks,
-          ...(stopReason ? { stopReason } : {}),
-          ...(cost != null ? { cost } : {}),
-          ...(numTurns != null ? { numTurns } : {}),
-          ...(durationMs != null ? { durationMs } : {}),
-        },
-      ]);
+    const extra: Record<string, unknown> = {};
+    if (stopReason) extra.stopReason = stopReason;
+    if (cost != null) extra.cost = cost;
+    if (numTurns != null) extra.numTurns = numTurns;
+    if (durationMs != null) extra.durationMs = durationMs;
+
+    const msg = blocks.flushToMessage(extra);
+    if (msg) {
+      dispatch({ type: "APPEND_MESSAGE", message: msg });
     }
-    blocksRef.current = [];
-    thinkingStartRef.current = null;
     activeBlockIndexRef.current.clear();
-    setCurrentTurnBlocks([]);
-    setIsAgentTurn(false);
-    setIsStreaming(false);
+    dispatch({ type: "SET", patch: { isAgentTurn: false, isStreaming: false } });
   }
 
   function handleSDKMessage(msg: Record<string, unknown>): void {
@@ -177,15 +167,15 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
             priority: null,
           }));
 
-          const existingPlan = blocksRef.current.find((b) => b.type === "plan");
+          const existingPlan = blocks.blocksRef.current.find((b) => b.type === "plan");
           if (existingPlan) {
-            updateBlocks((blocks) =>
-              blocks.map((b) =>
+            blocks.updateBlocks((prev) =>
+              prev.map((b) =>
                 b.type === "plan" ? { ...b, entries } : b,
               ),
             );
           } else {
-            pushBlock({ type: "plan", id: nextBlockId("plan"), entries });
+            blocks.pushBlock({ type: "plan", id: nextBlockId("plan"), entries });
           }
         }
 
@@ -204,8 +194,8 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
             }
             const isError = block.is_error === true;
 
-            updateBlocks((blocks) =>
-              blocks.map((b) => {
+            blocks.updateBlocks((prev) =>
+              prev.map((b) => {
                 if (b.type !== "tool_call" || b.toolCallId !== toolUseId) return b;
                 const tc = b as ToolCallBlock;
                 const isFinishing = tc.status !== "completed" && tc.status !== "failed";
@@ -231,12 +221,12 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
         const content = message.content as Array<Record<string, unknown>>;
         if (!Array.isArray(content)) break;
 
-        setIsAgentTurn(true);
+        dispatch({ type: "SET", patch: { isAgentTurn: true } });
 
         for (const block of content) {
           if (block.type === "thinking") {
-            finalizeThinking();
-            pushBlock({
+            blocks.finalizeThinking();
+            blocks.pushBlock({
               type: "thinking",
               id: nextBlockId("think"),
               text: (block.thinking as string) ?? "",
@@ -244,16 +234,16 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
               isActive: false,
             });
           } else if (block.type === "text") {
-            finalizeThinking();
-            pushBlock({
+            blocks.finalizeThinking();
+            blocks.pushBlock({
               type: "text",
               id: nextBlockId("txt"),
               text: (block.text as string) ?? "",
             });
           } else if (block.type === "tool_use") {
-            finalizeThinking();
+            blocks.finalizeThinking();
             const toolName = (block.name as string) ?? "unknown";
-            pushBlock({
+            blocks.pushBlock({
               type: "tool_call",
               id: nextBlockId("tc"),
               toolCallId: (block.id as string) ?? "",
@@ -282,19 +272,19 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
         const msgUsage = msg.usage as Record<string, number> | undefined;
 
         if (msgUsage) {
-          setUsage({
+          dispatch({ type: "SET", patch: { usage: {
             inputTokens: msgUsage.input_tokens ?? 0,
             outputTokens: msgUsage.output_tokens ?? 0,
             cacheCreationInputTokens: msgUsage.cache_creation_input_tokens ?? 0,
             cacheReadInputTokens: msgUsage.cache_read_input_tokens ?? 0,
-          });
+          } } });
         }
 
         if (isError) {
           const errors = msg.errors as string[] | undefined;
           const userErrors = errors?.filter((e) => !e.startsWith("[ede_diagnostic]"));
           if (userErrors?.length) {
-            setError(userErrors.join("; "));
+            dispatch({ type: "SET", patch: { error: userErrors.join("; ") } });
           }
         }
 
@@ -312,23 +302,22 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
             const slashCommands = (msg.slash_commands as string[]) ?? [];
             const initModel = (msg.model as string) ?? "unknown";
 
-            setInitInfo((prev) => {
-              if (prev) {
-                setCurrentModel(initModel ?? null);
-                setPermissionMode(initPermissionMode ?? null);
-                return { ...prev, model: initModel, tools, mcpServers, permissionMode: initPermissionMode, slashCommands };
-              }
+            const newInitInfo = { model: initModel, tools, mcpServers, permissionMode: initPermissionMode, slashCommands };
+            const isFirstInit = !s.initInfo;
+            dispatch({ type: "SET", patch: {
+              initInfo: newInitInfo,
+              currentModel: initModel ?? null,
+              permissionMode: initPermissionMode ?? null,
+            } });
 
-              setCurrentModel(initModel ?? null);
-              setPermissionMode(initPermissionMode ?? null);
-
+            if (isFirstInit) {
               const extensions: ClaudeInitExtensions = {
                 protocol: "claude",
                 tools,
                 mcpServers,
                 permissionMode: initPermissionMode,
               };
-              pushBlock({
+              blocks.pushBlock({
                 type: "system_init",
                 id: nextBlockId("init"),
                 agentName: "Claude Code",
@@ -338,33 +327,31 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
                 extensions,
                 extra: { ...msg },
               });
-
-              return { model: initModel, tools, mcpServers, permissionMode: initPermissionMode, slashCommands };
-            });
+            }
             break;
           }
           case "status": {
             const mode = msg.permissionMode as string | undefined;
-            if (mode) setPermissionMode(mode);
+            if (mode) dispatch({ type: "SET", patch: { permissionMode: mode } });
             break;
           }
           case "task_started": {
-            pushBlock({
+            blocks.pushBlock({
               type: "task",
               id: nextBlockId("task"),
               taskId: (msg.task_id as string) ?? "",
               description: (msg.description as string) ?? "",
               status: "started",
             });
-            setIsAgentTurn(true);
+            dispatch({ type: "SET", patch: { isAgentTurn: true } });
             break;
           }
           case "task_progress": {
             const taskId = msg.task_id as string;
             const description = msg.description as string;
             const taskUsage = msg.usage as Record<string, number> | undefined;
-            updateBlocks((blocks) =>
-              blocks.map((b) =>
+            blocks.updateBlocks((prev) =>
+              prev.map((b) =>
                 b.type === "task" && b.taskId === taskId
                   ? {
                       ...b,
@@ -381,8 +368,8 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
             const taskId = msg.task_id as string;
             const status = msg.status as string;
             const summary = msg.summary as string;
-            updateBlocks((blocks) =>
-              blocks.map((b) =>
+            blocks.updateBlocks((prev) =>
+              prev.map((b) =>
                 b.type === "task" && b.taskId === taskId
                   ? { ...b, status: status as TaskBlock["status"], summary }
                   : b,
@@ -396,8 +383,8 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
 
       case "tool_progress": {
         const toolUseId = msg.tool_use_id as string;
-        updateBlocks((blocks) =>
-          blocks.map((b) =>
+        blocks.updateBlocks((prev) =>
+          prev.map((b) =>
             b.type === "tool_call" && b.toolCallId === toolUseId
               ? { ...b, status: "in_progress" as const }
               : b,
@@ -409,7 +396,7 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
       case "rate_limit_event": {
         const info = msg.rate_limit_info as Record<string, unknown>;
         if (info?.status === "rejected") {
-          setError(`Rate limited. Resets at: ${info.resetsAt}`);
+          dispatch({ type: "SET", patch: { error: `Rate limited. Resets at: ${info.resetsAt}` } });
         }
         break;
       }
@@ -428,35 +415,35 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
         const blockType = contentBlock.type as string;
 
         if (blockType === "thinking") {
-          finalizeThinking();
-          thinkingStartRef.current = Date.now();
+          blocks.finalizeThinking();
+          blocks.thinkingStartRef.current = Date.now();
           const blockId = nextBlockId("think");
           activeBlockIndexRef.current.set(index, blockId);
-          pushBlock({
+          blocks.pushBlock({
             type: "thinking",
             id: blockId,
             text: "",
             duration: null,
             isActive: true,
           });
-          setIsAgentTurn(true);
+          dispatch({ type: "SET", patch: { isAgentTurn: true } });
         } else if (blockType === "text") {
-          finalizeThinking();
+          blocks.finalizeThinking();
           const blockId = nextBlockId("txt");
           activeBlockIndexRef.current.set(index, blockId);
-          pushBlock({
+          blocks.pushBlock({
             type: "text",
             id: blockId,
             text: "",
           });
-          setIsStreaming(true);
-          setIsAgentTurn(true);
+          dispatch({ type: "SET", patch: { isStreaming: true } });
+          dispatch({ type: "SET", patch: { isAgentTurn: true } });
         } else if (blockType === "tool_use") {
-          finalizeThinking();
+          blocks.finalizeThinking();
           const blockId = nextBlockId("tc");
           activeBlockIndexRef.current.set(index, blockId);
           const toolName = (contentBlock.name as string) ?? "unknown";
-          pushBlock({
+          blocks.pushBlock({
             type: "tool_call",
             id: blockId,
             toolCallId: (contentBlock.id as string) ?? "",
@@ -471,7 +458,7 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
             duration: null,
             extra: { toolName },
           });
-          setIsAgentTurn(true);
+          dispatch({ type: "SET", patch: { isAgentTurn: true } });
         }
         break;
       }
@@ -489,8 +476,8 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
         if (deltaType === "thinking_delta") {
           const thinking = delta.thinking as string;
           if (thinking) {
-            updateBlocks((blocks) =>
-              blocks.map((b) =>
+            blocks.updateBlocks((prev) =>
+              prev.map((b) =>
                 b.id === blockId && b.type === "thinking"
                   ? { ...b, text: b.text + thinking }
                   : b,
@@ -500,8 +487,8 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
         } else if (deltaType === "text_delta") {
           const text = delta.text as string;
           if (text) {
-            updateBlocks((blocks) =>
-              blocks.map((b) =>
+            blocks.updateBlocks((prev) =>
+              prev.map((b) =>
                 b.id === blockId && b.type === "text"
                   ? { ...b, text: b.text + text }
                   : b,
@@ -516,9 +503,9 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
         const index = event.index as number;
         const blockId = activeBlockIndexRef.current.get(index);
         if (blockId) {
-          const block = blocksRef.current.find((b) => b.id === blockId);
+          const block = blocks.blocksRef.current.find((b) => b.id === blockId);
           if (block?.type === "thinking" && block.isActive) {
-            finalizeThinking();
+            blocks.finalizeThinking();
           }
           activeBlockIndexRef.current.delete(index);
         }
@@ -526,18 +513,18 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
       }
 
       case "message_start":
-        setIsAgentTurn(true);
+        dispatch({ type: "SET", patch: { isAgentTurn: true } });
         break;
 
       case "message_delta": {
         const deltaUsage = event.usage as Record<string, number> | undefined;
         if (deltaUsage) {
-          setUsage((prev) => ({
-            inputTokens: prev?.inputTokens ?? 0,
-            outputTokens: deltaUsage.output_tokens ?? prev?.outputTokens ?? 0,
-            cacheCreationInputTokens: prev?.cacheCreationInputTokens ?? 0,
-            cacheReadInputTokens: prev?.cacheReadInputTokens ?? 0,
-          }));
+          dispatch({ type: "SET", patch: { usage: {
+            inputTokens: s.usage?.inputTokens ?? 0,
+            outputTokens: deltaUsage.output_tokens ?? s.usage?.outputTokens ?? 0,
+            cacheCreationInputTokens: s.usage?.cacheCreationInputTokens ?? 0,
+            cacheReadInputTokens: s.usage?.cacheReadInputTokens ?? 0,
+          } } });
         }
         break;
       }
@@ -547,39 +534,33 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
     }
   }
 
-  function handleControlRequest(msg: Record<string, unknown>): void {
-    const requestId = msg.request_id as string;
-    const request = msg.request as Record<string, unknown>;
-    if (!request || request.subtype !== "can_use_tool") return;
+  function handleControlRequest(msg: SDKControlRequest): void {
+    const requestId = msg.request_id;
+    const request = msg.request;
+    if (request.subtype !== "can_use_tool") return;
 
-    const toolName = request.tool_name as string;
-    const toolUseId = request.tool_use_id as string;
-    const input = request.input as Record<string, unknown>;
-    const questions = (input?.questions as ControlRequestQuestion[]) ?? [];
+    const permReq = request as ControlRequestOfSubtype<"can_use_tool">;
+    const questions = (permReq.input?.questions as ControlRequestQuestion[]) ?? [];
 
-    setPendingControlRequest({
+    dispatch({ type: "SET", patch: { pendingControlRequest: {
       requestId,
-      toolName,
-      toolUseId,
+      toolName: permReq.tool_name,
+      toolUseId: permReq.tool_use_id,
       questions,
       rawRequest: msg,
-    });
+    } } });
   }
 
   function handleTimelineEvent(tlEvent: ClaudeTimelineEvent): void {
-    setTimelineEvents((prev) => [...prev, tlEvent]);
-    setAxonEvents((prev) => [...prev, tlEvent.axonEvent]);
+    dispatch({ type: "APPEND_TIMELINE_EVENT", event: tlEvent });
 
     const userMsg = extractClaudeUserMessage(tlEvent.data, tlEvent.axonEvent);
     if (userMsg) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `user-${userMsg.sequence}`,
-          role: "user" as const,
-          content: userMsg.text,
-        },
-      ]);
+      dispatch({ type: "APPEND_MESSAGE", message: {
+        id: `user-${userMsg.sequence}`,
+        role: "user" as const,
+        content: userMsg.text,
+      } });
       return;
     }
 
@@ -594,11 +575,11 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
     if (!agentId) {
       wsRef.current?.close();
       wsRef.current = null;
-      setConnectionPhase("idle");
+      dispatch({ type: "SET", patch: { connectionPhase: "idle" } });
       return;
     }
 
-    setConnectionPhase("connecting");
+    dispatch({ type: "SET", patch: { connectionPhase: "connecting" } });
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -621,20 +602,20 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
       }
 
       if (parsed.type === "connection_progress") {
-        setConnectionStatus(parsed.step);
+        dispatch({ type: "SET", patch: { connectionStatus: parsed.step } });
         return;
       }
 
       if (parsed.type === "control_request") {
-        handleControlRequest(parsed.controlRequest as Record<string, unknown>);
+        handleControlRequest(parsed.controlRequest as SDKControlRequest);
       } else if (parsed.type === "turn_error") {
         finalizeTurn();
-        setError(parsed.error);
+        dispatch({ type: "SET", patch: { error: parsed.error } });
       }
     };
 
     socket.onopen = () => {
-      setConnectionPhase("ready");
+      dispatch({ type: "SET", patch: { connectionPhase: "ready" } });
       api("/api/subscribe", { agentId }).catch(() => {});
     };
 
@@ -655,14 +636,10 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
     if (!text.trim() && (!content || content.length === 0)) return;
 
-    blocksRef.current = [];
-    thinkingStartRef.current = null;
+    blocks.reset();
     activeBlockIndexRef.current.clear();
-    setCurrentTurnBlocks([]);
-    setIsAgentTurn(true);
-    setIsStreaming(false);
+    dispatch({ type: "SET", patch: { isAgentTurn: true, isStreaming: false, isSendingPrompt: true } });
 
-    setIsSendingPrompt(true);
     try {
       if (content && content.length > 0) {
         await api("/api/prompt", { agentId, content });
@@ -670,43 +647,43 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
         await api("/api/prompt", { agentId, text });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      dispatch({ type: "SET", patch: { error: err instanceof Error ? err.message : String(err) } });
     } finally {
-      setIsSendingPrompt(false);
+      dispatch({ type: "SET", patch: { isSendingPrompt: false } });
     }
   }, [agentId]);
 
   const cancel = useCallback(async () => {
     try { await api("/api/cancel", { agentId }); } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      dispatch({ type: "SET", patch: { error: err instanceof Error ? err.message : String(err) } });
     }
   }, [agentId]);
 
   const setModelAction = useCallback(async (model: string) => {
     try { await api("/api/set-model", { agentId, model }); } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      dispatch({ type: "SET", patch: { error: err instanceof Error ? err.message : String(err) } });
     }
   }, [agentId]);
 
   const setPermissionModeAction = useCallback(async (mode: string) => {
     try { await api("/api/set-permission-mode", { agentId, mode }); } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      dispatch({ type: "SET", patch: { error: err instanceof Error ? err.message : String(err) } });
     }
   }, [agentId]);
 
   const setAutoApprovePermissions = useCallback(async (enabled: boolean) => {
-    setAutoApprovePermissionsState(enabled);
+    dispatch({ type: "SET", patch: { autoApprovePermissions: enabled } });
     try { await api("/api/set-auto-approve-permissions", { agentId, enabled }); } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      dispatch({ type: "SET", patch: { error: err instanceof Error ? err.message : String(err) } });
     }
   }, [agentId]);
 
   const sendControlResponse = useCallback(async (requestId: string, response: Record<string, unknown>) => {
     try {
       await api("/api/control-response", { agentId, requestId, response });
-      setPendingControlRequest(null);
+      dispatch({ type: "SET", patch: { pendingControlRequest: null } });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      dispatch({ type: "SET", patch: { error: err instanceof Error ? err.message : String(err) } });
     }
   }, [agentId]);
 
@@ -714,30 +691,30 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
     try { await api("/api/shutdown", { agentId }); } catch { /* ignore */ }
     wsRef.current?.close();
     wsRef.current = null;
-    setConnectionPhase("idle");
+    dispatch({ type: "SET", patch: { connectionPhase: "idle" } });
     resetAllState();
   }, [agentId]);
 
   return {
-    connectionPhase,
-    connectionStatus,
-    error,
-    messages,
-    currentTurnBlocks,
-    isAgentTurn,
-    isStreaming,
-    isSendingPrompt,
-    usage,
-    initInfo,
-    devboxId,
-    axonId,
-    runloopUrl,
-    permissionMode,
-    currentModel,
-    autoApprovePermissions,
-    axonEvents,
-    timelineEvents,
-    pendingControlRequest,
+    connectionPhase: s.connectionPhase,
+    connectionStatus: s.connectionStatus,
+    error: s.error,
+    messages: s.messages,
+    currentTurnBlocks: blocks.currentTurnBlocks,
+    isAgentTurn: s.isAgentTurn,
+    isStreaming: s.isStreaming,
+    isSendingPrompt: s.isSendingPrompt,
+    usage: s.usage,
+    initInfo: s.initInfo,
+    devboxId: s.devboxId,
+    axonId: s.axonId,
+    runloopUrl: s.runloopUrl,
+    permissionMode: s.permissionMode,
+    currentModel: s.currentModel,
+    autoApprovePermissions: s.autoApprovePermissions,
+    axonEvents: s.axonEvents,
+    timelineEvents: s.timelineEvents,
+    pendingControlRequest: s.pendingControlRequest,
     start,
     sendMessage,
     cancel,

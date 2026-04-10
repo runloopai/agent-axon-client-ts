@@ -1,3 +1,4 @@
+import type { ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
 import type { PendingControlRequest } from "../types.js";
 
 export function ControlRequestPrompt({
@@ -8,9 +9,10 @@ export function ControlRequestPrompt({
   onRespond: (requestId: string, response: Record<string, unknown>) => void;
 }) {
   const handleAllow = () => {
+    const permReq = request.rawRequest.request as ControlRequestOfSubtype<"can_use_tool">;
     onRespond(request.requestId, {
       behavior: "allow",
-      updatedInput: request.rawRequest.request,
+      updatedInput: permReq.input,
     });
   };
 

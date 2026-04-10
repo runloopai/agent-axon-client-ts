@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { SessionUpdate } from "@runloop/agent-axon-client/acp";
 import type { AxonEventView } from "../types.js";
-import { MarkdownContent } from "./shared.js";
+import { PayloadTree, formatTime, originLabel, originBadgeClass } from "./shared.js";
 
 interface AxonEventSummary {
   icon: string;
@@ -99,88 +99,6 @@ function summarizeAxonEvent(event: AxonEventView): AxonEventSummary {
     default:
       return { icon: "\u{1F4E6}", label: event.event_type, summary: "", colorClass: baseColor };
   }
-}
-
-function formatTime(timestampMs: number): string {
-  const d = new Date(timestampMs);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
-function originLabel(origin: string): string {
-  switch (origin) {
-    case "USER_EVENT": return "USER";
-    case "AGENT_EVENT": return "AGENT";
-    case "SYSTEM_EVENT": return "SYSTEM";
-    case "EXTERNAL_EVENT": return "EXTERNAL";
-    default: return origin;
-  }
-}
-
-function originBadgeClass(origin: string): string {
-  switch (origin) {
-    case "USER_EVENT": return "axon-badge-user";
-    case "AGENT_EVENT": return "axon-badge-agent";
-    case "SYSTEM_EVENT": return "axon-badge-system";
-    default: return "axon-badge-default";
-  }
-}
-
-function PayloadTree({ data, depth = 0 }: { data: unknown; depth?: number }) {
-  if (data === null || data === undefined) {
-    return <span className="axon-val axon-val-null">null</span>;
-  }
-
-  if (typeof data === "boolean") {
-    return <span className="axon-val axon-val-bool">{String(data)}</span>;
-  }
-
-  if (typeof data === "number") {
-    return <span className="axon-val axon-val-num">{data}</span>;
-  }
-
-  if (typeof data === "string") {
-    if (data.length > 120) {
-      return <span className="axon-val axon-val-str" title={data}>"{data.slice(0, 120)}\u2026"</span>;
-    }
-    return <span className="axon-val axon-val-str">"{data}"</span>;
-  }
-
-  if (Array.isArray(data)) {
-    if (data.length === 0) return <span className="axon-val axon-val-null">[]</span>;
-    if (depth > 3) return <span className="axon-val axon-val-null">[{data.length} items]</span>;
-    return (
-      <div className="axon-tree-array">
-        {data.map((item, i) => (
-          <div key={i} className="axon-tree-row">
-            <span className="axon-tree-idx">[{i}]</span>
-            <PayloadTree data={item} depth={depth + 1} />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (typeof data === "object") {
-    const entries = Object.entries(data as Record<string, unknown>);
-    if (entries.length === 0) return <span className="axon-val axon-val-null">{"{}"}</span>;
-    if (depth > 3) return <span className="axon-val axon-val-null">{`{${entries.length} keys}`}</span>;
-
-    return (
-      <div className="axon-tree-obj">
-        {entries.map(([key, val]) => {
-          const isComplex = val !== null && typeof val === "object";
-          return (
-            <div key={key} className={`axon-tree-row ${isComplex ? "axon-tree-row-block" : ""}`}>
-              <span className="axon-tree-key">{key}:</span>
-              <PayloadTree data={val} depth={depth + 1} />
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return <span className="axon-val">{String(data)}</span>;
 }
 
 function buildFullEvent(event: AxonEventView): Record<string, unknown> {

@@ -19,6 +19,7 @@ import { PermissionDialog } from "./components/PermissionDialog.js";
 import { ControlRequestPrompt } from "./components/ControlRequestPrompt.js";
 import { CommandPicker } from "./components/CommandPicker.js";
 import { AxonEventItem } from "./components/AxonEventItem.js";
+import { TimelineEventItem } from "./components/TimelineEventItem.js";
 import { TurnBlocksInspector } from "./components/TurnBlocksInspector.js";
 import { api } from "./hooks/api.js";
 
@@ -61,6 +62,7 @@ export default function App() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
   const axonEndRef = useRef<HTMLDivElement>(null);
+  const timelineEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -74,7 +76,8 @@ export default function App() {
   const [inputText, setInputText] = useState("");
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [expandedAxonEvents, setExpandedAxonEvents] = useState<Set<number>>(new Set());
-  const [rightTab, setRightTab] = useState<"activity" | "axon">("activity");
+  const [expandedTimelineEvents, setExpandedTimelineEvents] = useState<Set<number>>(new Set());
+  const [rightTab, setRightTab] = useState<"activity" | "axon" | "timeline">("activity");
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [commandPickerIndex, setCommandPickerIndex] = useState(0);
 
@@ -97,6 +100,10 @@ export default function App() {
   useEffect(() => {
     axonEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [agent.axonEvents]);
+
+  useEffect(() => {
+    timelineEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [agent.timelineEvents]);
 
   const toggleBlock = (id: string) => {
     setExpandedBlocks((prev) => {
@@ -292,6 +299,14 @@ export default function App() {
     navigator.clipboard.writeText(JSON.stringify({ ...event, payload: parsedPayload }, null, 2));
   }, []);
 
+  const copyTimelineEvent = useCallback((event: unknown) => {
+    navigator.clipboard.writeText(JSON.stringify(event, null, 2));
+  }, []);
+
+  const copyAllTimelineEvents = useCallback(() => {
+    navigator.clipboard.writeText(JSON.stringify(agent.timelineEvents, null, 2));
+  }, [agent.timelineEvents]);
+
   const copyAllAxonEvents = useCallback(() => {
     const all = agent.axonEvents.map((event) => {
       let parsedPayload: unknown = event.payload;
@@ -391,7 +406,7 @@ export default function App() {
                       blocks={msg.blocks ?? []}
                       expandedBlocks={expandedBlocks}
                       onToggleBlock={toggleBlock}
-                      terminals={agent.terminals}
+                      terminals={agent.agentType === "acp" ? agent.terminals : undefined}
                       isLive={false}
                       stopReason={msg.stopReason}
                     />
@@ -403,19 +418,19 @@ export default function App() {
                     blocks={agent.currentTurnBlocks}
                     expandedBlocks={expandedBlocks}
                     onToggleBlock={toggleBlock}
-                    terminals={agent.terminals}
+                    terminals={agent.agentType === "acp" ? agent.terminals : undefined}
                     isLive={agent.isAgentTurn}
                   />
                 )}
 
-                {agent.pendingControlRequest && (
+                {agent.agentType === "claude" && agent.pendingControlRequest && (
                   <ControlRequestPrompt
                     request={agent.pendingControlRequest}
                     onRespond={agent.sendControlResponse}
                   />
                 )}
 
-                {agent.pendingPermission && (
+                {agent.agentType === "acp" && agent.pendingPermission && (
                   <PermissionDialog
                     permission={agent.pendingPermission}
                     onAllow={agent.respondToPermission}
@@ -423,7 +438,7 @@ export default function App() {
                   />
                 )}
 
-                {agent.pendingElicitation && (
+                {agent.agentType === "acp" && agent.pendingElicitation && (
                   <ElicitationForm
                     elicitation={agent.pendingElicitation}
                     onRespond={agent.respondToElicitation}
@@ -517,6 +532,15 @@ export default function App() {
                 )}
               </button>
               <button
+                className={`sidebar-tab ${rightTab === "timeline" ? "active" : ""}`}
+                onClick={() => setRightTab("timeline")}
+              >
+                Timeline
+                {agent.timelineEvents.length > 0 && (
+                  <span className="tab-count">{agent.timelineEvents.length}</span>
+                )}
+              </button>
+              <button
                 className={`sidebar-tab ${rightTab === "axon" ? "active" : ""}`}
                 onClick={() => setRightTab("axon")}
               >
@@ -535,6 +559,34 @@ export default function App() {
                   isAgentTurn={agent.isAgentTurn}
                 />
               </div>
+            ) : rightTab === "timeline" ? (
+              <div className="events-list">
+                {agent.timelineEvents.length > 0 && (
+                  <div className="events-list-toolbar">
+                    <button className="btn btn-ghost btn-copy-all" onClick={copyAllTimelineEvents}>Copy All</button>
+                  </div>
+                )}
+                {agent.timelineEvents.length === 0 && (
+                  <div className="empty-state">No timeline events yet</div>
+                )}
+                {agent.timelineEvents.map((event) => (
+                  <TimelineEventItem
+                    key={event.axonEvent.sequence}
+                    event={event}
+                    expanded={expandedTimelineEvents.has(event.axonEvent.sequence)}
+                    onToggle={() =>
+                      setExpandedTimelineEvents((prev) => {
+                        const next = new Set(prev);
+                        const seq = event.axonEvent.sequence;
+                        next.has(seq) ? next.delete(seq) : next.add(seq);
+                        return next;
+                      })
+                    }
+                    onCopy={() => copyTimelineEvent(event)}
+                  />
+                ))}
+                <div ref={timelineEndRef} />
+              </div>
             ) : (
               <div className="events-list">
                 {agent.axonEvents.length > 0 && (
@@ -545,15 +597,16 @@ export default function App() {
                 {agent.axonEvents.length === 0 && (
                   <div className="empty-state">No axon events yet</div>
                 )}
-                {agent.axonEvents.map((event, i) => (
+                {agent.axonEvents.map((event) => (
                   <AxonEventItem
-                    key={i}
+                    key={event.sequence}
                     event={event}
-                    expanded={expandedAxonEvents.has(i)}
+                    expanded={expandedAxonEvents.has(event.sequence)}
                     onToggle={() =>
                       setExpandedAxonEvents((prev) => {
                         const next = new Set(prev);
-                        next.has(i) ? next.delete(i) : next.add(i);
+                        const seq = event.sequence;
+                        next.has(seq) ? next.delete(seq) : next.add(seq);
                         return next;
                       })
                     }
