@@ -15,7 +15,6 @@ let connection: ClaudeAxonConnection | null = null;
 let abortController: AbortController | null = null;
 let axonEvents: AxonEventView[] = [];
 let initMessage: SDKMessage | null = null;
-let autoApprovePermissions = true;
 
 // Pending control requests awaiting a response from the frontend.
 // When a can_use_tool control request arrives, we broadcast it to WS clients
@@ -62,8 +61,7 @@ async function runReadLoop(conn: ClaudeAxonConnection): Promise<void> {
 
 app.post("/api/start", async (req, res) => {
   try {
-    const { blueprintName, launchCommands, systemPrompt, model, autoApprovePermissions: initialAutoApprove } = req.body;
-    autoApprovePermissions = initialAutoApprove !== false;
+    const { blueprintName, launchCommands, systemPrompt, model, dangerouslySkipPermissions } = req.body;
 
     const apiKey = process.env.RUNLOOP_API_KEY;
     const baseUrl = process.env.RUNLOOP_BASE_URL;
@@ -93,7 +91,7 @@ app.post("/api/start", async (req, res) => {
           type: "broker_mount" as const,
           axon_id: axon.id,
           protocol: "claude_json" as const,
-          launch_args: [],
+          launch_args: dangerouslySkipPermissions !== false ? ["--dangerously-skip-permissions"] : [],
         },
       ],
       environment_variables: {
@@ -127,45 +125,50 @@ app.post("/api/start", async (req, res) => {
       ws.broadcast({ type: "timeline_event", event: ev });
     });
 
-    // Intercept can_use_tool control requests: auto-approve or forward to the
-    // frontend via WebSocket and wait for the user's response.
+    const skipPerms = dangerouslySkipPermissions !== false;
+
+    // Intercept can_use_tool control requests.
+    // With --dangerously-skip-permissions we auto-approve (shouldn't normally
+    // hit this path for permissions, but AskUserQuestion still arrives here).
+    // Without it, forward all requests to the frontend for user approval.
     conn.onControlRequest("can_use_tool", async (message) => {
       const requestId = message.request_id;
       const request = message.request;
       console.log(
-        `[control] can_use_tool request: tool=${request.tool_name} id=${requestId} autoApprove=${autoApprovePermissions}`,
+        `[control] can_use_tool request: tool=${request.tool_name} id=${requestId} skipPerms=${skipPerms}`,
       );
 
-      if (autoApprovePermissions) {
-        return {
-          type: "control_response",
-          response: {
-            subtype: "success",
-            request_id: requestId,
-            response: { behavior: "allow", updatedInput: request.input },
-          },
-        };
+      // AskUserQuestion always goes to the frontend
+      // Without --dangerously-skip-permissions, all requests go to the frontend
+      if (request.tool_name === "AskUserQuestion" || !skipPerms) {
+        ws.broadcast({ type: "control_request", controlRequest: message });
+
+        return new Promise<SDKControlResponse>((resolve, reject) => {
+          pendingControlResponses.set(requestId, {
+            resolve: (data: unknown) => {
+              resolve({
+                type: "control_response",
+                response: {
+                  subtype: "success",
+                  request_id: requestId,
+                  response: data as Record<string, unknown>,
+                },
+              });
+            },
+            reject,
+          });
+        });
       }
 
-      // Broadcast to connected browser clients
-      ws.broadcast({ type: "control_request", controlRequest: message });
-
-      // Park a promise that will be resolved by /api/control-response
-      return new Promise<SDKControlResponse>((resolve, reject) => {
-        pendingControlResponses.set(requestId, {
-          resolve: (data: unknown) => {
-            resolve({
-              type: "control_response",
-              response: {
-                subtype: "success",
-                request_id: requestId,
-                response: data as Record<string, unknown>,
-              },
-            });
-          },
-          reject,
-        });
-      });
+      // Auto-approve (only reachable with --dangerously-skip-permissions)
+      return {
+        type: "control_response",
+        response: {
+          subtype: "success",
+          request_id: requestId,
+          response: { behavior: "allow", updatedInput: request.input },
+        },
+      };
     });
 
     ws.broadcast({ type: "connection_progress", step: "Connecting to Claude Code..." });
@@ -300,12 +303,6 @@ app.post("/api/control-response", async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/set-auto-approve-permissions", (req, res) => {
-  const { enabled } = req.body;
-  autoApprovePermissions = !!enabled;
-  res.json({ ok: true, autoApprovePermissions });
-});
-
 // TODO: re-enable when getContextUsage / getMcpStatus are added to ClaudeAxonConnection
 // app.post("/api/get-context-usage", async (_req, res) => { ... });
 // app.post("/api/get-mcp-status", async (_req, res) => { ... });
@@ -324,7 +321,6 @@ app.post("/api/shutdown", async (_req, res) => {
     abortController = null;
     axonEvents = [];
     initMessage = null;
-    autoApprovePermissions = true;
     // Reject any pending control responses
     for (const [, pending] of pendingControlResponses) {
       pending.reject(new Error("Shutdown"));

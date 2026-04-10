@@ -146,7 +146,7 @@ export default function App() {
       : {
           blueprintName: blueprintName || undefined,
           model: model || undefined,
-          autoApprovePermissions: startAutoApprove,
+          dangerouslySkipPermissions: startAutoApprove,
           ...sharedConfig,
         };
 

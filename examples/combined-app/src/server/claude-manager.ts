@@ -9,18 +9,18 @@ export interface ClaudeStartOptions {
   launchCommands?: string[];
   systemPrompt?: string;
   model?: string;
-  autoApprovePermissions?: boolean;
+  dangerouslySkipPermissions?: boolean;
 }
 
 export class ClaudeConnectionManager {
   connection: ClaudeAxonConnection | null = null;
   axonEvents: AxonEventView[] = [];
-  autoApprovePermissions = true;
 
   private axon: Axon | null = null;
   private devbox: Devbox | null = null;
   private storedSystemPrompt?: string;
   private storedModel?: string;
+  private storedDangerouslySkipPermissions?: boolean;
   private pendingControlResponses = new Map<
     string,
     { resolve: (data: unknown) => void; reject: (err: Error) => void }
@@ -36,7 +36,6 @@ export class ClaudeConnectionManager {
   }
 
   async start(opts: ClaudeStartOptions) {
-    this.autoApprovePermissions = opts.autoApprovePermissions !== false;
 
     const apiKey = process.env.RUNLOOP_API_KEY;
     const baseUrl = process.env.RUNLOOP_BASE_URL;
@@ -62,7 +61,7 @@ export class ClaudeConnectionManager {
           type: "broker_mount" as const,
           axon_id: axon.id,
           protocol: "claude_json" as const,
-          launch_args: [],
+          launch_args: opts.dangerouslySkipPermissions !== false ? ["--dangerously-skip-permissions"] : [],
         },
       ],
       environment_variables: {
@@ -77,6 +76,7 @@ export class ClaudeConnectionManager {
 
     this.storedSystemPrompt = opts.systemPrompt;
     this.storedModel = opts.model;
+    this.storedDangerouslySkipPermissions = opts.dangerouslySkipPermissions;
 
     this.ws.broadcast(this.tag({ type: "connection_progress", step: "Connecting to Claude Code..." }));
     const conn = this.wireConnection(axon, devbox, {
@@ -122,41 +122,50 @@ export class ClaudeConnectionManager {
       this.ws.broadcast(this.tag({ type: "timeline_event", event: ev }));
     });
 
+    const skipPerms = this.storedDangerouslySkipPermissions !== false;
+
+    // Intercept can_use_tool control requests.
+    // With --dangerously-skip-permissions we auto-approve (shouldn't normally
+    // hit this path for permissions, but AskUserQuestion still arrives here).
+    // Without it, forward all requests to the frontend for user approval.
     conn.onControlRequest("can_use_tool", async (message) => {
       const requestId = message.request_id;
       const request = message.request;
       console.log(
-        `[control] can_use_tool request: tool=${request.tool_name} id=${requestId} autoApprove=${this.autoApprovePermissions}`,
+        `[control] can_use_tool request: tool=${request.tool_name} id=${requestId} skipPerms=${skipPerms}`,
       );
 
-      if (this.autoApprovePermissions) {
-        return {
-          type: "control_response",
-          response: {
-            subtype: "success",
-            request_id: requestId,
-            response: { behavior: "allow", updatedInput: request.input },
-          },
-        };
+      // AskUserQuestion always goes to the frontend
+      // Without --dangerously-skip-permissions, all requests go to the frontend
+      if (request.tool_name === "AskUserQuestion" || !skipPerms) {
+        this.ws.broadcast(this.tag({ type: "control_request", controlRequest: message }));
+
+        return new Promise<SDKControlResponse>((resolve, reject) => {
+          this.pendingControlResponses.set(requestId, {
+            resolve: (data: unknown) => {
+              resolve({
+                type: "control_response",
+                response: {
+                  subtype: "success",
+                  request_id: requestId,
+                  response: data as Record<string, unknown>,
+                },
+              });
+            },
+            reject,
+          });
+        });
       }
 
-      this.ws.broadcast(this.tag({ type: "control_request", controlRequest: message }));
-
-      return new Promise<SDKControlResponse>((resolve, reject) => {
-        this.pendingControlResponses.set(requestId, {
-          resolve: (data: unknown) => {
-            resolve({
-              type: "control_response",
-              response: {
-                subtype: "success",
-                request_id: requestId,
-                response: data as Record<string, unknown>,
-              },
-            });
-          },
-          reject,
-        });
-      });
+      // Auto-approve (only reachable with --dangerously-skip-permissions)
+      return {
+        type: "control_response",
+        response: {
+          subtype: "success",
+          request_id: requestId,
+          response: { behavior: "allow", updatedInput: request.input },
+        },
+      };
     });
 
     return conn;
@@ -210,9 +219,9 @@ export class ClaudeConnectionManager {
     this.axon = null;
     this.devbox = null;
     this.axonEvents = [];
-    this.autoApprovePermissions = true;
     this.storedSystemPrompt = undefined;
     this.storedModel = undefined;
+    this.storedDangerouslySkipPermissions = undefined;
     for (const [, pending] of this.pendingControlResponses) {
       pending.reject(new Error("Shutdown"));
     }

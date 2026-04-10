@@ -36,15 +36,15 @@ export interface UseClaudeAgentReturn {
   runloopUrl: string | null;
   permissionMode: string | null;
   currentModel: string | null;
-  autoApprovePermissions: boolean;
   axonEvents: AxonEventView[];
   timelineEvents: ClaudeTimelineEvent[];
+  autoApprovePermissions: boolean;
   pendingControlRequest: PendingControlRequest | null;
   sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
   cancel: () => Promise<void>;
+  setAutoApprovePermissions: (enabled: boolean) => Promise<void>;
   setModel: (model: string) => Promise<void>;
   setPermissionMode: (mode: string) => Promise<void>;
-  setAutoApprovePermissions: (enabled: boolean) => Promise<void>;
   sendControlResponse: (requestId: string, response: Record<string, unknown>) => Promise<void>;
   shutdown: () => Promise<void>;
 }
@@ -704,6 +704,7 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
     }
   }, [agentId]);
 
+
   const sendControlResponse = useCallback(async (requestId: string, response: Record<string, unknown>) => {
     try {
       await api("/api/control-response", { agentId, requestId, response });
@@ -743,9 +744,9 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
     pendingControlRequest: s.pendingControlRequest,
     sendMessage,
     cancel,
+    setAutoApprovePermissions,
     setModel: setModelAction,
     setPermissionMode: setPermissionModeAction,
-    setAutoApprovePermissions,
     sendControlResponse,
     shutdown,
   };

@@ -142,7 +142,7 @@
       },
       "peerDependencies": {
         "@anthropic-ai/claude-agent-sdk": ">=0.2.90",
-        "@runloop/api-client": "^1.18.1",
+        "@runloop/api-client": ">=1.18.1",
       },
       "optionalPeers": [
         "@anthropic-ai/claude-agent-sdk",

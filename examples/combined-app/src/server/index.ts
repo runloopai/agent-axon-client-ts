@@ -280,9 +280,7 @@ app.post("/api/set-auto-approve-permissions", (req, res) => {
   if (!entry) return;
 
   const { enabled } = req.body;
-  if (entry.agentType === "claude" && entry.claudeManager) {
-    entry.claudeManager.autoApprovePermissions = !!enabled;
-  } else if (entry.agentType === "acp" && entry.acpManager?.nodeClient) {
+  if (entry.agentType === "acp" && entry.acpManager?.nodeClient) {
     entry.acpManager.nodeClient.autoApprovePermissions = !!enabled;
   }
   res.json({ ok: true, autoApprovePermissions: !!enabled });

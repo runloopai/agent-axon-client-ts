@@ -142,19 +142,17 @@ export interface UseClaudeAgentReturn {
   runloopUrl: string | null;
   permissionMode: string | null;
   currentModel: string | null;
-  autoApprovePermissions: boolean;
   /** Raw Axon events for the event viewer. */
   axonEvents: AxonEventView[];
   /** Classified timeline events (protocol, system, unknown) for the timeline view. */
   timelineEvents: ClaudeTimelineEvent[];
   /** A pending control request awaiting user input (e.g. AskUserQuestion), or null. */
   pendingControlRequest: PendingControlRequest | null;
-  start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; autoApprovePermissions?: boolean }) => Promise<void>;
+  start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; dangerouslySkipPermissions?: boolean }) => Promise<void>;
   sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
   cancel: () => Promise<void>;
   setModel: (model: string) => Promise<void>;
   setPermissionMode: (mode: string) => Promise<void>;
-  setAutoApprovePermissions: (enabled: boolean) => Promise<void>;
   /** Send a control response for a pending control request (e.g. user answered a question). */
   sendControlResponse: (requestId: string, response: Record<string, unknown>) => Promise<void>;
   shutdown: () => Promise<void>;
@@ -201,7 +199,6 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
   const [permissionMode, setPermissionMode] = useState<string | null>(null);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [pendingControlRequest, setPendingControlRequest] = useState<PendingControlRequest | null>(null);
-  const [autoApprovePermissions, setAutoApprovePermissionsState] = useState(true);
   const [axonEvents, setAxonEvents] = useState<AxonEventView[]>([]);
   const [timelineEvents, setTimelineEvents] = useState<ClaudeTimelineEvent[]>([]);
 
@@ -761,13 +758,10 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
   // ---------------------------------------------------------------------------
 
   const start = useCallback(
-    async (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; autoApprovePermissions?: boolean }) => {
+    async (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; dangerouslySkipPermissions?: boolean }) => {
       try {
         setError(null);
         setConnectionPhase("connecting");
-        if (config.autoApprovePermissions !== undefined) {
-          setAutoApprovePermissionsState(config.autoApprovePermissions);
-        }
 
         connectWs();
 
@@ -780,7 +774,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
           launchCommands: config.launchCommands,
           systemPrompt: config.systemPrompt,
           model: config.model,
-          autoApprovePermissions: config.autoApprovePermissions,
+          dangerouslySkipPermissions: config.dangerouslySkipPermissions,
         });
 
         setDevboxId(resp.devboxId);
@@ -852,15 +846,6 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     }
   }, []);
 
-  const setAutoApprovePermissions = useCallback(async (enabled: boolean) => {
-    setAutoApprovePermissionsState(enabled);
-    try {
-      await api("/api/set-auto-approve-permissions", { enabled });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, []);
-
   const sendControlResponse = useCallback(async (requestId: string, response: Record<string, unknown>) => {
     try {
       await api("/api/control-response", { requestId, response });
@@ -891,7 +876,6 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     setPermissionMode(null);
     setCurrentModel(null);
     setPendingControlRequest(null);
-    setAutoApprovePermissionsState(true);
     setAxonEvents([]);
     setTimelineEvents([]);
   }, []);
@@ -912,7 +896,6 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     runloopUrl,
     permissionMode,
     currentModel,
-    autoApprovePermissions,
     axonEvents,
     timelineEvents,
     pendingControlRequest,
@@ -921,7 +904,6 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     cancel,
     setModel: setModelFn,
     setPermissionMode: setPermissionModeFn,
-    setAutoApprovePermissions,
     sendControlResponse,
     shutdown,
   };
