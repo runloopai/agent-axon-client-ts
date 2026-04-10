@@ -423,7 +423,7 @@ export interface ClaudeStartConfig {
   launchCommands?: string[];
   systemPrompt?: string;
   model?: string;
-  autoApprovePermissions?: boolean;
+  dangerouslySkipPermissions?: boolean;
 }
 
 export interface ACPStartConfig {

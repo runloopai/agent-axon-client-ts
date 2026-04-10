@@ -87,10 +87,12 @@ function AskUserQuestionForm({
   );
 
   const handleSubmit = () => {
-    const answers: Record<string, string | string[]> = {};
+    const answers: Record<string, string> = {};
     request.questions.forEach((q, i) => {
-      const selected = [...(selections.get(i) ?? [])];
-      answers[q.question] = q.multiSelect ? selected : selected[0] ?? "";
+      const selected = selections.get(i);
+      if (selected && selected.size > 0) {
+        answers[q.question] = Array.from(selected).join(", ");
+      }
     });
 
     onRespond(request.requestId, {

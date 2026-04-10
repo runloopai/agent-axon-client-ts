@@ -105,7 +105,7 @@ export default function App() {
             ...sharedConfig,
             blueprintName: blueprintName || undefined,
             model: model || undefined,
-            autoApprovePermissions: startAutoApprove,
+            dangerouslySkipPermissions: startAutoApprove,
           },
         };
 
@@ -287,19 +287,9 @@ export default function App() {
           />
         )}
 
-        {agent.agentType === "claude" && (
+        {agent.agentType === "claude" && agent.initInfo && (
           <div className="controls-bar">
-            <label className="config-toggle">
-              <input
-                type="checkbox"
-                checked={agent.autoApprovePermissions}
-                onChange={(e) => agent.setAutoApprovePermissions(e.target.checked)}
-              />
-              <span className="config-toggle-label">Auto-approve permissions</span>
-            </label>
-            {agent.initInfo && (
-              <span className="config-label">Model: {agent.initInfo.model}</span>
-            )}
+            <span className="config-label">Model: {agent.initInfo.model}</span>
           </div>
         )}
 
