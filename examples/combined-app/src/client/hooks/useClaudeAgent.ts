@@ -1,7 +1,7 @@
 import { useReducer, useRef, useCallback, useEffect } from "react";
 import { extractClaudeUserMessage } from "@runloop/agent-axon-client/claude";
 import type { ClaudeTimelineEvent, SDKControlRequest, ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
-import type { WsEvent } from "../../server/ws.js";
+import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,
   ChatMessage,
@@ -40,7 +40,6 @@ export interface UseClaudeAgentReturn {
   axonEvents: AxonEventView[];
   timelineEvents: ClaudeTimelineEvent[];
   pendingControlRequest: PendingControlRequest | null;
-  start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; autoApprovePermissions?: boolean }) => Promise<void>;
   sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
   cancel: () => Promise<void>;
   setModel: (model: string) => Promise<void>;
@@ -96,7 +95,8 @@ type ClaudeAction =
   | { type: "RESET" }
   | { type: "SET"; patch: Partial<ClaudeState> }
   | { type: "APPEND_MESSAGE"; message: ChatMessage }
-  | { type: "APPEND_TIMELINE_EVENT"; event: ClaudeTimelineEvent };
+  | { type: "APPEND_TIMELINE_EVENT"; event: ClaudeTimelineEvent }
+  | { type: "MERGE_USAGE"; delta: Partial<UsageState> };
 
 function claudeReducer(state: ClaudeState, action: ClaudeAction): ClaudeState {
   switch (action.type) {
@@ -112,6 +112,16 @@ function claudeReducer(state: ClaudeState, action: ClaudeAction): ClaudeState {
         timelineEvents: [...state.timelineEvents, action.event],
         axonEvents: [...state.axonEvents, action.event.axonEvent],
       };
+    case "MERGE_USAGE":
+      return {
+        ...state,
+        usage: {
+          inputTokens: action.delta.inputTokens ?? state.usage?.inputTokens ?? 0,
+          outputTokens: action.delta.outputTokens ?? state.usage?.outputTokens ?? 0,
+          cacheCreationInputTokens: action.delta.cacheCreationInputTokens ?? state.usage?.cacheCreationInputTokens ?? 0,
+          cacheReadInputTokens: action.delta.cacheReadInputTokens ?? state.usage?.cacheReadInputTokens ?? 0,
+        },
+      };
   }
 }
 
@@ -120,10 +130,12 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
   const blocks = useBlockManager();
   const wsRef = useRef<WebSocket | null>(null);
   const activeBlockIndexRef = useRef<Map<number, string>>(new Map());
+  const initInfoRef = useRef<InitInfo | null>(null);
 
   function resetAllState() {
     blocks.reset();
     activeBlockIndexRef.current.clear();
+    initInfoRef.current = null;
     dispatch({ type: "RESET" });
   }
 
@@ -304,7 +316,8 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
             const initModel = (msg.model as string) ?? "unknown";
 
             const newInitInfo = { model: initModel, tools, mcpServers, permissionMode: initPermissionMode, slashCommands };
-            const isFirstInit = !s.initInfo;
+            const isFirstInit = !initInfoRef.current;
+            initInfoRef.current = newInitInfo;
             dispatch({ type: "SET", patch: {
               initInfo: newInitInfo,
               currentModel: initModel ?? null,
@@ -520,12 +533,9 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
       case "message_delta": {
         const deltaUsage = event.usage as Record<string, number> | undefined;
         if (deltaUsage) {
-          dispatch({ type: "SET", patch: { usage: {
-            inputTokens: s.usage?.inputTokens ?? 0,
-            outputTokens: deltaUsage.output_tokens ?? s.usage?.outputTokens ?? 0,
-            cacheCreationInputTokens: s.usage?.cacheCreationInputTokens ?? 0,
-            cacheReadInputTokens: s.usage?.cacheReadInputTokens ?? 0,
-          } } });
+          dispatch({ type: "MERGE_USAGE", delta: {
+            outputTokens: deltaUsage.output_tokens,
+          } });
         }
         break;
       }
@@ -649,10 +659,6 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
     };
   }, [agentId]);
 
-  const start = useCallback(async (_config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; autoApprovePermissions?: boolean }) => {
-    // Start is handled by App.tsx directly via /api/start
-  }, []);
-
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
     if (!text.trim() && (!content || content.length === 0)) return;
 
@@ -735,7 +741,6 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
     axonEvents: s.axonEvents,
     timelineEvents: s.timelineEvents,
     pendingControlRequest: s.pendingControlRequest,
-    start,
     sendMessage,
     cancel,
     setModel: setModelAction,

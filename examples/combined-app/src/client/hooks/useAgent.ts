@@ -1,21 +1,16 @@
 import { useCallback } from "react";
 import { useClaudeAgent } from "./useClaudeAgent.js";
 import { useACPAgent } from "./useACPAgent.js";
-import type { AgentType, StartConfig, UseAgentReturn } from "../types.js";
+import type { AgentType, UseAgentReturn } from "../types.js";
 
 const NOOP_ASYNC = async () => {};
 
 export function useAgent(agentId: string | null, agentType: AgentType | null): UseAgentReturn {
+  // React's rules of hooks require that hooks are called unconditionally in the
+  // same order every render. We pass null as agentId to the inactive hook so it
+  // stays idle (no WebSocket, no state updates) while satisfying the constraint.
   const claude = useClaudeAgent(agentType === "claude" ? agentId : null);
   const acp = useACPAgent(agentType === "acp" ? agentId : null);
-
-  const start = useCallback(async (params: StartConfig) => {
-    if (params.agentType === "claude") {
-      await claude.start(params.config);
-    } else {
-      await acp.start(params.config);
-    }
-  }, [claude.start, acp.start]);
 
   const shutdown = useCallback(async () => {
     if (agentType === "claude") {
@@ -48,7 +43,6 @@ export function useAgent(agentId: string | null, agentType: AgentType | null): U
       permissionMode: claude.permissionMode,
       currentModel: claude.currentModel,
       pendingControlRequest: claude.pendingControlRequest,
-      start,
       sendMessage: claude.sendMessage,
       cancel: claude.cancel,
       shutdown,
@@ -80,8 +74,8 @@ export function useAgent(agentId: string | null, agentType: AgentType | null): U
       availableCommands: acp.availableCommands,
       plan: acp.plan,
       toolActivity: acp.toolActivity,
-      fileOps: [],
-      terminals: new Map(),
+      fileOps: [], // Not yet plumbed from the SDK timeline events
+      terminals: new Map(), // Not yet plumbed from the SDK timeline events
       currentMode: acp.currentMode,
       availableModes: acp.availableModes,
       configOptions: acp.configOptions,
@@ -97,7 +91,6 @@ export function useAgent(agentId: string | null, agentType: AgentType | null): U
       sessions: acp.sessions,
       isLoadingSessions: acp.isLoadingSessions,
       sessionId: acp.sessionId,
-      start,
       sendMessage: acp.sendMessage,
       cancel: acp.cancel,
       shutdown,
@@ -134,7 +127,6 @@ export function useAgent(agentId: string | null, agentType: AgentType | null): U
     axonEvents: [],
     timelineEvents: [],
     availableCommands: [],
-    start,
     sendMessage: NOOP_ASYNC,
     cancel: NOOP_ASYNC,
     shutdown,

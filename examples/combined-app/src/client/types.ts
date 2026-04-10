@@ -385,28 +385,6 @@ export interface TerminalState {
 }
 
 
-// --- Start config types ---
-
-export interface ClaudeStartConfig {
-  blueprintName?: string;
-  launchCommands?: string[];
-  systemPrompt?: string;
-  model?: string;
-  autoApprovePermissions?: boolean;
-}
-
-export interface ACPStartConfig {
-  agentBinary: string;
-  launchArgs?: string[];
-  launchCommands?: string[];
-  systemPrompt?: string;
-  autoApprovePermissions?: boolean;
-}
-
-export type StartConfig =
-  | { agentType: "claude"; config: ClaudeStartConfig }
-  | { agentType: "acp"; config: ACPStartConfig };
-
 // --- Unified hook return type (discriminated union) ---
 
 export interface SharedAgentState {
@@ -427,7 +405,6 @@ export interface SharedAgentState {
   timelineEvents: TimelineEvent[];
   availableCommands: AvailableCommand[];
 
-  start: (params: StartConfig) => Promise<void>;
   sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
   cancel: () => Promise<void>;
   shutdown: () => Promise<void>;

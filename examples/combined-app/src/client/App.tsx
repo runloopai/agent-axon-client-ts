@@ -187,9 +187,9 @@ export default function App() {
     try {
       await api("/api/shutdown", { agentId });
     } catch { /* ignore */ }
+    const remaining = agentList.agents.filter((a) => a.id !== agentId);
     agentList.removeLocal(agentId);
     if (selectedAgentId === agentId) {
-      const remaining = agentList.agents.filter((a) => a.id !== agentId);
       if (remaining.length > 0) {
         setSelectedAgentId(remaining[0].id);
         setShowSetup(false);

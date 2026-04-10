@@ -40,9 +40,8 @@ export function extractOutputText(contentItems: ContentItem[], rawOutput: unknow
   return undefined;
 }
 
-let blockIdCounter = 0;
 export function nextBlockId(prefix: string): string {
-  return `${prefix}-${++blockIdCounter}`;
+  return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 export function inferToolKind(toolName: string): import("../types.js").ToolKind {

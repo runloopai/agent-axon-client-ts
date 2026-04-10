@@ -19,6 +19,8 @@ export class ClaudeConnectionManager {
 
   private axon: Axon | null = null;
   private devbox: Devbox | null = null;
+  private storedSystemPrompt?: string;
+  private storedModel?: string;
   private pendingControlResponses = new Map<
     string,
     { resolve: (data: unknown) => void; reject: (err: Error) => void }
@@ -72,6 +74,9 @@ export class ClaudeConnectionManager {
     });
 
     this.devbox = devbox;
+
+    this.storedSystemPrompt = opts.systemPrompt;
+    this.storedModel = opts.model;
 
     this.ws.broadcast(this.tag({ type: "connection_progress", step: "Connecting to Claude Code..." }));
     const conn = this.wireConnection(axon, devbox, {
@@ -162,7 +167,10 @@ export class ClaudeConnectionManager {
     if (this.connection) {
       this.connection.abortStream();
     }
-    const conn = this.wireConnection(this.axon, this.devbox);
+    const conn = this.wireConnection(this.axon, this.devbox, {
+      systemPrompt: this.storedSystemPrompt,
+      model: this.storedModel,
+    });
     await conn.connect();
   }
 
@@ -203,6 +211,8 @@ export class ClaudeConnectionManager {
     this.devbox = null;
     this.axonEvents = [];
     this.autoApprovePermissions = true;
+    this.storedSystemPrompt = undefined;
+    this.storedModel = undefined;
     for (const [, pending] of this.pendingControlResponses) {
       pending.reject(new Error("Shutdown"));
     }

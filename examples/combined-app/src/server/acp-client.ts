@@ -7,7 +7,7 @@ import type {
   ElicitationResponse,
 } from "@runloop/agent-axon-client/acp";
 import { CLIENT_METHODS } from "@runloop/agent-axon-client/acp";
-import type { BaseWsEvent } from "./ws.ts";
+import type { BaseWsEvent } from "../shared/ws-events.ts";
 
 export type ClientEventListener = (event: BaseWsEvent) => void;
 

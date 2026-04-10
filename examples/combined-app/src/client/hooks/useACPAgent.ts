@@ -13,7 +13,7 @@ import {
 } from "@runloop/agent-axon-client/acp";
 import type { ToolCallContent, AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent } from "@runloop/agent-axon-client/acp";
 import { extractACPUserMessage } from "@runloop/agent-axon-client/acp";
-import type { WsEvent } from "../../server/ws.js";
+import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,
   ChatMessage,
@@ -78,7 +78,6 @@ export interface UseACPAgentReturn {
   timelineEvents: ACPTimelineEvent[];
   sessions: SessionInfo[];
   isLoadingSessions: boolean;
-  start: (config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string }) => Promise<void>;
   sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
   cancel: () => Promise<void>;
   setMode: (modeId: string) => Promise<void>;
@@ -606,10 +605,6 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
     };
   }, [agentId]);
 
-  const start = useCallback(async (_config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string; autoApprovePermissions?: boolean }) => {
-    // Start is handled by App.tsx directly via /api/start
-  }, []);
-
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
     if (!text.trim() && (!content || content.length === 0)) return;
 
@@ -754,7 +749,7 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
     devboxId: s.devboxId, axonId: s.axonId, sessionId: s.sessionId, runloopUrl: s.runloopUrl,
     agentInfo: s.agentInfo, connectionDetails: s.connectionDetails, authMethods: s.authMethods, isAuthenticated: s.isAuthenticated, authDismissed: s.authDismissed,
     availableCommands: s.availableCommands, axonEvents: s.axonEvents, timelineEvents: s.timelineEvents, sessions: s.sessions, isLoadingSessions: s.isLoadingSessions,
-    start, sendMessage, cancel,
+    sendMessage, cancel,
     setMode, setModel, setConfigOption,
     authenticate, dismissAuth,
     respondToPermission, cancelPermission, setAutoApprovePermissions,

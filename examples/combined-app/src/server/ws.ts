@@ -1,19 +1,8 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
-import type { ACPTimelineEvent, ElicitationRequest, RequestPermissionRequest } from "@runloop/agent-axon-client/acp";
-import type { ClaudeTimelineEvent, SDKControlRequest } from "@runloop/agent-axon-client/claude";
+import type { WsEvent } from "../shared/ws-events.ts";
 
-export type BaseWsEvent =
-  | { type: "timeline_event"; event: ACPTimelineEvent | ClaudeTimelineEvent }
-  | { type: "connection_progress"; step: string }
-  | { type: "turn_error"; error: string }
-  | { type: "control_request"; controlRequest: SDKControlRequest }
-  | { type: "permission_request"; requestId: string; request: RequestPermissionRequest }
-  | { type: "permission_dismissed" }
-  | { type: "elicitation_request"; requestId: string; request: ElicitationRequest }
-  | { type: "elicitation_dismissed" };
-
-export type WsEvent = BaseWsEvent & { agentId: string };
+export type { BaseWsEvent, WsEvent } from "../shared/ws-events.ts";
 
 export class WsBroadcaster {
   private wss: WebSocketServer;
