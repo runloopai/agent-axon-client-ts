@@ -140,8 +140,20 @@ App.tsx
 ```
 
 `useAgent` always mounts both protocol hooks but only passes a non-null
-`agentId` to the active one. It maps the protocol-specific return type into
-a unified `UseAgentReturn` via `mapClaude()` / `mapACP()`.
+`agentId` to the active one. It returns a discriminated union
+`UseAgentReturn = ClaudeAgentState | ACPAgentState | IdleAgentState`,
+where each variant extends `SharedAgentState` (connection, chat, events,
+common actions) with protocol-specific fields and actions. Components
+narrow via `agent.agentType === "acp"` / `agent.agentType === "claude"`
+checks to access protocol-specific state.
+
+### State Management
+
+Each protocol hook uses `useReducer` with a single state object and typed
+action union (e.g. `ACPState` / `ACPAction`, `ClaudeState` / `ClaudeAction`).
+This replaces the previous 35+ individual `useState` calls and makes
+`resetAllState` a single `dispatch({ type: "RESET" })`. Both hooks share a
+`useBlockManager()` hook for turn block accumulation (see below).
 
 ### State Categories
 
@@ -157,15 +169,17 @@ Each protocol hook manages these state categories:
 | Agent info     | `agentInfo`, `connectionDetails`, `authMethods`       | ACP     |
 | Init info      | `initInfo`, `permissionMode`, `currentModel`          | Claude  |
 
-### Block Management (shared pattern)
+### Block Management (`useBlockManager` hook)
 
-Both hooks use an identical pattern for accumulating turn blocks:
+Both hooks consume a shared `useBlockManager()` hook that encapsulates the
+turn block accumulation pattern:
 
 - `blocksRef` (React ref) -- mutable array for synchronous reads in event handlers
-- `setCurrentTurnBlocks` (React state) -- triggers re-renders
+- `currentTurnBlocks` (React state) -- triggers re-renders
 - `pushBlock()` / `updateBlocks()` -- write to both ref and state
 - `finalizeThinking()` -- close active thinking block with duration
-- `flushBlocksToMessages()` -- move accumulated blocks into `messages` array
+- `flushToMessage()` -- move accumulated blocks into a `ChatMessage`
+- `reset()` -- clear all block state
 
 ACP flushes lazily (on next user message) because the broker can deliver
 `session/update` events after `turn.completed`. Claude flushes eagerly on
@@ -245,13 +259,14 @@ src/
 │   ├── types.ts              Shared types (TurnBlock, ChatMessage, etc.)
 │   │
 │   ├── hooks/
-│   │   ├── useAgent.ts       Unified agent facade
-│   │   ├── useACPAgent.ts    ACP WebSocket + state management
-│   │   ├── useClaudeAgent.ts Claude WebSocket + state management
-│   │   ├── useAgentList.ts   Agent list management
-│   │   ├── useAttachments.ts Composer attachments
-│   │   ├── api.ts            REST fetch wrapper
-│   │   └── parsers.ts        Tool call parsing, block ID generation
+│   │   ├── useAgent.ts        Unified agent facade (discriminated union)
+│   │   ├── useACPAgent.ts     ACP WebSocket + useReducer state
+│   │   ├── useClaudeAgent.ts  Claude WebSocket + useReducer state
+│   │   ├── useBlockManager.ts Shared turn block accumulation
+│   │   ├── useAgentList.ts    Agent list management
+│   │   ├── useAttachments.ts  Composer attachments
+│   │   ├── api.ts             REST fetch wrapper
+│   │   └── parsers.ts         Tool call parsing, block ID generation
 │   │
 │   └── components/
 │       ├── AssistantTurn.tsx        Assistant message bubble
