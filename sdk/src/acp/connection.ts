@@ -32,16 +32,9 @@ import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
 import { getLastSequence } from "../shared/replay.js";
 import { tryParseSystemEvent } from "../shared/timeline.js";
 import { timelineEventGenerator } from "../shared/timeline-generator.js";
-import type {
-  AxonEventListener,
-  TimelineEventListener,
-} from "../shared/types.js";
+import type { AxonEventListener, TimelineEventListener } from "../shared/types.js";
 import { axonStream } from "./axon-stream.js";
-import type {
-  ACPAxonConnectionOptions,
-  ACPTimelineEvent,
-  SessionUpdateListener,
-} from "./types.js";
+import type { ACPAxonConnectionOptions, ACPTimelineEvent, SessionUpdateListener } from "./types.js";
 
 const ACP_KNOWN_EVENT_TYPES: Set<string> = new Set([
   ...Object.values(AGENT_METHODS),
@@ -117,9 +110,7 @@ export class ACPAxonConnection {
   private axonEventListeners: ListenerSet<AxonEventListener>;
 
   /** Registered timeline event listeners. */
-  private timelineEventListeners: ListenerSet<
-    TimelineEventListener<ACPTimelineEvent>
-  >;
+  private timelineEventListeners: ListenerSet<TimelineEventListener<ACPTimelineEvent>>;
 
   /** Error sink for listener exceptions and stream parse failures. */
   private handleError: (error: unknown) => void;
@@ -152,16 +143,13 @@ export class ACPAxonConnection {
     this.options = options ?? {};
     this.abortController = new AbortController();
     this.log = makeLogger("acp-sdk", options?.verbose ?? false);
-    this.handleError =
-      options?.onError ?? makeDefaultOnError("ACPAxonConnection");
+    this.handleError = options?.onError ?? makeDefaultOnError("ACPAxonConnection");
     this.handlePermission = options?.requestPermission;
     this.disconnectFn = options?.onDisconnect;
-    this.axonEventListeners = new ListenerSet<AxonEventListener>(
+    this.axonEventListeners = new ListenerSet<AxonEventListener>(this.handleError);
+    this.timelineEventListeners = new ListenerSet<TimelineEventListener<ACPTimelineEvent>>(
       this.handleError,
     );
-    this.timelineEventListeners = new ListenerSet<
-      TimelineEventListener<ACPTimelineEvent>
-    >(this.handleError);
     this.log("constructor", `axon=${axon.id} devbox=${this.devboxId}`);
   }
 
@@ -185,16 +173,12 @@ export class ACPAxonConnection {
       );
     }
     if (this.connected) {
-      throw new Error(
-        "Already connected. Call disconnect() before reconnecting.",
-      );
+      throw new Error("Already connected. Call disconnect() before reconnecting.");
     }
 
     const replay = this.options.replay ?? true;
     if (replay && this.options.afterSequence != null) {
-      throw new Error(
-        "Cannot use both 'replay' and 'afterSequence'. They are mutually exclusive.",
-      );
+      throw new Error("Cannot use both 'replay' and 'afterSequence'. They are mutually exclusive.");
     }
 
     let replayTargetSequence: number | undefined;
@@ -221,9 +205,7 @@ export class ACPAxonConnection {
 
     const customCreateClient = this.options.createClient;
     this._protocol = new ClientSideConnection(
-      customCreateClient
-        ? (agent) => customCreateClient(agent)
-        : () => this.createClient(),
+      customCreateClient ? (agent) => customCreateClient(agent) : () => this.createClient(),
       stream,
     );
     this.connected = true;
@@ -331,9 +313,7 @@ export class ACPAxonConnection {
    * @param params - Session ID and the target mode.
    * @returns Confirmation of the mode change.
    */
-  setSessionMode(
-    params: SetSessionModeRequest,
-  ): Promise<SetSessionModeResponse> {
+  setSessionMode(params: SetSessionModeRequest): Promise<SetSessionModeResponse> {
     this.ensureConnected();
     return this.protocol.setSessionMode(params);
   }
@@ -358,10 +338,7 @@ export class ACPAxonConnection {
    * @param params - Arbitrary key-value payload for the request.
    * @returns The agent's response payload.
    */
-  extMethod(
-    method: string,
-    params: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
+  extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
     this.ensureConnected();
     return this.protocol.extMethod(method, params);
   }
@@ -373,10 +350,7 @@ export class ACPAxonConnection {
    * @param method - The custom method name.
    * @param params - Arbitrary key-value payload for the notification.
    */
-  extNotification(
-    method: string,
-    params: Record<string, unknown>,
-  ): Promise<void> {
+  extNotification(method: string, params: Record<string, unknown>): Promise<void> {
     this.ensureConnected();
     return this.protocol.extNotification(method, params);
   }
@@ -422,9 +396,7 @@ export class ACPAxonConnection {
    * @param listener - Callback invoked with each {@link ACPTimelineEvent}.
    * @returns An unsubscribe function that removes the listener.
    */
-  onTimelineEvent(
-    listener: TimelineEventListener<ACPTimelineEvent>,
-  ): () => void {
+  onTimelineEvent(listener: TimelineEventListener<ACPTimelineEvent>): () => void {
     return this.timelineEventListeners.add(listener);
   }
 
@@ -437,11 +409,7 @@ export class ACPAxonConnection {
    *
    * @returns An async generator of {@link ACPTimelineEvent}.
    */
-  async *receiveTimelineEvents(): AsyncGenerator<
-    ACPTimelineEvent,
-    void,
-    undefined
-  > {
+  async *receiveTimelineEvents(): AsyncGenerator<ACPTimelineEvent, void, undefined> {
     yield* timelineEventGenerator<ACPTimelineEvent>(
       (listener) => this.onTimelineEvent(listener),
       this.abortController.signal,
@@ -531,12 +499,8 @@ export class ACPAxonConnection {
         }
 
         const option =
-          params.options.find(
-            (o: { kind: string }) => o.kind === "allow_always",
-          ) ??
-          params.options.find(
-            (o: { kind: string }) => o.kind === "allow_once",
-          ) ??
+          params.options.find((o: { kind: string }) => o.kind === "allow_always") ??
+          params.options.find((o: { kind: string }) => o.kind === "allow_once") ??
           params.options[0];
 
         if (option) {

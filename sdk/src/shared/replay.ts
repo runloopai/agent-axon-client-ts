@@ -24,11 +24,11 @@ function getAxonClient(axon: Axon): Runloop {
  */
 export async function getLastSequence(axon: Axon): Promise<number | undefined> {
   const client = getAxonClient(axon);
-  const result = await client.get<
-    Record<string, unknown>,
-    AxonEventListResponse
-  >(`/v1/axons/${axon.id}/events`, {
-    query: { limit: 1, include_total_count: true }, //TODO replace this with sdk method which isn't there for some reason?
-  });
+  const result = await client.get<Record<string, unknown>, AxonEventListResponse>(
+    `/v1/axons/${axon.id}/events`,
+    {
+      query: { limit: 1, include_total_count: true }, //TODO replace this with sdk method which isn't there for some reason?
+    },
+  );
   return result.total_count ?? undefined;
 }
