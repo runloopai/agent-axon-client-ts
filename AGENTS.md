@@ -37,6 +37,10 @@ bun run check:fix    # lint + format auto-fix (SDK)
 bun run typecheck    # type-check src + tests (no emit)
 ```
 
+## Git safety
+
+- **Never use `git stash pop`** (or `git stash apply`) during debugging or any automated workflow. Other agents may be running concurrently on the same worktree, and popping the stash can overwrite their in-progress changes or introduce merge conflicts that silently corrupt files.
+
 ## Key constraints
 
 - Node >= 22 required
