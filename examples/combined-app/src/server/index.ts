@@ -85,7 +85,7 @@ app.post(
       manager.connection
         ?.publish({
           event_type: "agent_started",
-          origin: "USER_EVENT",
+          origin: "EXTERNAL_EVENT",
           payload: JSON.stringify({ agentType: "claude", agentId, ...config }),
           source: "combined-app",
         })
@@ -108,7 +108,7 @@ app.post(
       manager.connection
         ?.publish({
           event_type: "agent_started",
-          origin: "USER_EVENT",
+          origin: "EXTERNAL_EVENT",
           payload: JSON.stringify({ agentType: "acp", agentId, ...config }),
           source: "combined-app",
         })
