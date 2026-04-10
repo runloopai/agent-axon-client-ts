@@ -2189,6 +2189,41 @@ html, body, #root {
   border-top: 1px solid var(--border);
 }
 
+.axon-view-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.axon-view-toggle-btn {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.axon-view-toggle-btn:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+.axon-view-toggle-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.axon-view-toggle-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
 .axon-detail-section {
   margin-bottom: 8px;
 }
