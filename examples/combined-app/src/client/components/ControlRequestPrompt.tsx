@@ -21,10 +21,14 @@ export function ControlRequestPrompt({
   }
 
   const handleAllow = () => {
-    const permReq = request.rawRequest.request as ControlRequestOfSubtype<"can_use_tool">;
+    const innerRequest = request.rawRequest.request;
+    const updatedInput =
+      innerRequest.subtype === "can_use_tool"
+        ? (innerRequest as ControlRequestOfSubtype<"can_use_tool">).input
+        : undefined;
     onRespond(request.requestId, {
       behavior: "allow",
-      updatedInput: permReq.input,
+      ...(updatedInput !== undefined && { updatedInput }),
     });
   };
 

@@ -2,199 +2,183 @@ import { describe, expect, it } from "vitest";
 import { makeFullAxonEvent } from "../__test-utils__/mock-axon.js";
 import { extractACPUserMessage, extractClaudeUserMessage } from "./user-message.js";
 
-function makeAxonEvent(overrides: Partial<Parameters<typeof makeFullAxonEvent>[0]> = {}) {
-  return makeFullAxonEvent({
-    event_type: "session/prompt",
-    origin: "USER_EVENT",
-    ...overrides,
-  });
-}
-
 describe("extractACPUserMessage", () => {
-  it("extracts text from params-level payload (axonStream format)", () => {
-    const data = {
-      sessionId: "ses_123",
-      prompt: [{ type: "text", text: "hello world" }],
-    };
-    const ev = makeAxonEvent();
-    const result = extractACPUserMessage(data, ev);
+  const makeUserPromptEvent = (prompt: unknown) =>
+    makeFullAxonEvent({
+      origin: "USER_EVENT",
+      event_type: "session/prompt",
+      payload: JSON.stringify({ prompt, sessionId: "s-1" }),
+    });
+
+  it("extracts text from a text-only prompt", () => {
+    const ev = makeUserPromptEvent([{ type: "text", text: "Hello world" }]);
+    const result = extractACPUserMessage({ prompt: [{ type: "text", text: "Hello world" }] }, ev);
     expect(result).toEqual({
-      text: "hello world",
-      content: [{ type: "text", text: "hello world" }],
+      text: "Hello world",
+      content: [{ type: "text", text: "Hello world" }],
       sequence: 1,
     });
   });
 
   it("concatenates multiple text blocks", () => {
-    const data = {
-      prompt: [
-        { type: "text", text: "first " },
-        { type: "text", text: "second" },
-      ],
-    };
-    const ev = makeAxonEvent();
-    const result = extractACPUserMessage(data, ev);
-    expect(result).toEqual({
-      text: "first second",
-      content: [
-        { type: "text", text: "first " },
-        { type: "text", text: "second" },
-      ],
-      sequence: 1,
-    });
-  });
-
-  it("includes non-text blocks in content but not in text", () => {
-    const imageBlock = { type: "image", data: "base64..." };
-    const textBlock = { type: "text", text: "only this" };
-    const data = {
-      prompt: [imageBlock, textBlock],
-    };
-    const ev = makeAxonEvent();
-    const result = extractACPUserMessage(data, ev);
-    expect(result).toEqual({
-      text: "only this",
-      content: [imageBlock, textBlock],
-      sequence: 1,
-    });
-  });
-
-  it("preserves audio content blocks", () => {
-    const audioBlock = { type: "audio", data: "base64audio", mediaType: "audio/wav" };
-    const textBlock = { type: "text", text: "listen to this" };
-    const data = { prompt: [textBlock, audioBlock] };
-    const ev = makeAxonEvent();
-    const result = extractACPUserMessage(data, ev);
+    const blocks = [
+      { type: "text", text: "Hello " },
+      { type: "text", text: "world" },
+    ];
+    const ev = makeUserPromptEvent(blocks);
+    const result = extractACPUserMessage({ prompt: blocks }, ev);
+    expect(result?.text).toBe("Hello world");
     expect(result?.content).toHaveLength(2);
-    expect(result?.content[1]).toEqual(audioBlock);
-    expect(result?.text).toBe("listen to this");
   });
 
-  it("preserves resource_link content blocks", () => {
-    const resourceBlock = { type: "resource_link", uri: "file:///foo.txt" };
-    const data = { prompt: [resourceBlock] };
-    const ev = makeAxonEvent();
-    const result = extractACPUserMessage(data, ev);
-    expect(result?.content).toEqual([resourceBlock]);
-    expect(result?.text).toBe("");
+  it("includes image blocks in content but not in text", () => {
+    const blocks = [
+      { type: "text", text: "Look at this:" },
+      { type: "image", data: "base64data", mimeType: "image/png" },
+    ];
+    const ev = makeUserPromptEvent(blocks);
+    const result = extractACPUserMessage({ prompt: blocks }, ev);
+    expect(result?.text).toBe("Look at this:");
+    expect(result?.content).toHaveLength(2);
+    expect(result?.content[1]).toEqual({
+      type: "image",
+      data: "base64data",
+      mimeType: "image/png",
+    });
   });
 
   it("returns null for non-USER_EVENT origin", () => {
-    const data = { prompt: [{ type: "text", text: "hi" }] };
-    const ev = makeAxonEvent({ origin: "AGENT_EVENT" });
-    expect(extractACPUserMessage(data, ev)).toBeNull();
+    const ev = makeFullAxonEvent({
+      origin: "AGENT_EVENT",
+      event_type: "session/prompt",
+    });
+    expect(extractACPUserMessage({ prompt: [{ type: "text", text: "hi" }] }, ev)).toBeNull();
   });
 
   it("returns null for wrong event_type", () => {
-    const data = { prompt: [{ type: "text", text: "hi" }] };
-    const ev = makeAxonEvent({ event_type: "session/update" });
-    expect(extractACPUserMessage(data, ev)).toBeNull();
+    const ev = makeFullAxonEvent({
+      origin: "USER_EVENT",
+      event_type: "session/update",
+    });
+    expect(extractACPUserMessage({ prompt: [{ type: "text", text: "hi" }] }, ev)).toBeNull();
   });
 
   it("returns null for null data", () => {
-    const ev = makeAxonEvent();
+    const ev = makeFullAxonEvent({
+      origin: "USER_EVENT",
+      event_type: "session/prompt",
+    });
     expect(extractACPUserMessage(null, ev)).toBeNull();
   });
 
-  it("returns null when prompt is missing", () => {
-    const data = { sessionId: "ses_123" };
-    const ev = makeAxonEvent();
-    expect(extractACPUserMessage(data, ev)).toBeNull();
+  it("returns null when prompt is not an array", () => {
+    const ev = makeFullAxonEvent({
+      origin: "USER_EVENT",
+      event_type: "session/prompt",
+    });
+    expect(extractACPUserMessage({ prompt: "just a string" }, ev)).toBeNull();
+  });
+
+  it("skips blocks without a type field", () => {
+    const blocks = [{ type: "text", text: "valid" }, { noType: true }];
+    const ev = makeUserPromptEvent(blocks);
+    const result = extractACPUserMessage({ prompt: blocks }, ev);
+    expect(result?.content).toHaveLength(1);
+    expect(result?.text).toBe("valid");
+  });
+
+  it("uses the axonEvent sequence", () => {
+    const ev = makeFullAxonEvent({
+      origin: "USER_EVENT",
+      event_type: "session/prompt",
+      sequence: 42,
+    });
+    const result = extractACPUserMessage({ prompt: [{ type: "text", text: "hi" }] }, ev);
+    expect(result?.sequence).toBe(42);
   });
 });
 
 describe("extractClaudeUserMessage", () => {
-  it("extracts text from string content", () => {
-    const data = { type: "user", message: { content: "hello claude" } };
-    const ev = makeAxonEvent({ event_type: "query", origin: "USER_EVENT" });
+  it("extracts text from a string content", () => {
+    const ev = makeFullAxonEvent({
+      origin: "USER_EVENT",
+      event_type: "query",
+    });
+    const data = { type: "user", message: { content: "Hello world" } };
     const result = extractClaudeUserMessage(data, ev);
     expect(result).toEqual({
-      text: "hello claude",
-      content: [{ type: "text", text: "hello claude" }],
+      text: "Hello world",
+      content: [{ type: "text", text: "Hello world" }],
       sequence: 1,
     });
   });
 
-  it("extracts text from array content", () => {
+  it("extracts text from array content blocks", () => {
+    const ev = makeFullAxonEvent({ origin: "USER_EVENT" });
     const data = {
       type: "user",
       message: {
         content: [
-          { type: "text", text: "part one " },
-          { type: "text", text: "part two" },
+          { type: "text", text: "Hello " },
+          { type: "text", text: "world" },
         ],
       },
     };
-    const ev = makeAxonEvent({ event_type: "query", origin: "USER_EVENT" });
     const result = extractClaudeUserMessage(data, ev);
-    expect(result).toEqual({
-      text: "part one part two",
-      content: [
-        { type: "text", text: "part one " },
-        { type: "text", text: "part two" },
-      ],
-      sequence: 1,
-    });
+    expect(result?.text).toBe("Hello world");
+    expect(result?.content).toHaveLength(2);
   });
 
-  it("includes non-text blocks in content but not in text", () => {
-    const imageBlock = { type: "image", source: { type: "base64", data: "abc" } };
-    const textBlock = { type: "text", text: "only text" };
+  it("includes image blocks in content but not in text", () => {
+    const ev = makeFullAxonEvent({ origin: "USER_EVENT" });
     const data = {
       type: "user",
-      message: { content: [imageBlock, textBlock] },
+      message: {
+        content: [
+          { type: "text", text: "Look:" },
+          { type: "image", source: { data: "base64" } },
+        ],
+      },
     };
-    const ev = makeAxonEvent({ event_type: "query", origin: "USER_EVENT" });
     const result = extractClaudeUserMessage(data, ev);
-    expect(result).toEqual({
-      text: "only text",
-      content: [imageBlock, textBlock],
-      sequence: 1,
-    });
-  });
-
-  it("preserves document content blocks", () => {
-    const docBlock = { type: "document", source: { type: "base64", data: "pdf..." } };
-    const data = {
-      type: "user",
-      message: { content: [docBlock] },
-    };
-    const ev = makeAxonEvent({ event_type: "query", origin: "USER_EVENT" });
-    const result = extractClaudeUserMessage(data, ev);
-    expect(result?.content).toEqual([docBlock]);
-    expect(result?.text).toBe("");
-  });
-
-  it("preserves tool_result content blocks", () => {
-    const toolBlock = {
-      type: "tool_result",
-      tool_use_id: "tu_123",
-      content: "result text",
-    };
-    const data = {
-      type: "user",
-      message: { content: [toolBlock] },
-    };
-    const ev = makeAxonEvent({ event_type: "query", origin: "USER_EVENT" });
-    const result = extractClaudeUserMessage(data, ev);
-    expect(result?.content).toEqual([toolBlock]);
-    expect(result?.text).toBe("");
+    expect(result?.text).toBe("Look:");
+    expect(result?.content).toHaveLength(2);
   });
 
   it("returns null for non-USER_EVENT origin", () => {
+    const ev = makeFullAxonEvent({ origin: "AGENT_EVENT" });
     const data = { type: "user", message: { content: "hi" } };
-    const ev = makeAxonEvent({ event_type: "query", origin: "AGENT_EVENT" });
     expect(extractClaudeUserMessage(data, ev)).toBeNull();
   });
 
-  it("returns null for non-user type", () => {
+  it("returns null when type is not user", () => {
+    const ev = makeFullAxonEvent({ origin: "USER_EVENT" });
     const data = { type: "assistant", message: { content: "hi" } };
-    const ev = makeAxonEvent({ event_type: "assistant", origin: "USER_EVENT" });
     expect(extractClaudeUserMessage(data, ev)).toBeNull();
   });
 
   it("returns null for null data", () => {
-    const ev = makeAxonEvent({ event_type: "query", origin: "USER_EVENT" });
+    const ev = makeFullAxonEvent({ origin: "USER_EVENT" });
     expect(extractClaudeUserMessage(null, ev)).toBeNull();
+  });
+
+  it("returns null for non-object data", () => {
+    const ev = makeFullAxonEvent({ origin: "USER_EVENT" });
+    expect(extractClaudeUserMessage("string", ev)).toBeNull();
+  });
+
+  it("returns empty text when message.content is missing", () => {
+    const ev = makeFullAxonEvent({ origin: "USER_EVENT" });
+    const data = { type: "user", message: {} };
+    const result = extractClaudeUserMessage(data, ev);
+    expect(result?.text).toBe("");
+    expect(result?.content).toHaveLength(0);
+  });
+
+  it("uses the axonEvent sequence", () => {
+    const ev = makeFullAxonEvent({ origin: "USER_EVENT", sequence: 99 });
+    const data = { type: "user", message: { content: "hi" } };
+    const result = extractClaudeUserMessage(data, ev);
+    expect(result?.sequence).toBe(99);
   });
 });

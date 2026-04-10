@@ -3,7 +3,7 @@ import {
   createControllableStream,
   createMockAxon,
   makeAgentEvent,
-  makeRawSystemEvent,
+  makeSystemEventWithRawPayload,
   makeUserEvent,
 } from "../__test-utils__/mock-axon.js";
 import { SystemError } from "../shared/errors/system-error.js";
@@ -196,7 +196,7 @@ describe("AxonTransport", () => {
       await transport.connect();
 
       ctrl.push(
-        makeRawSystemEvent(
+        makeSystemEventWithRawPayload(
           "broker.error",
           "agent failed: agent binary 'nonexistent_binary' not found on PATH",
         ),
@@ -212,7 +212,7 @@ describe("AxonTransport", () => {
     it("throws a SystemError with event metadata on broker.error", async () => {
       await transport.connect();
 
-      ctrl.push(makeRawSystemEvent("broker.error", "agent failed: process crashed", 99));
+      ctrl.push(makeSystemEventWithRawPayload("broker.error", "agent failed: process crashed", 99));
       ctrl.end();
 
       const gen = transport.readMessages()[Symbol.asyncIterator]();
@@ -236,7 +236,7 @@ describe("AxonTransport", () => {
 
       await transport2.connect();
 
-      ctrl2.push(makeRawSystemEvent("broker.error", "agent failed: something bad"));
+      ctrl2.push(makeSystemEventWithRawPayload("broker.error", "agent failed: something bad"));
       ctrl2.end();
 
       const gen = transport2.readMessages()[Symbol.asyncIterator]();

@@ -5,7 +5,7 @@ import {
   createMockAxon,
   drain,
   makeAgentEvent,
-  makeRawSystemEvent,
+  makeSystemEventWithRawPayload,
   makeUserEvent,
   type PublishCall,
 } from "../__test-utils__/mock-axon.js";
@@ -269,7 +269,7 @@ describe("axonStream", () => {
       writer.releaseLock();
 
       ctrl.push(
-        makeRawSystemEvent(
+        makeSystemEventWithRawPayload(
           "broker.error",
           "agent failed: agent binary 'nonexistent_binary' not found on PATH",
         ),
@@ -311,7 +311,7 @@ describe("axonStream", () => {
       } as never);
       writer.releaseLock();
 
-      ctrl.push(makeRawSystemEvent("broker.error", "agent crashed"));
+      ctrl.push(makeSystemEventWithRawPayload("broker.error", "agent crashed"));
       ctrl.end();
 
       const messages = await drain(readable);
@@ -338,7 +338,7 @@ describe("axonStream", () => {
       } as never);
       writer.releaseLock();
 
-      ctrl.push(makeRawSystemEvent("broker.error", "agent failed"));
+      ctrl.push(makeSystemEventWithRawPayload("broker.error", "agent failed"));
       ctrl.end();
 
       await drain(readable);
@@ -358,7 +358,9 @@ describe("axonStream", () => {
 
       const { readable } = axonStream({ axon: axon as never });
 
-      ctrl.push(makeRawSystemEvent("broker.error", "agent failed: agent binary 'bad' not found"));
+      ctrl.push(
+        makeSystemEventWithRawPayload("broker.error", "agent failed: agent binary 'bad' not found"),
+      );
       ctrl.end();
 
       const reader = readable.getReader();
@@ -371,7 +373,7 @@ describe("axonStream", () => {
 
       const { readable } = axonStream({ axon: axon as never });
 
-      ctrl.push(makeRawSystemEvent("broker.error", "agent failed: crash", 42));
+      ctrl.push(makeSystemEventWithRawPayload("broker.error", "agent failed: crash", 42));
       ctrl.end();
 
       const reader = readable.getReader();

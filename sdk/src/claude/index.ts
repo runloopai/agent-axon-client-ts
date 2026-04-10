@@ -64,7 +64,7 @@ export type {
   SDKUserMessage,
   SDKUserMessageReplay,
 } from "@anthropic-ai/claude-agent-sdk";
-export { parseTimelinePayload, tryParseSystemEvent } from "../shared/timeline.js";
+export { tryParseSystemEvent, tryParseTimelinePayload } from "../shared/timeline.js";
 export type {
   AxonEventListener,
   AxonEventView,

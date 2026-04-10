@@ -80,6 +80,17 @@ export function axonStream(options: AxonStreamOptions): Stream {
  * agent-to-client requests are buffered. `USER_EVENT` responses during
  * replay mark buffered requests as resolved. After replay, only unresolved
  * requests are enqueued.
+ *
+ * @param axon - Axon channel to subscribe to.
+ * @param signal - Optional abort signal to cancel the subscription.
+ * @param pendingRequests - Shared map tracking outbound request method -> JSON-RPC ID.
+ * @param pendingClientRequests - Shared map tracking agent-to-client request ID -> method.
+ * @param onAxonEvent - Optional callback fired for every raw Axon event.
+ * @param nextId - Factory that produces the next synthetic JSON-RPC ID.
+ * @param onError - Error sink for non-critical failures.
+ * @param log - Optional diagnostic log callback.
+ * @param initialAfterSequence - Axon sequence to resume from (SSE `after_sequence`).
+ * @param replayTargetSequence - When set, events up to this sequence are replayed.
  */
 function createReadable(
   axon: Axon,
@@ -124,37 +135,16 @@ function createReadable(
 
             // --- Replay mode: suppress handler dispatch ---
             if (replaying && axonEvent.sequence <= replayTargetSequence) {
-              // During replay, track USER_EVENT responses to mark requests resolved
-              if (axonEvent.origin === "USER_EVENT" && isClientMethod(axonEvent.event_type)) {
-                replayBuffer.delete(axonEvent.event_type);
-                log?.("read", `#${totalEvents} REPLAY resolved ${axonEvent.event_type}`);
-              } else if (axonEvent.origin === "AGENT_EVENT") {
-                // Buffer agent-to-client requests; skip everything else
-                if (isClientMethod(axonEvent.event_type)) {
-                  const msg = axonEventToJsonRpc(
-                    axonEvent,
-                    pendingRequests,
-                    pendingClientRequests,
-                    nextId,
-                    onError,
-                  );
-                  if (msg) {
-                    replayBuffer.set(axonEvent.event_type, msg);
-                    log?.("read", `#${totalEvents} REPLAY buffered ${axonEvent.event_type}`);
-                  }
-                } else {
-                  log?.("read", `#${totalEvents} REPLAY skip ${axonEvent.event_type}`);
-                }
-              } else {
-                log?.(
-                  "read",
-                  `#${totalEvents} REPLAY skip ${axonEvent.origin} ${axonEvent.event_type}`,
-                );
-              }
-
-              // Flush unresolved requests as soon as we reach the replay target,
-              // rather than waiting for the next live event (which may never arrive
-              // if the replay target is the last event on the axon).
+              processReplayEvent(
+                axonEvent,
+                replayBuffer,
+                pendingRequests,
+                pendingClientRequests,
+                nextId,
+                onError,
+                log,
+                totalEvents,
+              );
               if (axonEvent.sequence === replayTargetSequence) {
                 flushReplayBuffer(replayBuffer, controller, log);
               }
@@ -248,6 +238,49 @@ function createReadable(
       controller.close();
     },
   });
+}
+
+/**
+ * Handles a single Axon event during replay mode. USER_EVENT responses
+ * resolve buffered requests; AGENT_EVENT client-method requests are
+ * buffered; everything else is skipped.
+ */
+function processReplayEvent(
+  axonEvent: AxonEventView,
+  replayBuffer: Map<string, AnyMessage>,
+  pendingRequests: Map<string, string | number | null>,
+  pendingClientRequests: Map<string | number, string>,
+  nextId: () => number,
+  onError: (error: unknown) => void,
+  log: ((tag: string, ...args: unknown[]) => void) | undefined,
+  eventIndex: number,
+): void {
+  if (axonEvent.origin === "USER_EVENT" && isClientMethod(axonEvent.event_type)) {
+    replayBuffer.delete(axonEvent.event_type);
+    log?.("read", `#${eventIndex} REPLAY resolved ${axonEvent.event_type}`);
+    return;
+  }
+
+  if (axonEvent.origin === "AGENT_EVENT") {
+    if (isClientMethod(axonEvent.event_type)) {
+      const msg = axonEventToJsonRpc(
+        axonEvent,
+        pendingRequests,
+        pendingClientRequests,
+        nextId,
+        onError,
+      );
+      if (msg) {
+        replayBuffer.set(axonEvent.event_type, msg);
+        log?.("read", `#${eventIndex} REPLAY buffered ${axonEvent.event_type}`);
+      }
+    } else {
+      log?.("read", `#${eventIndex} REPLAY skip ${axonEvent.event_type}`);
+    }
+    return;
+  }
+
+  log?.("read", `#${eventIndex} REPLAY skip ${axonEvent.origin} ${axonEvent.event_type}`);
 }
 
 /**

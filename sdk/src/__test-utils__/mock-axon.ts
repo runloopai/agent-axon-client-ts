@@ -50,7 +50,12 @@ export function makeFullAxonEvent(overrides: Partial<AxonEventView> = {}): AxonE
   };
 }
 
-export function makeRawSystemEvent(
+/**
+ * Like {@link makeSystemEvent} but takes a pre-formatted string payload
+ * instead of JSON-serializing an object. Useful for `broker.error` events
+ * whose payloads are plain error messages.
+ */
+export function makeSystemEventWithRawPayload(
   eventType: string,
   payload: string,
   sequence?: number,

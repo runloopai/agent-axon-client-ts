@@ -96,6 +96,12 @@ export interface ACPAxonConnectionOptions extends BaseConnectionOptions {
    *
    * When set, the built-in `requestPermission` / `onSessionUpdate` wiring is
    * bypassed — the returned `Client` is used as-is.
+   *
+   * **Design note:** A composition-based approach (partial overrides merged
+   * with defaults) would be more ergonomic but the `Client` interface from
+   * `@agentclientprotocol/sdk` doesn't lend itself to easy merging. This
+   * all-or-nothing option keeps the boundary clear. See
+   * {@link CreateClientFn} for the `@todo` on future composition support.
    */
   createClient?: CreateClientFn;
 }

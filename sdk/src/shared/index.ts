@@ -20,8 +20,10 @@ export { getLastSequence } from "./replay.js";
 export {
   type ClassifyConfig,
   createClassifier,
-  parseTimelinePayload,
+  isSystemEventType,
+  SYSTEM_EVENT_TYPES,
   tryParseSystemEvent,
+  tryParseTimelinePayload,
 } from "./timeline.js";
 export { timelineEventGenerator } from "./timeline-generator.js";
 /** @category Types */

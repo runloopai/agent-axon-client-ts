@@ -19,9 +19,13 @@ import type { AxonEventView } from "./types.js";
  * @category Timeline
  */
 export interface ExtractedACPUserMessage {
-  /** Concatenated text from all `text` content blocks (convenience). */
+  /**
+   * Concatenated text from all `text` content blocks (convenience).
+   * Non-text blocks (images, files, etc.) are not included here —
+   * inspect {@link content} for the full set of blocks.
+   */
   text: string;
-  /** The full array of ACP content blocks from the prompt. */
+  /** The full array of ACP content blocks from the prompt, including non-text blocks. */
   content: ContentBlock[];
   /** The Axon event sequence number (useful as a stable ID). */
   sequence: number;
@@ -81,9 +85,13 @@ export function extractACPUserMessage(
  * @category Timeline
  */
 export interface ExtractedClaudeUserMessage {
-  /** Concatenated text from all `text` content blocks (convenience). */
+  /**
+   * Concatenated text from all `text` content blocks (convenience).
+   * Non-text blocks (images, tool results, etc.) are not included here —
+   * inspect {@link content} for the full set of blocks.
+   */
   text: string;
-  /** The full array of content blocks from the user message. */
+  /** The full array of content blocks from the user message, including non-text blocks. */
   content: unknown[];
   /** The Axon event sequence number (useful as a stable ID). */
   sequence: number;

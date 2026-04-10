@@ -5,13 +5,60 @@
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { SystemEvent, SystemTimelineEvent, UnknownTimelineEvent } from "./types.js";
 
+// ---------------------------------------------------------------------------
+// System event type constants
+// ---------------------------------------------------------------------------
+
 /**
- * Parses the JSON payload from an Axon event.
+ * Known system event type strings emitted by the Axon broker.
+ * Use these instead of raw string literals for type-safe matching.
+ *
+ * @category Timeline
+ */
+export const SYSTEM_EVENT_TYPES = {
+  TURN_STARTED: "turn.started",
+  TURN_COMPLETED: "turn.completed",
+  BROKER_ERROR: "broker.error",
+} as const;
+
+/** Set of all recognized system event type strings for O(1) lookup. */
+const SYSTEM_EVENT_TYPE_SET: Set<string> = new Set(Object.values(SYSTEM_EVENT_TYPES));
+
+/** Returns `true` if `eventType` is a recognized broker system event type. */
+export function isSystemEventType(eventType: string): boolean {
+  return SYSTEM_EVENT_TYPE_SET.has(eventType);
+}
+
+// ---------------------------------------------------------------------------
+// System event payload shapes
+// ---------------------------------------------------------------------------
+
+interface TurnStartedPayload {
+  turn_id?: string;
+}
+
+interface TurnCompletedPayload {
+  turn_id?: string;
+  stop_reason?: string;
+}
+
+interface BrokerErrorPayload {
+  message?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Payload parsing
+// ---------------------------------------------------------------------------
+
+/**
+ * Attempts to parse the JSON payload from an Axon event.
  * Returns `null` if the payload is missing or not valid JSON.
  *
  * @category Timeline
  */
-export function parseTimelinePayload<T = unknown>(event: { axonEvent: AxonEventView }): T | null {
+export function tryParseTimelinePayload<T = unknown>(event: {
+  axonEvent: AxonEventView;
+}): T | null {
   const raw = event.axonEvent.payload;
   if (typeof raw !== "string") return (raw as T) ?? null;
   try {
@@ -29,26 +76,29 @@ export function parseTimelinePayload<T = unknown>(event: { axonEvent: AxonEventV
  * @category Timeline
  */
 export function tryParseSystemEvent(ev: AxonEventView): SystemEvent | null {
-  if (ev.event_type === "turn.started" || ev.event_type === "turn.completed") {
-    const parsed = parseTimelinePayload<Record<string, unknown>>({ axonEvent: ev });
+  if (
+    ev.event_type === SYSTEM_EVENT_TYPES.TURN_STARTED ||
+    ev.event_type === SYSTEM_EVENT_TYPES.TURN_COMPLETED
+  ) {
+    const parsed = tryParseTimelinePayload<TurnStartedPayload | TurnCompletedPayload>({
+      axonEvent: ev,
+    });
     if (!parsed) return null;
-    const turnId = (parsed.turn_id as string) ?? "";
-    if (ev.event_type === "turn.started") {
+    const turnId = (parsed as TurnStartedPayload).turn_id ?? "";
+    if (ev.event_type === SYSTEM_EVENT_TYPES.TURN_STARTED) {
       return { type: "turn.started", turnId };
     }
     return {
       type: "turn.completed",
       turnId,
-      stopReason: parsed.stop_reason as string | undefined,
+      stopReason: (parsed as TurnCompletedPayload).stop_reason,
     };
   }
 
-  if (ev.event_type === "broker.error") {
-    const parsed = parseTimelinePayload<Record<string, unknown>>({ axonEvent: ev });
+  if (ev.event_type === SYSTEM_EVENT_TYPES.BROKER_ERROR) {
+    const parsed = tryParseTimelinePayload<BrokerErrorPayload>({ axonEvent: ev });
     const message =
-      typeof parsed === "object" && parsed !== null
-        ? ((parsed.message as string) ?? String(ev.payload))
-        : String(ev.payload ?? "");
+      parsed != null ? (parsed.message ?? String(ev.payload)) : String(ev.payload ?? "");
     return { type: "broker.error", message };
   }
 

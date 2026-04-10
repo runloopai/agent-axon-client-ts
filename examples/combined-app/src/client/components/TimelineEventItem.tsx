@@ -2,6 +2,30 @@ import { useState } from "react";
 import type { TimelineEvent } from "../types.js";
 import { PayloadTree, formatTime, originLabel, originBadgeClass } from "./shared.js";
 
+type TimelineKind = "system" | "acp_protocol" | "claude_protocol" | "unknown";
+
+interface ACPEventData {
+  update?: { sessionUpdate?: string };
+  sessionUpdate?: string;
+  prompt?: Array<{ type: string; text?: string }>;
+  stopReason?: string;
+  agentInfo?: { name?: string };
+  clientInfo?: { name?: string };
+  cwd?: string;
+  sessionId?: string;
+  toolCall?: { title?: string };
+  outcome?: { outcome?: string };
+  message?: string;
+}
+
+interface ClaudeEventData {
+  type?: string;
+  event?: { type?: string };
+  stop_reason?: string;
+  subtype?: string;
+  request?: { tool_name?: string };
+}
+
 interface TimelineSummary {
   icon: string;
   label: string;
@@ -18,45 +42,41 @@ function parsePayload(payload: string): Record<string, unknown> | null {
 }
 
 function summarizeACPProtocol(eventType: string, data: unknown, origin: string): TimelineSummary {
-  const d = (data ?? {}) as Record<string, unknown>;
+  const d = (data ?? {}) as ACPEventData;
   const isUser = origin === "USER_EVENT";
 
   switch (eventType) {
     case "session/update": {
-      const update = (d.update ?? d) as Record<string, unknown>;
-      const su = (update.sessionUpdate as string) ?? "";
-      return { icon: "\u{1F4E6}", label: `session/update`, summary: su, kindClass: "kind-protocol" };
+      const su = d.update?.sessionUpdate ?? d.sessionUpdate ?? "";
+      return { icon: "\u{1F4E6}", label: "session/update", summary: su, kindClass: "kind-protocol" };
     }
     case "session/prompt": {
       if (isUser) {
-        const prompt = d.prompt as Array<{ type: string; text?: string }> | undefined;
-        const text = prompt?.find((p) => p.type === "text")?.text ?? "";
+        const text = d.prompt?.find((p) => p.type === "text")?.text ?? "";
         const preview = text.length > 60 ? text.slice(0, 60) + "\u2026" : text;
         return { icon: "\u{1F4AC}", label: "session/prompt", summary: preview, kindClass: "kind-protocol" };
       }
-      const stopReason = (d.stopReason as string) ?? "";
-      return { icon: "\u2705", label: "session/prompt", summary: stopReason || "response", kindClass: "kind-protocol" };
+      return { icon: "\u2705", label: "session/prompt", summary: d.stopReason || "response", kindClass: "kind-protocol" };
     }
     case "initialize": {
-      const info = (d.agentInfo ?? d.clientInfo) as { name?: string } | undefined;
+      const info = d.agentInfo ?? d.clientInfo;
       return { icon: "\u26A1", label: "initialize", summary: info?.name ?? (isUser ? "client" : "agent"), kindClass: "kind-protocol" };
     }
     case "session/new": {
-      const cwd = (d.cwd as string) ?? "";
-      const sid = (d.sessionId as string) ?? "";
+      const cwd = d.cwd ?? "";
+      const sid = d.sessionId ?? "";
       return { icon: "\u{1F195}", label: "session/new", summary: cwd || (sid ? sid.slice(0, 16) : ""), kindClass: "kind-protocol" };
     }
     case "session/request_permission": {
-      const toolCall = d.toolCall as Record<string, unknown> | undefined;
-      const title = (toolCall?.title as string) ?? "";
+      const title = d.toolCall?.title ?? "";
       if (isUser) {
         return { icon: "\u{1F512}", label: "Permission Request", summary: title, kindClass: "kind-permission" };
       }
-      const outcome = (d.outcome as Record<string, unknown>)?.outcome as string ?? "";
+      const outcome = d.outcome?.outcome ?? "";
       return { icon: outcome === "cancelled" ? "\u274C" : "\u2705", label: "Permission Response", summary: outcome || title, kindClass: "kind-permission" };
     }
     case "session/elicitation": {
-      const message = (d.message as string) ?? "";
+      const message = d.message ?? "";
       const preview = message.length > 60 ? message.slice(0, 60) + "\u2026" : message;
       return { icon: "\u2753", label: "Elicitation", summary: preview, kindClass: "kind-permission" };
     }
@@ -66,32 +86,22 @@ function summarizeACPProtocol(eventType: string, data: unknown, origin: string):
 }
 
 function summarizeClaudeProtocol(data: unknown): TimelineSummary {
-  const d = (data ?? {}) as Record<string, unknown>;
-  const msgType = (d.type as string) ?? "";
+  const d = (data ?? {}) as ClaudeEventData;
+  const msgType = d.type ?? "";
 
   switch (msgType) {
-    case "stream_event": {
-      const event = d.event as Record<string, unknown> | undefined;
-      const evType = (event?.type as string) ?? "";
-      return { icon: "\u{1F4E1}", label: "stream_event", summary: evType, kindClass: "kind-protocol" };
-    }
+    case "stream_event":
+      return { icon: "\u{1F4E1}", label: "stream_event", summary: d.event?.type ?? "", kindClass: "kind-protocol" };
     case "assistant":
       return { icon: "\u{1F916}", label: "assistant", summary: "", kindClass: "kind-protocol" };
     case "user":
       return { icon: "\u{1F4AC}", label: "user", summary: "", kindClass: "kind-protocol" };
-    case "result": {
-      const stopReason = (d.stop_reason as string) ?? "";
-      return { icon: "\u2705", label: "result", summary: stopReason, kindClass: "kind-protocol" };
-    }
-    case "system": {
-      const subtype = (d.subtype as string) ?? "";
-      return { icon: "\u2699", label: "system", summary: subtype, kindClass: "kind-protocol" };
-    }
-    case "control_request": {
-      const request = d.request as Record<string, unknown> | undefined;
-      const toolName = (request?.tool_name as string) ?? "";
-      return { icon: "\u{1F512}", label: "control_request", summary: toolName, kindClass: "kind-permission" };
-    }
+    case "result":
+      return { icon: "\u2705", label: "result", summary: d.stop_reason ?? "", kindClass: "kind-protocol" };
+    case "system":
+      return { icon: "\u2699", label: "system", summary: d.subtype ?? "", kindClass: "kind-protocol" };
+    case "control_request":
+      return { icon: "\u{1F512}", label: "control_request", summary: d.request?.tool_name ?? "", kindClass: "kind-permission" };
     case "control_response":
       return { icon: "\u2705", label: "control_response", summary: "", kindClass: "kind-permission" };
     case "tool_progress":
@@ -131,24 +141,23 @@ function isCustomEvent(event: TimelineEvent): boolean {
   return event.kind === "unknown" && event.axonEvent.event_type === "agent_started";
 }
 
-function kindBadgeLabel(kind: string, custom: boolean): string {
+function kindBadgeLabel(kind: TimelineKind, custom: boolean): string {
   if (custom) return "CFG";
   switch (kind) {
     case "system": return "SYS";
     case "acp_protocol": return "ACP";
     case "claude_protocol": return "CLAUDE";
     case "unknown": return "?";
-    default: return kind;
   }
 }
 
-function kindBadgeClass(kind: string, custom: boolean): string {
+function kindBadgeClass(kind: TimelineKind, custom: boolean): string {
   if (custom) return "tl-kind-custom";
   switch (kind) {
     case "system": return "tl-kind-system";
     case "acp_protocol": return "tl-kind-acp";
     case "claude_protocol": return "tl-kind-claude";
-    default: return "tl-kind-unknown";
+    case "unknown": return "tl-kind-unknown";
   }
 }
 

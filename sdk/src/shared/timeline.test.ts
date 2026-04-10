@@ -1,26 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
 import { makeFullAxonEvent as makeAxonEvent } from "../__test-utils__/mock-axon.js";
-import { createClassifier, parseTimelinePayload, tryParseSystemEvent } from "./timeline.js";
+import { createClassifier, tryParseSystemEvent, tryParseTimelinePayload } from "./timeline.js";
 
-describe("parseTimelinePayload", () => {
+describe("tryParseTimelinePayload", () => {
   it("parses a JSON string payload", () => {
     const ev = makeAxonEvent({ payload: '{"key":"value"}' });
-    expect(parseTimelinePayload({ axonEvent: ev })).toEqual({ key: "value" });
+    expect(tryParseTimelinePayload({ axonEvent: ev })).toEqual({ key: "value" });
   });
 
   it("returns the payload as-is when it is already an object", () => {
     const ev = makeAxonEvent({ payload: { key: "value" } as unknown as string });
-    expect(parseTimelinePayload({ axonEvent: ev })).toEqual({ key: "value" });
+    expect(tryParseTimelinePayload({ axonEvent: ev })).toEqual({ key: "value" });
   });
 
   it("returns null for invalid JSON", () => {
     const ev = makeAxonEvent({ payload: "not json" });
-    expect(parseTimelinePayload({ axonEvent: ev })).toBeNull();
+    expect(tryParseTimelinePayload({ axonEvent: ev })).toBeNull();
   });
 
   it("returns null for undefined payload", () => {
     const ev = makeAxonEvent({ payload: undefined as unknown as string });
-    expect(parseTimelinePayload({ axonEvent: ev })).toBeNull();
+    expect(tryParseTimelinePayload({ axonEvent: ev })).toBeNull();
   });
 });
 

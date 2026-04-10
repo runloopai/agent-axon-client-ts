@@ -21,7 +21,11 @@ import { CommandPicker } from "./components/CommandPicker.js";
 import { AxonEventItem } from "./components/AxonEventItem.js";
 import { TimelineEventItem } from "./components/TimelineEventItem.js";
 import { TurnBlocksInspector } from "./components/TurnBlocksInspector.js";
+import { AttachIcon, CancelIcon, SendIcon } from "./components/Icons.js";
 import { api } from "./hooks/api.js";
+
+type StartPhase = "idle" | "connecting" | "error";
+type RightTab = "activity" | "axon" | "timeline";
 
 function UserAttachments({ attachments }: { attachments: UserAttachment[] }) {
   return (
@@ -112,7 +116,7 @@ export default function App() {
   const [showSetup, setShowSetup] = useState(true);
   const [selectedAgentType, setSelectedAgentType] = useState<AgentType>("acp");
 
-  const [startPhase, setStartPhase] = useState<"idle" | "connecting" | "error">("idle");
+  const [startPhase, setStartPhase] = useState<StartPhase>("idle");
   const [startStatus, setStartStatus] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const startWsRef = useRef<WebSocket | null>(null);
@@ -141,7 +145,7 @@ export default function App() {
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [expandedAxonEvents, setExpandedAxonEvents] = useState<Set<number>>(new Set());
   const [expandedTimelineEvents, setExpandedTimelineEvents] = useState<Set<number>>(new Set());
-  const [rightTab, setRightTab] = useState<"activity" | "axon" | "timeline">("activity");
+  const [rightTab, setRightTab] = useState<RightTab>("activity");
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [commandPickerIndex, setCommandPickerIndex] = useState(0);
 
@@ -556,15 +560,11 @@ export default function App() {
                       disabled={agent.connectionPhase !== "ready" || agent.isAgentTurn}
                       title="Attach files"
                     >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M14 8.5l-5.5 5.5a3.5 3.5 0 01-5-5l6.5-6.5a2.5 2.5 0 013.5 3.5L7 12.5a1.5 1.5 0 01-2-2L10.5 5" />
-                      </svg>
+                      <AttachIcon />
                     </button>
                     {agent.isAgentTurn ? (
                       <button className="composer-btn composer-btn-cancel" onClick={agent.cancel} title="Cancel">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <rect x="3" y="3" width="10" height="10" rx="2" />
-                        </svg>
+                        <CancelIcon />
                       </button>
                     ) : (
                       <button
@@ -573,9 +573,7 @@ export default function App() {
                         disabled={!attach.hasContent(inputText) || agent.connectionPhase !== "ready" || agent.isSendingPrompt}
                         title={agent.isSendingPrompt ? "Sending…" : "Send message"}
                       >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M3 8l5-5v3.5h5v3H8V13L3 8z" />
-                        </svg>
+                        <SendIcon />
                       </button>
                     )}
                   </div>

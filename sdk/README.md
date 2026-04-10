@@ -483,16 +483,16 @@ for await (const event of conn.receiveTimelineEvents()) {
 }
 ```
 
-### `parseTimelinePayload` helper
+### `tryParseTimelinePayload` helper
 
-For unknown events, use `parseTimelinePayload` to safely parse the raw JSON payload:
+For unknown events, use `tryParseTimelinePayload` to safely parse the raw JSON payload:
 
 ```typescript
-import { parseTimelinePayload } from "@runloop/agent-axon-client/acp";
+import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
 
 conn.onTimelineEvent((event) => {
   if (event.kind === "unknown") {
-    const payload = parseTimelinePayload<{ myField: string }>(event);
+    const payload = tryParseTimelinePayload<{ myField: string }>(event);
     if (payload) console.log(payload.myField);
   }
 });
@@ -572,8 +572,8 @@ Common options accepted by both `ACPAxonConnection` and `ClaudeAxonConnection`:
 | `verbose` | `boolean` | Emit verbose logs to stderr |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` |
-| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Mutually exclusive with `replay`.** |
-| `replay` | `boolean` | When `true` (the default), suppresses handler dispatch during replay of historical events; set `false` for legacy behavior. **Mutually exclusive with `afterSequence`.** |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. If omitted and `replay` is `false`, **all events from the beginning of the Axon channel are delivered to handlers**, replaying the entire session history. **Mutually exclusive with `replay`.** |
+| `replay` | `boolean` | When `true` (the default), `connect()` replays all events from the beginning of the Axon channel without dispatching to session/protocol handlers (timeline listeners still receive events). Unresolved permission/control requests are delivered after replay. Set `false` to process the full history with handlers firing for every event. **Mutually exclusive with `afterSequence`.** |
 
 ### `AxonEventView`
 

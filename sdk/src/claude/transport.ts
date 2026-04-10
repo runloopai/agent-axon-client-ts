@@ -272,8 +272,8 @@ export class AxonTransport implements Transport {
                 replayBuffer.delete(requestId);
                 this.log("read", `#${eventCount} REPLAY resolved control_request ${requestId}`);
               }
-            } catch {
-              // ignore parse errors for resolution tracking
+            } catch (err) {
+              this.log("read", `#${eventCount} REPLAY failed to parse control_response: ${err}`);
             }
           }
         } else {
@@ -318,8 +318,11 @@ export class AxonTransport implements Transport {
             continue;
           }
           yield parsed;
-        } catch {
-          this.log("read", `#${eventCount} failed to parse payload`);
+        } catch (err) {
+          this.log(
+            "read",
+            `#${eventCount} failed to parse payload for ${event.event_type}: ${err}`,
+          );
         }
       } else {
         this.log("read", `#${eventCount} SKIP ${event.origin} ${event.event_type}`);

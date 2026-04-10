@@ -110,7 +110,8 @@ export class NodeACPClient implements Client {
   }
 
   async sessionUpdate(_params: SessionNotification): Promise<void> {
-    // Session updates are consumed via timeline events on the frontend.
+    // Required by the Client interface. Session updates are consumed via
+    // onTimelineEvent / receiveTimelineEvents on the frontend instead.
   }
 
   private static IGNORED_NOTIFICATIONS = new Set([

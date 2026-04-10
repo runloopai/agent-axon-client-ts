@@ -53,6 +53,10 @@ const conn = new ACPAxonConnection(axon, devbox, {
   },
 });
 
+// connect() opens the SSE stream and replays all events from the beginning
+// of the Axon channel by default (replay: true). Pass afterSequence to skip
+// already-seen events, or replay: false to process the full history with
+// handlers firing for every event.
 await conn.connect();
 
 // 2. Initialize
@@ -208,14 +212,14 @@ for await (const event of conn.receiveTimelineEvents()) {
 }
 ```
 
-### Utility: `parseTimelinePayload`
+### Utility: `tryParseTimelinePayload`
 
 ```typescript
-import { parseTimelinePayload } from "@runloop/agent-axon-client/acp";
+import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
 
 conn.onTimelineEvent((event) => {
   if (event.kind === "unknown") {
-    const payload = parseTimelinePayload<MyCustomEvent>(event);
+    const payload = tryParseTimelinePayload<MyCustomEvent>(event);
     if (payload) { /* handle custom event */ }
   }
 });
