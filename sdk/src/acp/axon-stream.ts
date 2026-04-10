@@ -119,7 +119,7 @@ function createReadable(
             if (isSystemError(axonEvent)) {
               log?.("read", `#${totalEvents} SYSTEM_ERROR: ${axonEvent.payload}`);
               if (pendingRequests.size === 0) {
-                controller.error(new SystemError(axonEvent.payload));
+                controller.error(SystemError.fromEvent(axonEvent));
                 return;
               }
               for (const [method, id] of pendingRequests) {

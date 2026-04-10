@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createControllableStream,
   createMockAxon,
@@ -6,6 +6,7 @@ import {
   makeSystemEvent,
   makeUserEvent,
 } from "../__test-utils__/mock-axon.js";
+import { SystemError } from "../shared/errors/system-error.js";
 import { AxonTransport, MESSAGE_TYPE_TO_EVENT_TYPE } from "./transport.js";
 
 // ---------------------------------------------------------------------------
@@ -205,6 +206,49 @@ describe("AxonTransport", () => {
       const gen = transport.readMessages()[Symbol.asyncIterator]();
       await expect(gen.next()).rejects.toThrow(
         "agent failed: agent binary 'nonexistent_binary' not found on PATH",
+      );
+    });
+
+    it("throws a SystemError with event metadata on broker.error", async () => {
+      await transport.connect();
+
+      ctrl.push(makeSystemEvent("broker.error", "agent failed: process crashed", 99));
+      ctrl.end();
+
+      const gen = transport.readMessages()[Symbol.asyncIterator]();
+      try {
+        await gen.next();
+        expect.fail("Expected SystemError to be thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(SystemError);
+        const sysErr = err as SystemError;
+        expect(sysErr.message).toBe("agent failed: process crashed");
+        expect(sysErr.eventType).toBe("broker.error");
+        expect(sysErr.sequence).toBe(99);
+      }
+    });
+
+    it("calls onAxonEvent listener for system error events before throwing", async () => {
+      const onAxonEvent = vi.fn();
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const transport2 = new AxonTransport(mock.axon as never, { onAxonEvent });
+
+      await transport2.connect();
+
+      ctrl2.push(makeSystemEvent("broker.error", "agent failed: something bad"));
+      ctrl2.end();
+
+      const gen = transport2.readMessages()[Symbol.asyncIterator]();
+      await expect(gen.next()).rejects.toThrow("agent failed: something bad");
+
+      expect(onAxonEvent).toHaveBeenCalledOnce();
+      expect(onAxonEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          origin: "SYSTEM_EVENT",
+          event_type: "broker.error",
+          payload: "agent failed: something bad",
+        }),
       );
     });
   });

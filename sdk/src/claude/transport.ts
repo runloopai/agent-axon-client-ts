@@ -193,12 +193,12 @@ export class AxonTransport implements Transport {
       eventCount++;
       this.lastSequence = event.sequence;
 
+      this.onAxonEvent?.(event);
+
       if (isSystemError(event)) {
         this.log("read", `#${eventCount} SYSTEM_ERROR: ${event.payload}`);
-        throw new SystemError(event.payload, event.payload);
+        throw SystemError.fromEvent(event);
       }
-
-      this.onAxonEvent?.(event);
 
       if (event.origin === "AGENT_EVENT") {
         this.log("read", `#${eventCount} ${event.event_type}`);

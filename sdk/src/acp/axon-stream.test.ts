@@ -9,6 +9,7 @@ import {
   makeUserEvent,
   type PublishCall,
 } from "../__test-utils__/mock-axon.js";
+import { SystemError } from "../shared/errors/system-error.js";
 import { axonStream } from "./axon-stream.js";
 
 // ---------------------------------------------------------------------------
@@ -363,6 +364,28 @@ describe("axonStream", () => {
 
       const reader = readable.getReader();
       await expect(reader.read()).rejects.toThrow("agent failed: agent binary 'bad' not found");
+    });
+
+    it("includes event metadata in SystemError when broker.error arrives", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl.stream);
+
+      const { readable } = axonStream({ axon: axon as never });
+
+      ctrl.push(makeSystemEvent("broker.error", "agent failed: crash", 42));
+      ctrl.end();
+
+      const reader = readable.getReader();
+      try {
+        await reader.read();
+        expect.fail("Expected SystemError to be thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(SystemError);
+        const sysErr = err as SystemError;
+        expect(sysErr.message).toBe("agent failed: crash");
+        expect(sysErr.eventType).toBe("broker.error");
+        expect(sysErr.sequence).toBe(42);
+      }
     });
   });
 

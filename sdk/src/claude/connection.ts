@@ -23,6 +23,7 @@ import type {
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
+import { SystemError } from "../shared/errors/system-error.js";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
@@ -375,9 +376,7 @@ export class ClaudeAxonConnection {
           return "ended";
         } catch (err) {
           this.log("readLoop", `error: ${err}`);
-          const errMsg = err instanceof Error ? err.message : String(err);
-          // if the requested agent binary isn't available, retrying won't help.
-          if (errMsg.includes("agent failed") || errMsg.includes("not found")) {
+          if (err instanceof SystemError) {
             this.closed = true;
           }
           for (const [, pending] of this.pendingControlRequests) {

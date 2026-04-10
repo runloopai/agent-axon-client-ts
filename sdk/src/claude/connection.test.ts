@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { SystemError } from "../shared/errors/system-error.js";
 import { ClaudeAxonConnection } from "./connection.js";
 import type { Transport } from "./transport.js";
 import type { WireData } from "./types.js";
@@ -1002,7 +1003,11 @@ describe("ClaudeAxonConnection", () => {
     it("does not reconnect on fatal broker errors (agent binary not found)", async () => {
       await createConnectedClient(transport);
 
-      transport._throw(new Error("agent failed: agent binary 'bad_binary' not found on PATH"));
+      transport._throw(
+        new SystemError("agent failed: agent binary 'bad_binary' not found on PATH", {
+          event_type: "broker.error",
+        }),
+      );
 
       await new Promise((r) => setTimeout(r, 50));
 
@@ -1013,7 +1018,11 @@ describe("ClaudeAxonConnection", () => {
     it("does not reconnect on fatal broker errors (generic agent failed)", async () => {
       await createConnectedClient(transport);
 
-      transport._throw(new Error("agent failed: process exited with code 127"));
+      transport._throw(
+        new SystemError("agent failed: process exited with code 127", {
+          event_type: "broker.error",
+        }),
+      );
 
       await new Promise((r) => setTimeout(r, 50));
 
