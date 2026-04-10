@@ -6,7 +6,6 @@ import {
 } from "@runloop/agent-axon-client/acp";
 import { axonStream, type AxonEventView } from "@runloop/agent-axon-client/acp";
 import { NodeACPClient } from "./acp-client.ts";
-import { BadRequestError } from "./http-errors.ts";
 import type { WsBroadcaster } from "./ws.ts";
 
 export interface ACPStartOptions {
@@ -135,12 +134,9 @@ export class ACPConnectionManager {
         clientInfo: { name: "combined-app", version: "0.1.0" },
         clientCapabilities: CLIENT_CAPABILITIES,
       });
-    } catch (err: any) {
-      // shut down but don't wait for it to complete
+    } catch (err) {
       this.shutdown().catch(() => {});
-      throw new BadRequestError(`Failed to initialize agent: ${err?.message}`, {
-        cause: err,
-      });
+      throw err;
     }
 
     const initData = initResp as Record<string, unknown>;
@@ -155,7 +151,7 @@ export class ACPConnectionManager {
       });
     } catch (err) {
       await this.shutdown();
-      throw new Error(`Failed to create session: ${this.extractMessage(err)}`);
+      throw err;
     }
     this.activeSessionId = sessionResp.sessionId;
 
@@ -195,13 +191,6 @@ export class ACPConnectionManager {
   requireClient(): NodeACPClient {
     if (!this.nodeClient) throw new Error("Not connected");
     return this.nodeClient;
-  }
-
-  private extractMessage(err: unknown): string {
-    if (err instanceof Error) return err.message;
-    if (typeof err === "object" && err !== null && "message" in err)
-      return String((err as { message: unknown }).message);
-    return String(err);
   }
 
   async shutdown(): Promise<void> {

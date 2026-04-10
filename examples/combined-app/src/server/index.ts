@@ -2,7 +2,6 @@ import express, { type Request, type Response } from "express";
 import { createServer } from "node:http";
 import { ACPConnectionManager } from "./acp-manager.ts";
 import { ClaudeConnectionManager } from "./claude-manager.ts";
-import { HttpError } from "./http-errors.ts";
 import { WsBroadcaster } from "./ws.ts";
 
 const app = express();
