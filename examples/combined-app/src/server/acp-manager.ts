@@ -6,6 +6,7 @@ import {
 } from "@runloop/agent-axon-client/acp";
 import { axonStream, type AxonEventView } from "@runloop/agent-axon-client/acp";
 import { NodeACPClient } from "./acp-client.ts";
+import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster } from "./ws.ts";
 
 export interface ACPStartOptions {
@@ -38,7 +39,7 @@ export class ACPConnectionManager {
     const apiKey = process.env.RUNLOOP_API_KEY;
     const baseUrl = process.env.RUNLOOP_BASE_URL;
 
-    if (!apiKey) throw new Error("RUNLOOP_API_KEY not set in server .env");
+    if (!apiKey) throw new HttpError(401, "RUNLOOP_API_KEY not set in server .env");
 
     const sdk = new RunloopSDK({
       bearerToken: apiKey,
@@ -127,20 +128,32 @@ export class ACPConnectionManager {
       stream,
     );
 
-    const initResp = await this.connection.initialize({
-      protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "combined-app", version: "0.1.0" },
-      clientCapabilities: CLIENT_CAPABILITIES,
-    });
+    let initResp;
+    try {
+      initResp = await this.connection!.initialize({
+        protocolVersion: PROTOCOL_VERSION,
+        clientInfo: { name: "combined-app", version: "0.1.0" },
+        clientCapabilities: CLIENT_CAPABILITIES,
+      });
+    } catch (err) {
+      this.shutdown().catch(() => {});
+      throw err;
+    }
 
     const initData = initResp as Record<string, unknown>;
     this.authMethods = (initData.authMethods as unknown[]) ?? null;
 
     this.ws.broadcast({ type: "connection_progress", step: "Starting session..." });
-    const sessionResp = await this.connection.newSession({
-      cwd: "/home/user",
-      mcpServers: [],
-    });
+    let sessionResp;
+    try {
+      sessionResp = await this.connection!.newSession({
+        cwd: "/home/user",
+        mcpServers: [],
+      });
+    } catch (err) {
+      await this.shutdown();
+      throw err;
+    }
     this.activeSessionId = sessionResp.sessionId;
 
     const sessionRaw = sessionResp as Record<string, unknown>;
@@ -166,18 +179,18 @@ export class ACPConnectionManager {
   }
 
   requireConnection(): ClientSideConnection {
-    if (!this.connection) throw new Error("Not connected");
+    if (!this.connection) throw new HttpError(400, "Not connected");
     return this.connection;
   }
 
   requireSession(): { connection: ClientSideConnection; sessionId: string } {
     const connection = this.requireConnection();
-    if (!this.activeSessionId) throw new Error("No active session");
+    if (!this.activeSessionId) throw new HttpError(400, "No active session");
     return { connection, sessionId: this.activeSessionId };
   }
 
   requireClient(): NodeACPClient {
-    if (!this.nodeClient) throw new Error("Not connected");
+    if (!this.nodeClient) throw new HttpError(400, "Not connected");
     return this.nodeClient;
   }
 

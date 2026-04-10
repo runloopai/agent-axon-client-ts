@@ -6,6 +6,7 @@ import {
 } from "@runloop/agent-axon-client/acp";
 import { axonStream, type AxonEventView } from "@runloop/agent-axon-client/acp";
 import { NodeACPClient } from "./acp-client.ts";
+import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster } from "./ws.ts";
 
 export interface StartOptions {
@@ -20,14 +21,6 @@ const CLIENT_CAPABILITIES = {
   terminal: true,
   elicitation: { form: {} },
 } as const;
-
-export class HttpError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
 
 export class ConnectionManager {
   connection: ClientSideConnection | null = null;
@@ -49,7 +42,7 @@ export class ConnectionManager {
     const baseUrl = process.env.RUNLOOP_BASE_URL;
 
     if (!apiKey) {
-      throw new HttpError(500, "RUNLOOP_API_KEY not set in server .env");
+      throw new HttpError(401, "RUNLOOP_API_KEY not set in server .env");
     }
 
     const sdk = new RunloopSDK({
@@ -140,20 +133,33 @@ export class ConnectionManager {
       stream,
     );
 
-    const initResp = await this.connection.initialize({
-      protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "node-demo", version: "0.1.0" },
-      clientCapabilities: CLIENT_CAPABILITIES,
-    });
+    let initResp;
+    try {
+      initResp = await this.connection.initialize({
+        protocolVersion: PROTOCOL_VERSION,
+        clientInfo: { name: "node-demo", version: "0.1.0" },
+        clientCapabilities: CLIENT_CAPABILITIES,
+      });
+    } catch (err) {
+      // issue shutdown and return the message right away (no need to wait for it to complete)
+      this.shutdown().catch(() => {});
+      throw err;
+    }
 
     const initData = initResp as Record<string, unknown>;
     this.authMethods = (initData.authMethods as unknown[]) ?? null;
 
     this.ws.broadcast({ type: "connection_progress", step: "Starting session..." });
-    const sessionResp = await this.connection.newSession({
-      cwd: "/home/user",
-      mcpServers: [],
-    });
+    let sessionResp;
+    try {
+      sessionResp = await this.connection.newSession({
+        cwd: "/home/user",
+        mcpServers: [],
+      });
+    } catch (err) {
+      await this.shutdown();
+      throw err;
+    }
     this.activeSessionId = sessionResp.sessionId;
 
     const sessionRaw = sessionResp as Record<string, unknown>;

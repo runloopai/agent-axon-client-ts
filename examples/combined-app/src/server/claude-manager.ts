@@ -1,6 +1,7 @@
 import { RunloopSDK } from "@runloop/api-client";
 import { ClaudeAxonConnection, type AxonEventView } from "@runloop/agent-axon-client/claude";
 import type { SDKControlResponse, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster, WsEvent } from "./ws.ts";
 
 export interface ClaudeStartOptions {
@@ -29,7 +30,7 @@ export class ClaudeConnectionManager {
     const baseUrl = process.env.RUNLOOP_BASE_URL;
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
 
-    if (!apiKey) throw new Error("RUNLOOP_API_KEY not set in server .env");
+    if (!apiKey) throw new HttpError(401, "RUNLOOP_API_KEY not set in server .env");
 
     const sdk = new RunloopSDK({
       bearerToken: apiKey,
@@ -125,7 +126,12 @@ export class ClaudeConnectionManager {
     });
 
     this.ws.broadcast({ type: "connection_progress", step: "Connecting to Claude Code..." });
-    await conn.initialize();
+    try {
+      await conn.initialize();
+    } catch (err) {
+      await this.shutdown();
+      throw err;
+    }
 
     this.runReadLoop(conn);
 
@@ -169,22 +175,22 @@ export class ClaudeConnectionManager {
   }
 
   async send(prompt: string | Record<string, unknown>): Promise<void> {
-    if (!this.connection) throw new Error("Not connected");
+    if (!this.connection) throw new HttpError(400, "Not connected");
     await this.connection.send(prompt as any);
   }
 
   async interrupt(): Promise<void> {
-    if (!this.connection) throw new Error("Not connected");
+    if (!this.connection) throw new HttpError(400, "Not connected");
     await this.connection.interrupt();
   }
 
   async setModel(model: string): Promise<void> {
-    if (!this.connection) throw new Error("Not connected");
+    if (!this.connection) throw new HttpError(400, "Not connected");
     await this.connection.setModel(model);
   }
 
   async setPermissionMode(mode: string): Promise<void> {
-    if (!this.connection) throw new Error("Not connected");
+    if (!this.connection) throw new HttpError(400, "Not connected");
     await this.connection.setPermissionMode(mode as Parameters<typeof this.connection.setPermissionMode>[0]);
   }
 

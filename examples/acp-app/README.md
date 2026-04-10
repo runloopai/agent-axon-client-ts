@@ -4,6 +4,14 @@
 
 A full-stack demo app for interacting with ACP agents running in Runloop devboxes. The UI is modeled after Cursor's chat interface — streaming thinking blocks, inline tool calls with diffs and terminal output, markdown-rendered responses, and a plan view.
 
+This example showcases key features when working with axons:
+
+- authentication
+- permissions management
+- session switching
+- mixed media and multimodal operations
+- lifecycle operations, including cancelation and config option changes
+
 ## Prerequisites
 
 - Node.js 22+ (uses `--experimental-strip-types` and `--env-file`)

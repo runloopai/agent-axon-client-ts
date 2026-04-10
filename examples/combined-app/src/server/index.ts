@@ -1,8 +1,9 @@
 import express, { type Request, type Response } from "express";
 import { createServer } from "node:http";
-import { WsBroadcaster } from "./ws.ts";
-import { ClaudeConnectionManager } from "./claude-manager.ts";
 import { ACPConnectionManager } from "./acp-manager.ts";
+import { ClaudeConnectionManager } from "./claude-manager.ts";
+import { HttpError } from "./http-errors.ts";
+import { WsBroadcaster } from "./ws.ts";
 
 const app = express();
 app.use(express.json());
@@ -19,9 +20,9 @@ type AsyncHandler = (req: Request, res: Response) => Promise<void>;
 function asyncHandler(fn: AsyncHandler): (req: Request, res: Response) => void {
   return (req, res) => {
     fn(req, res).catch((err) => {
-      const status = 500;
+      const status = err instanceof HttpError ? err.status : 500;
       const message = err instanceof Error ? err.message : String(err);
-      console.error("Server error:", err);
+      if (status >= 500) console.error("Server error:", err);
       res.status(status).json({ error: message });
     });
   };

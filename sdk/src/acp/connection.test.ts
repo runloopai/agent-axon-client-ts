@@ -5,6 +5,7 @@ import {
   createMockAxon,
   makeAgentEvent,
 } from "../__test-utils__/mock-axon.js";
+import { InitializationError } from "../shared/errors/initialization-error.js";
 import { ACPAxonConnection } from "./connection.js";
 
 // ---------------------------------------------------------------------------
@@ -457,6 +458,29 @@ describe("ACPAxonConnection", () => {
       conn.disconnect();
     });
 
+    it("initialize() wraps failures in InitializationError", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never);
+
+      const originalError = new Error("agent binary not found");
+      conn.protocol.initialize = vi.fn().mockRejectedValue(originalError);
+
+      try {
+        await conn.initialize({
+          protocolVersion: PROTOCOL_VERSION,
+          clientInfo: { name: "test", version: "1.0" },
+        });
+        expect.fail("Expected InitializationError to be thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(InitializationError);
+        expect((err as InitializationError).message).toBe("agent binary not found");
+        expect((err as InitializationError).cause).toBe(originalError);
+      }
+
+      conn.disconnect();
+    });
+
     it("newSession() delegates to protocol.newSession()", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
@@ -659,7 +683,7 @@ describe("ACPAxonConnection", () => {
 
       await conn.disconnect();
 
-      expect(() => conn.initialize({} as never)).toThrow("disconnected");
+      await expect(conn.initialize({} as never)).rejects.toThrow("disconnected");
       expect(() => conn.newSession({} as never)).toThrow("disconnected");
       expect(() => conn.loadSession({} as never)).toThrow("disconnected");
       expect(() => conn.listSessions({} as never)).toThrow("disconnected");

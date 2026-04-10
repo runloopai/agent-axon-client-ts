@@ -13,9 +13,7 @@
 import { RunloopSDK } from "@runloop/api-client";
 import { createInterface, type Interface } from "readline";
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
-import type {
-  SDKMessage,
-} from "@anthropic-ai/claude-agent-sdk";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 // ---------------------------------------------------------------------------
 // Args
@@ -98,7 +96,13 @@ const client = new ClaudeAxonConnection(axon, devbox, {
 });
 
 console.log("Connecting to Claude...");
-await client.initialize();
+try {
+  await client.initialize();
+} catch (err) {
+  console.error("Failed to initialize agent:", err);
+  await client.disconnect();
+  process.exit(1);
+}
 if (MODEL) {
   console.log(`Model set to: ${MODEL}`);
 }
