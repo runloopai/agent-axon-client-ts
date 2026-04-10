@@ -93,4 +93,15 @@ export {
   type AxonTransportOptions,
   type Transport,
 } from "./transport.js";
-export type { ClaudeProtocolTimelineEvent, ClaudeTimelineEvent, WireData } from "./types.js";
+export type {
+  ClaudeAssistantTimelineEvent,
+  ClaudeControlRequestTimelineEvent,
+  ClaudeControlResponseTimelineEvent,
+  ClaudeOtherProtocolTimelineEvent,
+  ClaudeProtocolTimelineEvent,
+  ClaudeQueryTimelineEvent,
+  ClaudeResultTimelineEvent,
+  ClaudeSystemInitTimelineEvent,
+  ClaudeTimelineEvent,
+  WireData,
+} from "./types.js";

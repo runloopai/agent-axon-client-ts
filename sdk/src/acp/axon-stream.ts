@@ -1,5 +1,5 @@
 import type { AnyMessage, Stream } from "@agentclientprotocol/sdk";
-import { CLIENT_METHODS } from "@agentclientprotocol/sdk";
+import { AGENT_METHODS, CLIENT_METHODS } from "@agentclientprotocol/sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
 import { makeDefaultOnError } from "../shared/logging.js";
@@ -325,6 +325,14 @@ function axonEventToJsonRpc(
     };
   }
 
+  // Response to an agent method (e.g. initialize, session/new) from a previous
+  // connection — this connection never sent the request so there is no callback
+  // to resolve. The event already flowed through onAxonEvent / onTimelineEvent;
+  // just keep it out of the JSON-RPC stream.
+  if (isAgentMethod(event_type)) {
+    return null;
+  }
+
   // Unknown event_type with no pending request -- treat as notification.
   return {
     jsonrpc: "2.0",
@@ -441,6 +449,9 @@ function jsonRpcToAxon(
 /** Pre-computed set of all ACP client method names for O(1) lookup. */
 const CLIENT_METHOD_SET: Set<string> = new Set(Object.values(CLIENT_METHODS));
 
+/** Pre-computed set of all ACP agent method names for O(1) lookup. */
+const AGENT_METHOD_SET: Set<string> = new Set(Object.values(AGENT_METHODS));
+
 /**
  * Checks whether `eventType` is a known ACP client-side method
  * (i.e. a method the agent can call on the client).
@@ -450,6 +461,15 @@ const CLIENT_METHOD_SET: Set<string> = new Set(Object.values(CLIENT_METHODS));
  */
 function isClientMethod(eventType: string): boolean {
   return CLIENT_METHOD_SET.has(eventType);
+}
+
+/**
+ * Checks whether `eventType` is a known ACP agent-side method
+ * (i.e. a method the client calls on the agent, like `initialize`,
+ * `session/new`, `session/prompt`).
+ */
+function isAgentMethod(eventType: string): boolean {
+  return AGENT_METHOD_SET.has(eventType);
 }
 
 /**

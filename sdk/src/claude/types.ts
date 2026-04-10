@@ -2,7 +2,15 @@
  * Types for the Claude SDK transport layer.
  */
 
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  SDKAssistantMessage,
+  SDKControlRequest,
+  SDKControlResponse,
+  SDKMessage,
+  SDKResultMessage,
+  SDKSystemMessage,
+  SDKUserMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { SystemTimelineEvent, UnknownTimelineEvent } from "../shared/types.js";
 
@@ -18,8 +26,76 @@ export type WireData = Record<string, any>;
 // ---------------------------------------------------------------------------
 
 /**
- * A timeline event carrying a recognized Claude protocol event.
- * `data` is the parsed `SDKMessage` from the Claude Code CLI.
+ * A user query timeline event.
+ * @category Timeline
+ */
+export interface ClaudeQueryTimelineEvent {
+  kind: "claude_protocol";
+  eventType: "query";
+  data: SDKUserMessage;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * An assistant message timeline event.
+ * @category Timeline
+ */
+export interface ClaudeAssistantTimelineEvent {
+  kind: "claude_protocol";
+  eventType: "assistant";
+  data: SDKAssistantMessage;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * A result (turn-complete) timeline event.
+ * @category Timeline
+ */
+export interface ClaudeResultTimelineEvent {
+  kind: "claude_protocol";
+  eventType: "result";
+  data: SDKResultMessage;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * A per-turn system/init timeline event emitted by the broker at the
+ * start of each turn. Distinct from the one-time SDK-level `initialize`
+ * control handshake (`control_request` / `control_response`).
+ * @category Timeline
+ */
+export interface ClaudeSystemInitTimelineEvent {
+  kind: "claude_protocol";
+  eventType: "system";
+  data: SDKSystemMessage;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * A control request timeline event (e.g. `initialize`, `can_use_tool`).
+ * @category Timeline
+ */
+export interface ClaudeControlRequestTimelineEvent {
+  kind: "claude_protocol";
+  eventType: "control_request";
+  data: SDKControlRequest;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * A control response timeline event.
+ * @category Timeline
+ */
+export interface ClaudeControlResponseTimelineEvent {
+  kind: "claude_protocol";
+  eventType: "control_response";
+  data: SDKControlResponse;
+  axonEvent: AxonEventView;
+}
+
+/**
+ * A recognized Claude protocol event whose `eventType` is not one of the
+ * specifically typed variants above.
  *
  * Use `axonEvent.origin` to determine direction:
  * - `USER_EVENT` = outbound (client sent this)
@@ -27,11 +103,26 @@ export type WireData = Record<string, any>;
  *
  * @category Timeline
  */
-export interface ClaudeProtocolTimelineEvent {
+export interface ClaudeOtherProtocolTimelineEvent {
   kind: "claude_protocol";
+  eventType: string;
   data: SDKMessage;
   axonEvent: AxonEventView;
 }
+
+/**
+ * Discriminated union of all Claude protocol timeline event variants.
+ * Switch on `eventType` to narrow the `data` type.
+ * @category Timeline
+ */
+export type ClaudeProtocolTimelineEvent =
+  | ClaudeQueryTimelineEvent
+  | ClaudeAssistantTimelineEvent
+  | ClaudeResultTimelineEvent
+  | ClaudeSystemInitTimelineEvent
+  | ClaudeControlRequestTimelineEvent
+  | ClaudeControlResponseTimelineEvent
+  | ClaudeOtherProtocolTimelineEvent;
 
 /**
  * Union of all timeline event types emitted by the Claude connection.

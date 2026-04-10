@@ -5,6 +5,7 @@ import type { WsEvent } from "../../server/ws.js";
 import type {
   TurnBlock,
   ChatMessage,
+  UserAttachment,
   UsageState,
   InitInfo,
   PendingControlRequest,
@@ -556,10 +557,29 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
 
     const userMsg = extractClaudeUserMessage(tlEvent.data, tlEvent.axonEvent);
     if (userMsg) {
+      const attachments: UserAttachment[] = [];
+      for (const block of userMsg.content) {
+        if (block != null && typeof block === "object" && "type" in block) {
+          const b = block as Record<string, unknown>;
+          if (b.type === "image") {
+            // Anthropic-style: { type: "image", source: { type: "base64", media_type, data } }
+            const src = b.source as Record<string, unknown> | undefined;
+            if (src?.type === "base64" && typeof src.data === "string" && typeof src.media_type === "string") {
+              attachments.push({ type: "image", data: src.data, mimeType: src.media_type });
+            }
+            // Flat-style: { type: "image", data, mimeType }
+            else if (typeof b.data === "string" && typeof b.mimeType === "string") {
+              attachments.push({ type: "image", data: b.data, mimeType: b.mimeType });
+            }
+          }
+        }
+      }
+
       dispatch({ type: "APPEND_MESSAGE", message: {
         id: `user-${userMsg.sequence}`,
         role: "user" as const,
         content: userMsg.text,
+        ...(attachments.length > 0 ? { attachments } : {}),
       } });
       return;
     }

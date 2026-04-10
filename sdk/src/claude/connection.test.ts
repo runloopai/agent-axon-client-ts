@@ -1075,7 +1075,7 @@ describe("ClaudeAxonConnection", () => {
       emitTimeline(event);
     }
 
-    it("classifies AGENT_EVENT assistant as claude_protocol", async () => {
+    it("classifies AGENT_EVENT assistant as claude_protocol with eventType", async () => {
       const conn = await createConnectedClient(transport);
 
       const events: ClaudeTimelineEvent[] = [];
@@ -1090,11 +1090,12 @@ describe("ClaudeAxonConnection", () => {
       expect(events).toHaveLength(1);
       expect(events[0].kind).toBe("claude_protocol");
       if (events[0].kind === "claude_protocol") {
+        expect(events[0].eventType).toBe("assistant");
         expect(events[0].data.type).toBe("assistant");
       }
     });
 
-    it("classifies USER_EVENT query as claude_protocol", async () => {
+    it("classifies USER_EVENT query as claude_protocol with eventType", async () => {
       const conn = await createConnectedClient(transport);
 
       const events: ClaudeTimelineEvent[] = [];
@@ -1108,7 +1109,57 @@ describe("ClaudeAxonConnection", () => {
 
       expect(events).toHaveLength(1);
       expect(events[0].kind).toBe("claude_protocol");
+      if (events[0].kind === "claude_protocol") {
+        expect(events[0].eventType).toBe("query");
+      }
       expect(events[0].axonEvent.origin).toBe("USER_EVENT");
+    });
+
+    it("classifies control_request as claude_protocol with eventType", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "control_request",
+        payload: JSON.stringify({
+          type: "control_request",
+          request_id: "req_1",
+          request: { subtype: "initialize", hooks: null },
+        }),
+        origin: "USER_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("claude_protocol");
+      if (events[0].kind === "claude_protocol") {
+        expect(events[0].eventType).toBe("control_request");
+      }
+    });
+
+    it("classifies AGENT_EVENT system/init as claude_protocol with eventType 'system'", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "system",
+        payload: JSON.stringify({
+          type: "system",
+          subtype: "init",
+          model: "claude-sonnet-4-6",
+          cwd: "/home/user",
+        }),
+        origin: "AGENT_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("claude_protocol");
+      if (events[0].kind === "claude_protocol") {
+        expect(events[0].eventType).toBe("system");
+      }
     });
 
     it("classifies SYSTEM_EVENT turn.started as system", async () => {
@@ -1377,7 +1428,7 @@ describe("classifyClaudeAxonEvent", () => {
     };
   }
 
-  it("classifies known protocol event with valid JSON", () => {
+  it("classifies known protocol event with valid JSON and eventType", () => {
     const ev = makeAxonEvent({
       event_type: "assistant",
       payload: JSON.stringify({ type: "assistant", content: "Hello" }),
@@ -1385,7 +1436,43 @@ describe("classifyClaudeAxonEvent", () => {
     const result = classifyClaudeAxonEvent(ev as never);
     expect(result.kind).toBe("claude_protocol");
     if (result.kind === "claude_protocol") {
+      expect(result.eventType).toBe("assistant");
       expect(result.data.type).toBe("assistant");
+    }
+  });
+
+  it("populates eventType from Axon event_type for each known type", () => {
+    const cases: Array<{ event_type: string; payload: Record<string, unknown> }> = [
+      { event_type: "query", payload: { type: "user", message: { role: "user", content: "Hi" } } },
+      { event_type: "result", payload: { type: "result", cost: 0.01 } },
+      {
+        event_type: "system",
+        payload: { type: "system", subtype: "init", model: "claude-sonnet-4-6" },
+      },
+      {
+        event_type: "control_request",
+        payload: {
+          type: "control_request",
+          request_id: "req_1",
+          request: { subtype: "initialize" },
+        },
+      },
+      {
+        event_type: "control_response",
+        payload: {
+          type: "control_response",
+          response: { subtype: "success", request_id: "req_1" },
+        },
+      },
+    ];
+
+    for (const { event_type, payload } of cases) {
+      const ev = makeAxonEvent({ event_type, payload: JSON.stringify(payload) });
+      const result = classifyClaudeAxonEvent(ev as never);
+      expect(result.kind).toBe("claude_protocol");
+      if (result.kind === "claude_protocol") {
+        expect(result.eventType).toBe(event_type);
+      }
     }
   });
 

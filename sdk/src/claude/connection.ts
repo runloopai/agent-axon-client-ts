@@ -996,7 +996,7 @@ export function isClaudeProtocolEventType(eventType: string): boolean {
  *
  * Classification rules:
  * 1. `SYSTEM_EVENT` with `turn.started` / `turn.completed` / `broker.error` -> `system`
- * 2. Known Claude protocol `event_type` -> `claude_protocol`
+ * 2. Known Claude protocol `event_type` -> `claude_protocol` with `eventType` discriminator
  * 3. Everything else -> `unknown`
  *
  * @category Timeline
@@ -1024,7 +1024,12 @@ export function classifyClaudeAxonEvent(ev: AxonEventView): ClaudeTimelineEvent 
       data = ev.payload as SDKMessage;
     }
     if (data && typeof data === "object" && "type" in data) {
-      return { kind: "claude_protocol", data, axonEvent: ev };
+      return {
+        kind: "claude_protocol",
+        eventType: ev.event_type,
+        data,
+        axonEvent: ev,
+      } as ClaudeTimelineEvent;
     }
   }
 
