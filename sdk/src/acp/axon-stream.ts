@@ -124,6 +124,9 @@ function createReadable(
               }
               for (const [method, id] of pendingRequests) {
                 if (id !== undefined && id !== null) {
+                  // FIXME: this is a temporary fix to tell the client that we couldn't process the pending request
+                  // but this isn't quite right -- this message didn't originate from the agent, so this will cause
+                  // asymmetry.
                   controller.enqueue({
                     jsonrpc: "2.0",
                     id,
