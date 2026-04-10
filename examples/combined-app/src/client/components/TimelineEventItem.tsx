@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { SYSTEM_EVENT_TYPES, isSystemEventType } from "@runloop/agent-axon-client/shared";
+import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
 import type { TimelineEvent } from "../types.js";
 import { PayloadTree, formatTime, originLabel, originBadgeClass } from "./shared.js";
 
@@ -31,14 +33,6 @@ interface TimelineSummary {
   label: string;
   summary: string;
   kindClass: string;
-}
-
-function parsePayload(payload: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(payload);
-  } catch {
-    return null;
-  }
 }
 
 function summarizeACPProtocol(eventType: string, data: unknown, origin: string): TimelineSummary {
@@ -114,10 +108,13 @@ function summarizeClaudeProtocol(data: unknown): TimelineSummary {
 function summarizeTimelineEvent(event: TimelineEvent): TimelineSummary {
   switch (event.kind) {
     case "system": {
-      const d = event.data as { type: string; stopReason?: string; stop_reason?: string };
-      const reason = d.stopReason ?? d.stop_reason ?? "";
+      const d = event.data;
+      const reason = ("stopReason" in d ? d.stopReason : undefined) ?? "";
       const suffix = reason ? ` (${reason})` : "";
-      return { icon: d.type === "turn.started" ? "\u25B6\uFE0F" : d.type === "turn.completed" ? "\u23F9\uFE0F" : "\u26A0\uFE0F", label: d.type, summary: suffix, kindClass: "kind-system" };
+      const icon = d.type === SYSTEM_EVENT_TYPES.TURN_STARTED ? "\u25B6\uFE0F"
+        : d.type === SYSTEM_EVENT_TYPES.TURN_COMPLETED ? "\u23F9\uFE0F"
+        : "\u26A0\uFE0F";
+      return { icon, label: d.type, summary: suffix, kindClass: "kind-system" };
     }
     case "acp_protocol":
       return summarizeACPProtocol(event.eventType, event.data, event.axonEvent.origin);
@@ -126,7 +123,7 @@ function summarizeTimelineEvent(event: TimelineEvent): TimelineSummary {
     case "unknown": {
       const eventType = event.axonEvent.event_type;
       if (eventType === "agent_started") {
-        const cfg = parsePayload(event.axonEvent.payload);
+        const cfg = tryParseTimelinePayload<Record<string, unknown>>({ axonEvent: event.axonEvent });
         const agentType = (cfg?.agentType as string) ?? "";
         return { icon: "\u2699\uFE0F", label: "Agent Started", summary: agentType, kindClass: "kind-custom" };
       }
@@ -161,8 +158,8 @@ function kindBadgeClass(kind: TimelineKind, custom: boolean): string {
   }
 }
 
-function AgentConfigDetail({ payload }: { payload: string }) {
-  const cfg = parsePayload(payload);
+function AgentConfigDetail({ event }: { event: TimelineEvent }) {
+  const cfg = tryParseTimelinePayload<Record<string, unknown>>({ axonEvent: event.axonEvent });
   if (!cfg) return <PayloadTree data={null} />;
 
   const entries: Array<[string, string]> = [];
@@ -222,7 +219,7 @@ export function TimelineEventItem({
           <div className="axon-detail-section">
             <div className="axon-payload-tree">
               {custom ? (
-                <AgentConfigDetail payload={ax.payload} />
+                <AgentConfigDetail event={event} />
               ) : (
                 <PayloadTree data={event.data} />
               )}

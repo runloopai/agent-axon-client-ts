@@ -10,9 +10,11 @@ import {
   isCurrentModeUpdate,
   isConfigOptionUpdate,
   isAvailableCommandsUpdate,
+  tryParseTimelinePayload,
 } from "@runloop/agent-axon-client/acp";
-import type { ToolCallContent, AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent } from "@runloop/agent-axon-client/acp";
+import type { ToolCallContent, AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, InitializeResponse, SessionNotification } from "@runloop/agent-axon-client/acp";
 import { extractACPUserMessage } from "@runloop/agent-axon-client/acp";
+import { SYSTEM_EVENT_TYPES } from "@runloop/agent-axon-client/shared";
 import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,
@@ -460,31 +462,29 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
     }
 
     if (tlEvent.kind === "system") {
-      const data = tlEvent.data as { type: string; turnId?: string; stopReason?: string };
-      if (data.type === "turn.started") {
+      if (tlEvent.data.type === SYSTEM_EVENT_TYPES.TURN_STARTED) {
         dispatch({ type: "SET", patch: { isAgentTurn: true, isStreaming: false } });
-      } else if (data.type === "turn.completed") {
+      } else if (tlEvent.data.type === SYSTEM_EVENT_TYPES.TURN_COMPLETED) {
         dispatch({ type: "SET", patch: { isAgentTurn: false, isStreaming: false } });
-        lastStopReasonRef.current = data.stopReason;
+        lastStopReasonRef.current = tlEvent.data.stopReason;
       }
       return;
     }
 
     if (tlEvent.kind === "acp_protocol") {
-      const axonEvent = tlEvent.axonEvent;
-      if (axonEvent.event_type === "session/update") {
-        const payload = tlEvent.data as Record<string, unknown>;
-        const eventSessionId = (payload as { sessionId?: string }).sessionId ?? null;
-        const inner = (payload as { update?: unknown }).update;
+      if (tlEvent.eventType === "session/update") {
+        const notification = tlEvent.data as SessionNotification;
+        const eventSessionId = notification.sessionId ?? null;
+        const inner = notification.update;
         if (inner && typeof inner === "object") {
           handleSessionUpdate(inner as SessionUpdate, eventSessionId);
         }
-      } else if (axonEvent.event_type === "initialize" && axonEvent.origin === "AGENT_EVENT") {
-        const payload = tlEvent.data as Record<string, unknown>;
+      } else if (tlEvent.eventType === "initialize" && tlEvent.axonEvent.origin === "AGENT_EVENT") {
+        const payload = tlEvent.data as InitializeResponse;
         const info = (payload.agentInfo as Record<string, unknown>) ?? null;
         const caps = (payload.agentCapabilities as AgentCapabilities) ?? null;
         const protoVer = (payload.protocolVersion as number) ?? null;
-        const authMeta = (payload.authMethods as unknown[]) ?? [];
+        const authMeta = ((payload as Record<string, unknown>).authMethods as unknown[]) ?? [];
 
         dispatch({ type: "SET", patch: {
           agentInfo: info as AgentInfo | null,
@@ -509,19 +509,14 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
             clientCapabilities: null,
             authMethods: authMeta,
           } satisfies ACPInitExtensions,
-          extra: payload,
+          extra: payload as Record<string, unknown>,
         });
       }
       return;
     }
 
     if (tlEvent.kind === "unknown" && tlEvent.axonEvent.event_type === "agent_started") {
-      let config: Record<string, unknown> = {};
-      try {
-        config = typeof tlEvent.axonEvent.payload === "string"
-          ? JSON.parse(tlEvent.axonEvent.payload)
-          : (tlEvent.axonEvent.payload as Record<string, unknown>) ?? {};
-      } catch { /* use empty */ }
+      const config = tryParseTimelinePayload<Record<string, unknown>>({ axonEvent: tlEvent.axonEvent }) ?? {};
       dispatch({ type: "APPEND_MESSAGE", message: {
         id: `config-${tlEvent.axonEvent.sequence}`,
         role: "system",

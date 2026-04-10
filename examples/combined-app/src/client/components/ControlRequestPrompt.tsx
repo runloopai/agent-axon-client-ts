@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import type { ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
+import type { ControlRequestInner, ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
 import type { PendingControlRequest, ControlRequestQuestion } from "../types.js";
+
+function isCanUseTool(req: ControlRequestInner): req is ControlRequestOfSubtype<"can_use_tool"> {
+  return req.subtype === "can_use_tool";
+}
 
 export function ControlRequestPrompt({
   request,
@@ -22,10 +26,9 @@ export function ControlRequestPrompt({
 
   const handleAllow = () => {
     const innerRequest = request.rawRequest.request;
-    const updatedInput =
-      innerRequest.subtype === "can_use_tool"
-        ? (innerRequest as ControlRequestOfSubtype<"can_use_tool">).input
-        : undefined;
+    const updatedInput = isCanUseTool(innerRequest)
+      ? innerRequest.input
+      : undefined;
     onRespond(request.requestId, {
       behavior: "allow",
       ...(updatedInput !== undefined && { updatedInput }),

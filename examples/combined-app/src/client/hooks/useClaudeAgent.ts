@@ -1,5 +1,5 @@
 import { useReducer, useRef, useCallback, useEffect } from "react";
-import { extractClaudeUserMessage } from "@runloop/agent-axon-client/claude";
+import { extractClaudeUserMessage, tryParseTimelinePayload } from "@runloop/agent-axon-client/claude";
 import type { ClaudeTimelineEvent, SDKControlRequest, ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
 import type { WsEvent } from "../../shared/ws-events.js";
 import type {
@@ -597,17 +597,12 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
     }
 
     if (tlEvent.kind === "claude_protocol") {
-      handleSDKMessage(tlEvent.data as Record<string, unknown>);
+      handleSDKMessage(tlEvent.data);
       return;
     }
 
     if (tlEvent.kind === "unknown" && tlEvent.axonEvent.event_type === "agent_started") {
-      let config: Record<string, unknown> = {};
-      try {
-        config = typeof tlEvent.axonEvent.payload === "string"
-          ? JSON.parse(tlEvent.axonEvent.payload)
-          : (tlEvent.axonEvent.payload as Record<string, unknown>) ?? {};
-      } catch { /* use empty */ }
+      const config = tryParseTimelinePayload<Record<string, unknown>>({ axonEvent: tlEvent.axonEvent }) ?? {};
       dispatch({ type: "APPEND_MESSAGE", message: {
         id: `config-${tlEvent.axonEvent.sequence}`,
         role: "system",

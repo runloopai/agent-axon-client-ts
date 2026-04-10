@@ -244,13 +244,23 @@ already contains the complete request/response lifecycle.
 ```
 src/
 ├── server/
-│   ├── index.ts              Express app, REST routes
+│   ├── index.ts              Express bootstrap + route registration
 │   ├── ws.ts                 WsBroadcaster, WsEvent types
 │   ├── acp-manager.ts        ACPConnectionManager
 │   ├── acp-client.ts         NodeACPClient (ACP Client impl)
 │   ├── claude-manager.ts     ClaudeConnectionManager
 │   ├── agent-registry.ts     Multi-agent registry
-│   └── terminal-manager.ts   Terminal session management
+│   ├── http-errors.ts        HTTP error classes
+│   └── routes/
+│       ├── helpers.ts         asyncHandler, requireAgent utilities
+│       ├── lifecycle.ts       /api/agents, /api/subscribe, /api/start, /api/shutdown
+│       ├── prompt.ts          /api/prompt, /api/cancel
+│       ├── claude.ts          /api/control-response, /api/set-model, etc.
+│       ├── acp.ts             /api/set-mode, /api/permission-response, etc.
+│       └── debug.ts           /api/axon-events
+│
+├── shared/
+│   └── ws-events.ts          Shared WebSocket event types
 │
 ├── client/
 │   ├── main.tsx              React entry point
@@ -270,10 +280,20 @@ src/
 │   │
 │   └── components/
 │       ├── AssistantTurn.tsx        Assistant message bubble
-│       ├── TurnBlocks.tsx           Block renderers (thinking, tool, text, etc.)
+│       ├── TurnBlocks.tsx           Re-exports from turn-blocks/
+│       ├── turn-blocks/
+│       │   ├── index.ts             Barrel exports
+│       │   ├── shared.tsx           RawOutputView, helpers (diff, init pills)
+│       │   ├── ThinkingBlockView.tsx Thinking block renderer
+│       │   ├── ToolCallBlockView.tsx Tool call block renderer
+│       │   ├── TextBlockView.tsx     Text/markdown block renderer
+│       │   ├── PlanBlockView.tsx     Plan + task block renderers
+│       │   ├── MediaBlockViews.tsx   Image, audio, resource, embedded blocks
+│       │   └── SystemInitBlockView.tsx Session init block renderer
 │       ├── TurnBlocksInspector.tsx  Activity tab (block-level inspector)
 │       ├── TimelineEventItem.tsx    Timeline tab item (classified events)
 │       ├── AxonEventItem.tsx        Axon tab item (raw events)
+│       ├── Icons.tsx                SVG icon components
 │       ├── PermissionDialog.tsx     ACP permission prompt
 │       ├── ElicitationForm.tsx      ACP elicitation form
 │       ├── ControlRequestPrompt.tsx Claude control request prompt
