@@ -376,7 +376,7 @@ export interface ClaudeAgentState extends SharedAgentState {
   pendingControlRequest: PendingControlRequest | null;
   setModel: (model: string) => Promise<void>;
   setPermissionMode: (mode: string) => Promise<void>;
-  sendControlResponse: (requestId: string, response: Record<string, unknown>) => Promise<void>;
+  sendControlResponse: (requestId: string, response: { behavior: string; updatedInput?: unknown }) => Promise<void>;
 }
 
 export interface ACPAgentState extends SharedAgentState {

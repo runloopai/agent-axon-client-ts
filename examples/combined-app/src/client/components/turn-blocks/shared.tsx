@@ -183,8 +183,8 @@ export function InitPillSection({
   );
 }
 
-export function InitCapsBadges({ caps }: { caps: Record<string, unknown> }) {
-  const badges = capabilityBadges(caps);
+export function InitCapsBadges({ caps }: { caps: object }) {
+  const badges = capabilityBadges(caps as Record<string, unknown>);
   if (badges.length === 0) return null;
   return (
     <div className="init-pill-list">

@@ -10,7 +10,6 @@ import {
   isCurrentModeUpdate,
   isConfigOptionUpdate,
   isAvailableCommandsUpdate,
-  tryParseTimelinePayload,
 } from "@runloop/agent-axon-client/acp";
 import type { ToolCallContent, AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, InitializeResponse, SessionNotification } from "@runloop/agent-axon-client/acp";
 import { extractACPUserMessage } from "@runloop/agent-axon-client/acp";
@@ -20,7 +19,6 @@ import type {
   TurnBlock,
   ChatMessage,
   ChatItem,
-  AgentConfigItem,
   PlanEntry,
   UsageState,
   PendingPermission,
@@ -41,6 +39,7 @@ import type {
 } from "../types.js";
 import { parseToolCallContent, extractOutputText, nextBlockId } from "./parsers.js";
 import { useBlockManager } from "./useBlockManager.js";
+import { buildAgentConfigItem } from "./timeline-helpers.js";
 import { api } from "./api.js";
 
 const NORMAL_END_REASONS = new Set(["end_turn", "endturn", "end turn"]);
@@ -515,14 +514,9 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
       return;
     }
 
-    if (tlEvent.kind === "unknown" && tlEvent.axonEvent.event_type === "agent_started") {
-      const config = tryParseTimelinePayload<Record<string, unknown>>({ axonEvent: tlEvent.axonEvent }) ?? {};
-      dispatch({ type: "APPEND_MESSAGE", message: {
-        id: `config-${tlEvent.axonEvent.sequence}`,
-        role: "system",
-        itemType: "agent_started",
-        config,
-      } satisfies AgentConfigItem });
+    const agentConfig = buildAgentConfigItem(tlEvent);
+    if (agentConfig) {
+      dispatch({ type: "APPEND_MESSAGE", message: agentConfig });
       return;
     }
   }

@@ -269,14 +269,15 @@ src/
 │   ├── types.ts              Shared types (TurnBlock, ChatMessage, etc.)
 │   │
 │   ├── hooks/
-│   │   ├── useAgent.ts        Unified agent facade (discriminated union)
-│   │   ├── useACPAgent.ts     ACP WebSocket + useReducer state
-│   │   ├── useClaudeAgent.ts  Claude WebSocket + useReducer state
-│   │   ├── useBlockManager.ts Shared turn block accumulation
-│   │   ├── useAgentList.ts    Agent list management
-│   │   ├── useAttachments.ts  Composer attachments
-│   │   ├── api.ts             REST fetch wrapper
-│   │   └── parsers.ts         Tool call parsing, block ID generation
+│   │   ├── useAgent.ts           Unified agent facade (discriminated union)
+│   │   ├── useACPAgent.ts        ACP WebSocket + useReducer state
+│   │   ├── useClaudeAgent.ts     Claude WebSocket + useReducer state
+│   │   ├── useBlockManager.ts    Shared turn block accumulation
+│   │   ├── useAgentList.ts       Agent list management
+│   │   ├── useAttachments.ts     Composer attachments
+│   │   ├── timeline-helpers.ts   Shared timeline event helpers
+│   │   ├── api.ts                REST fetch wrapper
+│   │   └── parsers.ts            Tool call parsing, block ID generation
 │   │
 │   └── components/
 │       ├── AssistantTurn.tsx        Assistant message bubble

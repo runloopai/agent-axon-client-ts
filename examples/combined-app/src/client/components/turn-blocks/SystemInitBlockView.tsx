@@ -101,9 +101,7 @@ function ACPInitSections({ block }: { block: SystemInitBlock }) {
             <span className="init-pill-section-icon">{"\u{1F527}"}</span>
             <span className="init-pill-section-label">Agent Capabilities</span>
           </div>
-          <InitCapsBadges
-            caps={ext.agentCapabilities as unknown as Record<string, unknown>}
-          />
+          <InitCapsBadges caps={ext.agentCapabilities} />
         </div>
       )}
       {ext.clientCapabilities && (
@@ -112,9 +110,7 @@ function ACPInitSections({ block }: { block: SystemInitBlock }) {
             <span className="init-pill-section-icon">{"\u{1F4BB}"}</span>
             <span className="init-pill-section-label">Client Capabilities</span>
           </div>
-          <InitCapsBadges
-            caps={ext.clientCapabilities as unknown as Record<string, unknown>}
-          />
+          <InitCapsBadges caps={ext.clientCapabilities} />
         </div>
       )}
     </>

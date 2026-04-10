@@ -1,13 +1,11 @@
 import { useReducer, useRef, useCallback, useEffect } from "react";
-import { extractClaudeUserMessage, tryParseTimelinePayload } from "@runloop/agent-axon-client/claude";
+import { extractClaudeUserMessage } from "@runloop/agent-axon-client/claude";
 import type { ClaudeTimelineEvent, SDKControlRequest, ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
 import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,
   ChatMessage,
   ChatItem,
-  AgentConfigItem,
-  UserAttachment,
   UsageState,
   InitInfo,
   PendingControlRequest,
@@ -20,6 +18,7 @@ import type {
 } from "../types.js";
 import { nextBlockId, inferToolKind } from "./parsers.js";
 import { useBlockManager } from "./useBlockManager.js";
+import { buildAgentConfigItem, extractImageAttachments } from "./timeline-helpers.js";
 import { api } from "./api.js";
 
 export interface UseClaudeAgentReturn {
@@ -47,7 +46,7 @@ export interface UseClaudeAgentReturn {
   setAutoApprovePermissions: (enabled: boolean) => Promise<void>;
   setModel: (model: string) => Promise<void>;
   setPermissionMode: (mode: string) => Promise<void>;
-  sendControlResponse: (requestId: string, response: Record<string, unknown>) => Promise<void>;
+  sendControlResponse: (requestId: string, response: { behavior: string; updatedInput?: unknown }) => Promise<void>;
   shutdown: () => Promise<void>;
 }
 
@@ -162,241 +161,24 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
     switch (msgType) {
       case "stream_event": {
         const event = msg.event as Record<string, unknown>;
-        if (!event) break;
-        handleStreamEvent(event);
+        if (event) handleStreamEvent(event);
         break;
       }
-
-      case "user": {
-        const message = msg.message as Record<string, unknown>;
-        if (!message) break;
-        const content = message.content as Array<Record<string, unknown>>;
-        if (!Array.isArray(content)) break;
-
-        const toolUseResult = msg.tool_use_result as Record<string, unknown> | undefined;
-        if (toolUseResult?.newTodos) {
-          const newTodos = toolUseResult.newTodos as Array<Record<string, unknown>>;
-          const entries: PlanEntry[] = newTodos.map((t) => ({
-            content: (t.content as string) ?? "",
-            status: (t.status as PlanEntry["status"]) ?? "pending",
-            priority: (t.priority as PlanEntry["priority"]) ?? "medium",
-          }));
-
-          const existingPlan = blocks.blocksRef.current.find((b) => b.type === "plan");
-          if (existingPlan) {
-            blocks.updateBlocks((prev) =>
-              prev.map((b) =>
-                b.type === "plan" ? { ...b, entries } : b,
-              ),
-            );
-          } else {
-            blocks.pushBlock({ type: "plan", id: nextBlockId("plan"), entries });
-          }
-        }
-
-        for (const block of content) {
-          if (block.type === "tool_result") {
-            const toolUseId = block.tool_use_id as string;
-            const resultContent = block.content as unknown;
-            let outputText = "";
-            if (typeof resultContent === "string") {
-              outputText = resultContent;
-            } else if (Array.isArray(resultContent)) {
-              outputText = resultContent
-                .filter((c: Record<string, unknown>) => c.type === "text")
-                .map((c: Record<string, unknown>) => c.text as string)
-                .join("\n");
-            }
-            const isError = block.is_error === true;
-
-            blocks.updateBlocks((prev) =>
-              prev.map((b) => {
-                if (b.type !== "tool_call" || b.toolCallId !== toolUseId) return b;
-                const tc = b as ToolCallBlock;
-                const isFinishing = tc.status !== "completed" && tc.status !== "failed";
-                return {
-                  ...tc,
-                  rawOutput: outputText || tc.rawOutput,
-                  content: outputText ? [{ type: "content" as const, text: outputText }] : tc.content,
-                  status: isError ? "failed" as const : "completed" as const,
-                  duration: isFinishing
-                    ? Math.round((Date.now() - tc.startedAt) / 1000 * 10) / 10
-                    : tc.duration,
-                };
-              }),
-            );
-          }
-        }
+      case "user":
+        handleUserMessage(msg);
         break;
-      }
-
-      case "assistant": {
-        const message = msg.message as Record<string, unknown>;
-        if (!message) break;
-        const content = message.content as Array<Record<string, unknown>>;
-        if (!Array.isArray(content)) break;
-
-        dispatch({ type: "SET", patch: { isAgentTurn: true } });
-
-        for (const block of content) {
-          if (block.type === "thinking") {
-            blocks.finalizeThinking();
-            blocks.pushBlock({
-              type: "thinking",
-              id: nextBlockId("think"),
-              text: (block.thinking as string) ?? "",
-              duration: null,
-              isActive: false,
-            });
-          } else if (block.type === "text") {
-            blocks.finalizeThinking();
-            blocks.pushBlock({
-              type: "text",
-              id: nextBlockId("txt"),
-              text: (block.text as string) ?? "",
-            });
-          } else if (block.type === "tool_use") {
-            blocks.finalizeThinking();
-            const toolName = (block.name as string) ?? "unknown";
-            blocks.pushBlock({
-              type: "tool_call",
-              id: nextBlockId("tc"),
-              toolCallId: (block.id as string) ?? "",
-              title: toolName,
-              kind: inferToolKind(toolName),
-              status: "in_progress",
-              locations: [],
-              content: [],
-              rawInput: block.input ?? null,
-              rawOutput: null,
-              startedAt: Date.now(),
-              duration: null,
-              extra: { toolName },
-            });
-          }
-        }
+      case "assistant":
+        handleAssistantMessage(msg);
         break;
-      }
-
-      case "result": {
-        const isError = msg.is_error as boolean;
-        const stopReason = (msg.stop_reason as string) ?? (isError ? msg.subtype as string : undefined);
-        const cost = msg.total_cost_usd as number | undefined;
-        const numTurns = msg.num_turns as number | undefined;
-        const durationMs = msg.duration_ms as number | undefined;
-        const msgUsage = msg.usage as Record<string, number> | undefined;
-
-        if (msgUsage) {
-          dispatch({ type: "SET", patch: { usage: {
-            inputTokens: msgUsage.input_tokens ?? 0,
-            outputTokens: msgUsage.output_tokens ?? 0,
-            cacheCreationInputTokens: msgUsage.cache_creation_input_tokens ?? 0,
-            cacheReadInputTokens: msgUsage.cache_read_input_tokens ?? 0,
-          } } });
-        }
-
-        if (isError) {
-          const errors = msg.errors as string[] | undefined;
-          const userErrors = errors?.filter((e) => !e.startsWith("[ede_diagnostic]"));
-          if (userErrors?.length) {
-            dispatch({ type: "SET", patch: { error: userErrors.join("; ") } });
-          }
-        }
-
-        finalizeTurn(stopReason ?? undefined, cost, numTurns, durationMs);
+      case "result":
+        handleResult(msg);
         break;
-      }
-
-      case "system": {
-        const subtype = msg.subtype as string;
-        switch (subtype) {
-          case "init": {
-            const tools = (msg.tools as string[]) ?? [];
-            const mcpServers = (msg.mcp_servers as Array<{ name: string; status: string }>) ?? [];
-            const initPermissionMode = (msg.permissionMode as string) ?? "default";
-            const slashCommands = (msg.slash_commands as string[]) ?? [];
-            const initModel = (msg.model as string) ?? "unknown";
-
-            const newInitInfo = { model: initModel, tools, mcpServers, permissionMode: initPermissionMode, slashCommands };
-            const isFirstInit = !initInfoRef.current;
-            initInfoRef.current = newInitInfo;
-            dispatch({ type: "SET", patch: {
-              initInfo: newInitInfo,
-              currentModel: initModel ?? null,
-              permissionMode: initPermissionMode ?? null,
-            } });
-
-            if (isFirstInit) {
-              const extensions: ClaudeInitExtensions = {
-                protocol: "claude",
-                tools,
-                mcpServers,
-                permissionMode: initPermissionMode,
-              };
-              blocks.pushBlock({
-                type: "system_init",
-                id: nextBlockId("init"),
-                agentName: "Claude Code",
-                agentVersion: null,
-                model: initModel,
-                commands: slashCommands,
-                extensions,
-                extra: { ...msg },
-              });
-            }
-            break;
-          }
-          case "status": {
-            const mode = msg.permissionMode as string | undefined;
-            if (mode) dispatch({ type: "SET", patch: { permissionMode: mode } });
-            break;
-          }
-          case "task_started": {
-            blocks.pushBlock({
-              type: "task",
-              id: nextBlockId("task"),
-              taskId: (msg.task_id as string) ?? "",
-              description: (msg.description as string) ?? "",
-              status: "started",
-            });
-            dispatch({ type: "SET", patch: { isAgentTurn: true } });
-            break;
-          }
-          case "task_progress": {
-            const taskId = msg.task_id as string;
-            const description = msg.description as string;
-            const taskUsage = msg.usage as Record<string, number> | undefined;
-            blocks.updateBlocks((prev) =>
-              prev.map((b) =>
-                b.type === "task" && b.taskId === taskId
-                  ? {
-                      ...b,
-                      status: "in_progress" as const,
-                      description,
-                      toolUses: taskUsage?.tool_uses,
-                    }
-                  : b,
-              ),
-            );
-            break;
-          }
-          case "task_notification": {
-            const taskId = msg.task_id as string;
-            const status = msg.status as string;
-            const summary = msg.summary as string;
-            blocks.updateBlocks((prev) =>
-              prev.map((b) =>
-                b.type === "task" && b.taskId === taskId
-                  ? { ...b, status: status as TaskBlock["status"], summary }
-                  : b,
-              ),
-            );
-            break;
-          }
-        }
+      case "system":
+        handleSystemMessage(msg);
         break;
-      }
-
+      case "control_request":
+        handleControlRequest(msg as unknown as SDKControlRequest);
+        break;
       case "tool_progress": {
         const toolUseId = msg.tool_use_id as string;
         blocks.updateBlocks((prev) =>
@@ -408,12 +190,237 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
         );
         break;
       }
-
       case "rate_limit_event": {
         const info = msg.rate_limit_info as Record<string, unknown>;
         if (info?.status === "rejected") {
           dispatch({ type: "SET", patch: { error: `Rate limited. Resets at: ${info.resetsAt}` } });
         }
+        break;
+      }
+    }
+  }
+
+  function handleUserMessage(msg: Record<string, unknown>): void {
+    const message = msg.message as Record<string, unknown>;
+    if (!message) return;
+    const content = message.content as Array<Record<string, unknown>>;
+    if (!Array.isArray(content)) return;
+
+    const toolUseResult = msg.tool_use_result as Record<string, unknown> | undefined;
+    if (toolUseResult?.newTodos) {
+      const newTodos = toolUseResult.newTodos as Array<Record<string, unknown>>;
+      const entries: PlanEntry[] = newTodos.map((t) => ({
+        content: (t.content as string) ?? "",
+        status: (t.status as PlanEntry["status"]) ?? "pending",
+        priority: (t.priority as PlanEntry["priority"]) ?? "medium",
+      }));
+
+      const existingPlan = blocks.blocksRef.current.find((b) => b.type === "plan");
+      if (existingPlan) {
+        blocks.updateBlocks((prev) =>
+          prev.map((b) =>
+            b.type === "plan" ? { ...b, entries } : b,
+          ),
+        );
+      } else {
+        blocks.pushBlock({ type: "plan", id: nextBlockId("plan"), entries });
+      }
+    }
+
+    for (const block of content) {
+      if (block.type === "tool_result") {
+        const toolUseId = block.tool_use_id as string;
+        const resultContent = block.content as unknown;
+        let outputText = "";
+        if (typeof resultContent === "string") {
+          outputText = resultContent;
+        } else if (Array.isArray(resultContent)) {
+          outputText = resultContent
+            .filter((c: Record<string, unknown>) => c.type === "text")
+            .map((c: Record<string, unknown>) => c.text as string)
+            .join("\n");
+        }
+        const isError = block.is_error === true;
+
+        blocks.updateBlocks((prev) =>
+          prev.map((b) => {
+            if (b.type !== "tool_call" || b.toolCallId !== toolUseId) return b;
+            const tc = b as ToolCallBlock;
+            const isFinishing = tc.status !== "completed" && tc.status !== "failed";
+            return {
+              ...tc,
+              rawOutput: outputText || tc.rawOutput,
+              content: outputText ? [{ type: "content" as const, text: outputText }] : tc.content,
+              status: isError ? "failed" as const : "completed" as const,
+              duration: isFinishing
+                ? Math.round((Date.now() - tc.startedAt) / 1000 * 10) / 10
+                : tc.duration,
+            };
+          }),
+        );
+      }
+    }
+  }
+
+  function handleAssistantMessage(msg: Record<string, unknown>): void {
+    const message = msg.message as Record<string, unknown>;
+    if (!message) return;
+    const content = message.content as Array<Record<string, unknown>>;
+    if (!Array.isArray(content)) return;
+
+    dispatch({ type: "SET", patch: { isAgentTurn: true } });
+
+    for (const block of content) {
+      if (block.type === "thinking") {
+        blocks.finalizeThinking();
+        blocks.pushBlock({
+          type: "thinking",
+          id: nextBlockId("think"),
+          text: (block.thinking as string) ?? "",
+          duration: null,
+          isActive: false,
+        });
+      } else if (block.type === "text") {
+        blocks.finalizeThinking();
+        blocks.pushBlock({
+          type: "text",
+          id: nextBlockId("txt"),
+          text: (block.text as string) ?? "",
+        });
+      } else if (block.type === "tool_use") {
+        blocks.finalizeThinking();
+        const toolName = (block.name as string) ?? "unknown";
+        blocks.pushBlock({
+          type: "tool_call",
+          id: nextBlockId("tc"),
+          toolCallId: (block.id as string) ?? "",
+          title: toolName,
+          kind: inferToolKind(toolName),
+          status: "in_progress",
+          locations: [],
+          content: [],
+          rawInput: block.input ?? null,
+          rawOutput: null,
+          startedAt: Date.now(),
+          duration: null,
+          extra: { toolName },
+        });
+      }
+    }
+  }
+
+  function handleResult(msg: Record<string, unknown>): void {
+    const isError = msg.is_error as boolean;
+    const stopReason = (msg.stop_reason as string) ?? (isError ? msg.subtype as string : undefined);
+    const cost = msg.total_cost_usd as number | undefined;
+    const numTurns = msg.num_turns as number | undefined;
+    const durationMs = msg.duration_ms as number | undefined;
+    const msgUsage = msg.usage as Record<string, number> | undefined;
+
+    if (msgUsage) {
+      dispatch({ type: "SET", patch: { usage: {
+        inputTokens: msgUsage.input_tokens ?? 0,
+        outputTokens: msgUsage.output_tokens ?? 0,
+        cacheCreationInputTokens: msgUsage.cache_creation_input_tokens ?? 0,
+        cacheReadInputTokens: msgUsage.cache_read_input_tokens ?? 0,
+      } } });
+    }
+
+    if (isError) {
+      const errors = msg.errors as string[] | undefined;
+      const userErrors = errors?.filter((e) => !e.startsWith("[ede_diagnostic]"));
+      if (userErrors?.length) {
+        dispatch({ type: "SET", patch: { error: userErrors.join("; ") } });
+      }
+    }
+
+    finalizeTurn(stopReason ?? undefined, cost, numTurns, durationMs);
+  }
+
+  function handleSystemMessage(msg: Record<string, unknown>): void {
+    const subtype = msg.subtype as string;
+    switch (subtype) {
+      case "init": {
+        const tools = (msg.tools as string[]) ?? [];
+        const mcpServers = (msg.mcp_servers as Array<{ name: string; status: string }>) ?? [];
+        const initPermissionMode = (msg.permissionMode as string) ?? "default";
+        const slashCommands = (msg.slash_commands as string[]) ?? [];
+        const initModel = (msg.model as string) ?? "unknown";
+
+        const newInitInfo = { model: initModel, tools, mcpServers, permissionMode: initPermissionMode, slashCommands };
+        const isFirstInit = !initInfoRef.current;
+        initInfoRef.current = newInitInfo;
+        dispatch({ type: "SET", patch: {
+          initInfo: newInitInfo,
+          currentModel: initModel ?? null,
+          permissionMode: initPermissionMode ?? null,
+        } });
+
+        if (isFirstInit) {
+          const extensions: ClaudeInitExtensions = {
+            protocol: "claude",
+            tools,
+            mcpServers,
+            permissionMode: initPermissionMode,
+          };
+          blocks.pushBlock({
+            type: "system_init",
+            id: nextBlockId("init"),
+            agentName: "Claude Code",
+            agentVersion: null,
+            model: initModel,
+            commands: slashCommands,
+            extensions,
+            extra: { ...msg },
+          });
+        }
+        break;
+      }
+      case "status": {
+        const mode = msg.permissionMode as string | undefined;
+        if (mode) dispatch({ type: "SET", patch: { permissionMode: mode } });
+        break;
+      }
+      case "task_started": {
+        blocks.pushBlock({
+          type: "task",
+          id: nextBlockId("task"),
+          taskId: (msg.task_id as string) ?? "",
+          description: (msg.description as string) ?? "",
+          status: "started",
+        });
+        dispatch({ type: "SET", patch: { isAgentTurn: true } });
+        break;
+      }
+      case "task_progress": {
+        const taskId = msg.task_id as string;
+        const description = msg.description as string;
+        const taskUsage = msg.usage as Record<string, number> | undefined;
+        blocks.updateBlocks((prev) =>
+          prev.map((b) =>
+            b.type === "task" && b.taskId === taskId
+              ? {
+                  ...b,
+                  status: "in_progress" as const,
+                  description,
+                  toolUses: taskUsage?.tool_uses,
+                }
+              : b,
+          ),
+        );
+        break;
+      }
+      case "task_notification": {
+        const taskId = msg.task_id as string;
+        const status = msg.status as string;
+        const summary = msg.summary as string;
+        blocks.updateBlocks((prev) =>
+          prev.map((b) =>
+            b.type === "task" && b.taskId === taskId
+              ? { ...b, status: status as TaskBlock["status"], summary }
+              : b,
+          ),
+        );
         break;
       }
     }
@@ -569,24 +576,7 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
 
     const userMsg = extractClaudeUserMessage(tlEvent.data, tlEvent.axonEvent);
     if (userMsg) {
-      const attachments: UserAttachment[] = [];
-      for (const block of userMsg.content) {
-        if (block != null && typeof block === "object" && "type" in block) {
-          const b = block as Record<string, unknown>;
-          if (b.type === "image") {
-            // Anthropic-style: { type: "image", source: { type: "base64", media_type, data } }
-            const src = b.source as Record<string, unknown> | undefined;
-            if (src?.type === "base64" && typeof src.data === "string" && typeof src.media_type === "string") {
-              attachments.push({ type: "image", data: src.data, mimeType: src.media_type });
-            }
-            // Flat-style: { type: "image", data, mimeType }
-            else if (typeof b.data === "string" && typeof b.mimeType === "string") {
-              attachments.push({ type: "image", data: b.data, mimeType: b.mimeType });
-            }
-          }
-        }
-      }
-
+      const attachments = extractImageAttachments(userMsg.content);
       dispatch({ type: "APPEND_MESSAGE", message: {
         id: `user-${userMsg.sequence}`,
         role: "user" as const,
@@ -601,14 +591,9 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
       return;
     }
 
-    if (tlEvent.kind === "unknown" && tlEvent.axonEvent.event_type === "agent_started") {
-      const config = tryParseTimelinePayload<Record<string, unknown>>({ axonEvent: tlEvent.axonEvent }) ?? {};
-      dispatch({ type: "APPEND_MESSAGE", message: {
-        id: `config-${tlEvent.axonEvent.sequence}`,
-        role: "system",
-        itemType: "agent_started",
-        config,
-      } satisfies AgentConfigItem });
+    const agentConfig = buildAgentConfigItem(tlEvent);
+    if (agentConfig) {
+      dispatch({ type: "APPEND_MESSAGE", message: agentConfig });
     }
   }
 
@@ -718,7 +703,7 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
   }, [agentId]);
 
 
-  const sendControlResponse = useCallback(async (requestId: string, response: Record<string, unknown>) => {
+  const sendControlResponse = useCallback(async (requestId: string, response: { behavior: string; updatedInput?: unknown }) => {
     try {
       await api("/api/control-response", { agentId, requestId, response });
       dispatch({ type: "SET", patch: { pendingControlRequest: null } });

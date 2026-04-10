@@ -35,6 +35,9 @@ const sdk = new RunloopSDK();
 
 console.log(`Starting devbox with agent "${AGENT_BINARY}"...`);
 const axon = await sdk.axon.create({ name: "acp-transport" });
+// Create a devbox with a broker_mount that wires the Axon channel to the
+// agent binary via the ACP protocol. The broker launches the agent inside
+// the devbox and bridges its stdin/stdout to the Axon event stream.
 const devbox = await sdk.devbox.create({
   name: "acp-hello-world",
   blueprint_name: "runloop/agents",
@@ -48,6 +51,10 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
+// Constructor is lightweight — no SSE connection until connect() is called.
+// connect() opens the SSE stream and replays all events from the beginning
+// of the Axon channel by default (replay: true). Pass afterSequence to skip
+// already-seen events.
 const agent = new ACPAxonConnection(axon, devbox, {
   onDisconnect: async () => {
     await devbox.shutdown();

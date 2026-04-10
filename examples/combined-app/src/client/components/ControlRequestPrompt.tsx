@@ -2,6 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import type { ControlRequestInner, ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
 import type { PendingControlRequest, ControlRequestQuestion } from "../types.js";
 
+export type ControlResponseData =
+  | { behavior: "allow"; updatedInput?: unknown }
+  | { behavior: "deny" };
+
 function isCanUseTool(req: ControlRequestInner): req is ControlRequestOfSubtype<"can_use_tool"> {
   return req.subtype === "can_use_tool";
 }
@@ -11,7 +15,7 @@ export function ControlRequestPrompt({
   onRespond,
 }: {
   request: PendingControlRequest;
-  onRespond: (requestId: string, response: Record<string, unknown>) => void;
+  onRespond: (requestId: string, response: ControlResponseData) => void;
 }) {
   const isAskUser = request.toolName === "AskUserQuestion";
 
@@ -71,7 +75,7 @@ function AskUserQuestionForm({
   onRespond,
 }: {
   request: PendingControlRequest;
-  onRespond: (requestId: string, response: Record<string, unknown>) => void;
+  onRespond: (requestId: string, response: ControlResponseData) => void;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [selections, setSelections] = useState<Map<number, Set<string>>>(() => new Map());

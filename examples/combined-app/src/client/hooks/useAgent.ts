@@ -1,9 +1,32 @@
 import { useCallback } from "react";
 import { useClaudeAgent } from "./useClaudeAgent.js";
 import { useACPAgent } from "./useACPAgent.js";
-import type { AgentType, UseAgentReturn } from "../types.js";
+import type { AgentType, IdleAgentState, UseAgentReturn } from "../types.js";
 
 const NOOP_ASYNC = async () => {};
+
+const IDLE_DEFAULTS: Omit<IdleAgentState, "shutdown"> = {
+  agentType: null,
+  connectionPhase: "idle",
+  connectionStatus: null,
+  error: null,
+  messages: [],
+  currentTurnBlocks: [],
+  isAgentTurn: false,
+  isStreaming: false,
+  isSendingPrompt: false,
+  usage: null,
+  autoApprovePermissions: true,
+  devboxId: null,
+  axonId: null,
+  runloopUrl: null,
+  axonEvents: [],
+  timelineEvents: [],
+  availableCommands: [],
+  sendMessage: NOOP_ASYNC,
+  cancel: NOOP_ASYNC,
+  setAutoApprovePermissions: NOOP_ASYNC,
+};
 
 export function useAgent(agentId: string | null, agentType: AgentType | null): UseAgentReturn {
   // React's rules of hooks require that hooks are called unconditionally in the
@@ -43,27 +66,5 @@ export function useAgent(agentId: string | null, agentType: AgentType | null): U
     };
   }
 
-  return {
-    agentType: null,
-    connectionPhase: "idle",
-    connectionStatus: null,
-    error: null,
-    messages: [],
-    currentTurnBlocks: [],
-    isAgentTurn: false,
-    isStreaming: false,
-    isSendingPrompt: false,
-    usage: null,
-    autoApprovePermissions: true,
-    devboxId: null,
-    axonId: null,
-    runloopUrl: null,
-    axonEvents: [],
-    timelineEvents: [],
-    availableCommands: [],
-    sendMessage: NOOP_ASYNC,
-    cancel: NOOP_ASYNC,
-    shutdown,
-    setAutoApprovePermissions: NOOP_ASYNC,
-  };
+  return { ...IDLE_DEFAULTS, shutdown };
 }
