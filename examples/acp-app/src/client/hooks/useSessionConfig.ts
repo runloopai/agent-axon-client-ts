@@ -1,10 +1,10 @@
 import { useState, useCallback } from "react";
+import type { SessionUpdate } from "@runloop/agent-axon-client/acp";
 import {
   isCurrentModeUpdate,
   isConfigOptionUpdate,
   isAvailableCommandsUpdate,
 } from "@runloop/agent-axon-client/acp";
-import type { ClientEvent } from "../../server/acp-client.js";
 import type {
   SessionMode,
   ModelInfo,
@@ -24,7 +24,7 @@ export interface UseSessionConfigReturn {
   setModel: (modelId: string) => Promise<void>;
   setConfigOption: (optionId: string, valueId: string) => Promise<void>;
   applySessionResponse: (resp: Record<string, unknown>) => void;
-  onEvent: (event: ClientEvent) => void;
+  onSessionUpdate: (update: SessionUpdate) => void;
 }
 
 export function useSessionConfig(
@@ -71,10 +71,7 @@ export function useSessionConfig(
     }
   }, [setError]);
 
-  const onEvent = useCallback((data: ClientEvent) => {
-    if (data.type !== "session_update") return;
-    const { update } = data;
-
+  const onSessionUpdate = useCallback((update: SessionUpdate) => {
     if (isCurrentModeUpdate(update)) {
       setCurrentMode(update.currentModeId);
     } else if (isConfigOptionUpdate(update)) {
@@ -95,6 +92,6 @@ export function useSessionConfig(
     setModel,
     setConfigOption,
     applySessionResponse,
-    onEvent,
+    onSessionUpdate,
   };
 }

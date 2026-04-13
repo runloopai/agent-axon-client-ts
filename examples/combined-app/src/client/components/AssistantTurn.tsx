@@ -5,7 +5,7 @@ import type {
   TerminalState,
   ToolKind,
 } from "../types.js";
-import { toolKindMeta } from "./shared.js";
+import { toolKindMeta, groupBlocks } from "./shared.js";
 import {
   ThinkingBlockView,
   ToolCallBlockView,
@@ -18,46 +18,6 @@ import {
   EmbeddedResourceBlockView,
   SystemInitBlockView,
 } from "./TurnBlocks.js";
-
-type RenderItem =
-  | { kind: "block"; block: TurnBlock; index: number }
-  | { kind: "group"; groupKind: ToolKind; blocks: ToolCallBlock[] };
-
-function groupBlocks(blocks: TurnBlock[], isLive: boolean): RenderItem[] {
-  if (isLive) {
-    return blocks.map((block, index) => ({ kind: "block" as const, block, index }));
-  }
-
-  const items: RenderItem[] = [];
-  let i = 0;
-  while (i < blocks.length) {
-    const block = blocks[i];
-    if (block.type === "tool_call" && block.status === "completed") {
-      let j = i + 1;
-      while (
-        j < blocks.length &&
-        blocks[j].type === "tool_call" &&
-        (blocks[j] as ToolCallBlock).kind === block.kind &&
-        (blocks[j] as ToolCallBlock).status === "completed"
-      ) {
-        j++;
-      }
-      const runLength = j - i;
-      if (runLength >= 3) {
-        items.push({
-          kind: "group",
-          groupKind: block.kind,
-          blocks: blocks.slice(i, j) as ToolCallBlock[],
-        });
-        i = j;
-        continue;
-      }
-    }
-    items.push({ kind: "block", block, index: i });
-    i++;
-  }
-  return items;
-}
 
 const STOP_REASON_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
@@ -138,13 +98,15 @@ function ToolCallGroupView({
   );
 }
 
+const EMPTY_TERMINALS = new Map<string, TerminalState>();
+
 export function AssistantTurn({
-  blocks, expandedBlocks, onToggleBlock, terminals, isLive, stopReason,
+  blocks, expandedBlocks, onToggleBlock, terminals = EMPTY_TERMINALS, isLive, stopReason,
 }: {
   blocks: TurnBlock[];
   expandedBlocks: Set<string>;
   onToggleBlock: (id: string) => void;
-  terminals: Map<string, TerminalState>;
+  terminals?: Map<string, TerminalState>;
   isLive: boolean;
   stopReason?: string;
 }) {

@@ -2,6 +2,8 @@
  * Shared logging and error-handling utilities for connection modules.
  */
 
+import type { LogFn } from "./types.js";
+
 /**
  * Creates a default error handler that writes to stderr with a label prefix.
  *
@@ -27,10 +29,7 @@ export function makeDefaultOnError(label: string): (error: unknown) => void {
  *
  * @category Utilities
  */
-export function makeLogger(
-  prefix: string,
-  verbose: boolean,
-): (tag: string, ...args: unknown[]) => void {
+export function makeLogger(prefix: string, verbose: boolean): LogFn {
   if (!verbose) return () => {};
   return (tag: string, ...args: unknown[]) => {
     const ts = new Date().toISOString().slice(11, 23);

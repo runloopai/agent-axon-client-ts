@@ -1,20 +1,3 @@
-/**
- * ClaudeAxonConnection — bidirectional, interactive client for Claude Code via Axon.
- *
- * Provides:
- * - initialize() / disconnect() lifecycle
- * - send() to send user messages
- * - receiveMessages() / receiveResponse() async iterators
- * - Control protocol: interrupt, setPermissionMode, setModel
- * - onControlRequest() to intercept incoming control requests (e.g. tool permissions)
- *
- * Messages are yielded as `SDKMessage` from `@anthropic-ai/claude-agent-sdk` —
- * the exact types the Claude Code CLI emits. No parsing/translation layer needed.
- *
- * Communication happens over a Runloop Axon channel: outbound messages are
- * published via axon.publish(), inbound messages arrive via axon.subscribeSse().
- */
-
 import type {
   PermissionMode,
   SDKControlRequest,
@@ -22,14 +5,28 @@ import type {
   SDKMessage,
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  AxonEventView,
+  AxonPublishParams,
+  PublishResultView,
+} from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
+import { resolveReplayTarget } from "../shared/connect-guards.js";
+import { ConnectionStateError } from "../shared/errors/connection-state-error.js";
 import { SystemError } from "../shared/errors/system-error.js";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
-import type { AxonEventListener, BaseConnectionOptions } from "../shared/types.js";
+import { timelineEventGenerator } from "../shared/timeline-generator.js";
+import type {
+  AxonEventListener,
+  BaseConnectionOptions,
+  LogFn,
+  TimelineEventListener,
+} from "../shared/types.js";
+import { classifyClaudeAxonEvent } from "./classify-claude-axon-event.js";
 import { AxonTransport, type Transport } from "./transport.js";
-import type { WireData } from "./types.js";
+import type { ClaudeTimelineEvent, WireData } from "./types.js";
 
 /** The inner request payload — discriminated by `subtype`. */
 export type ControlRequestInner = SDKControlRequest["request"];
@@ -149,7 +146,7 @@ export interface ClaudeAxonConnectionOptions extends BaseConnectionOptions {
  * Bidirectional, interactive client for Claude Code via Axon.
  *
  * Provides:
- * - {@link initialize} / {@link disconnect} lifecycle
+ * - {@link connect} / {@link initialize} / {@link disconnect} lifecycle
  * - {@link send} to send user messages
  * - {@link receiveMessages} / {@link receiveResponse} async iterators
  * - Control protocol: {@link interrupt}, {@link setPermissionMode}, {@link setModel}
@@ -168,6 +165,14 @@ export class ClaudeAxonConnection {
   readonly devboxId: string;
 
   /**
+   * Whether the transport is connected and the read loop is active.
+   * Returns `true` after {@link connect} resolves and before {@link disconnect}.
+   */
+  get isConnected(): boolean {
+    return this.readLoopRunning && !this.closed;
+  }
+
+  /**
    * Whether the connection has been fully initialized (transport connected,
    * read loop active, and protocol handshake complete).
    * Returns `false` before {@link initialize} resolves or after the read loop ends.
@@ -177,15 +182,19 @@ export class ClaudeAxonConnection {
   }
 
   /**
-   * Whether the connection has been disconnected.
-   * Returns `true` after {@link disconnect} has been called.
+   * Whether the connection is not live after having been connected at least once.
+   * Returns `false` before the first successful {@link connect}, and `true` after
+   * a disconnect/teardown until {@link connect} runs again.
    */
   get isDisconnected(): boolean {
-    return this.closed;
+    return this.hasEverConnected && !this.readLoopRunning;
   }
 
   /** Low-level transport that reads/writes messages over the Axon channel. */
-  private transport: Transport;
+  private transport: Transport | undefined;
+
+  /** The Axon channel reference, kept for replay sequence query. */
+  private axon: Axon;
 
   /** Resolved options (user-provided values merged with defaults). */
   private options: ClaudeAxonConnectionOptions;
@@ -220,9 +229,29 @@ export class ClaudeAxonConnection {
   /** In-flight control requests awaiting a response from the CLI. */
   private pendingControlRequests = new Map<string, PendingControlRequest>();
 
-  /** Whether {@link disconnect} has been called. */
+  /**
+   * When true, inbound routing and the read loop should stop. Cleared after a
+   * graceful {@link disconnect} completes so the same instance can {@link connect} again.
+   */
   private closed = false;
+
+  /** Set when a {@link SystemError} is observed; the instance cannot reconnect. */
+  private fatal = false;
+
+  /** Set after the first successful {@link connect}; used by {@link isDisconnected}. */
+  private hasEverConnected = false;
+
+  /**
+   * When true, the read loop must not run transport-level SSE auto-recovery
+   * (used during {@link disconnect} so a late read-loop tick cannot reconnect
+   * after `closed` is cleared for same-instance reconnect).
+   */
+  private suppressTransportAutoReconnect = false;
+
   private streamAborted = false;
+
+  /** Aborted when the connection closes or the read loop ends, to terminate timeline generators. */
+  private timelineAbortController = new AbortController();
 
   /** User-registered handlers for incoming control requests, keyed by subtype. */
   // biome-ignore lint/suspicious/noExplicitAny: handlers are typed at registration via onControlRequest()
@@ -231,12 +260,15 @@ export class ClaudeAxonConnection {
   /** Registered raw Axon event listeners. */
   private axonEventListeners: ListenerSet<AxonEventListener>;
 
-  private log: (tag: string, ...args: unknown[]) => void;
+  /** Registered timeline event listeners. */
+  private timelineEventListeners: ListenerSet<TimelineEventListener<ClaudeTimelineEvent>>;
+
+  private log: LogFn;
 
   /**
    * Creates a new Claude connection over the given Axon channel and devbox.
    *
-   * Unlike ACP, the transport is not opened until {@link initialize} is called.
+   * Unlike ACP, the transport is not opened until {@link connect} is called.
    *
    * @param axon    - The Axon channel to communicate over (from `@runloop/api-client`).
    * @param devbox  - The Runloop devbox hosting the Claude Code agent.
@@ -246,15 +278,15 @@ export class ClaudeAxonConnection {
   constructor(axon: Axon, devbox: Devbox, options?: ClaudeAxonConnectionOptions) {
     this.axonId = axon.id;
     this.devboxId = devbox.id;
+    this.axon = axon;
     this.options = options ?? {};
     this.handleError = options?.onError ?? makeDefaultOnError("ClaudeAxonConnection");
     this.disconnectFn = options?.onDisconnect;
     this.log = makeLogger("claude-sdk", options?.verbose ?? false);
     this.axonEventListeners = new ListenerSet<AxonEventListener>(this.handleError);
-    this.transport = new AxonTransport(axon, {
-      verbose: this.options.verbose,
-      onAxonEvent: (ev) => this.axonEventListeners.emit(ev),
-    });
+    this.timelineEventListeners = new ListenerSet<TimelineEventListener<ClaudeTimelineEvent>>(
+      this.handleError,
+    );
   }
 
   // -----------------------------------------------------------------------
@@ -262,23 +294,86 @@ export class ClaudeAxonConnection {
   // -----------------------------------------------------------------------
 
   /**
-   * Opens the transport, starts the background read loop, performs the
-   * `initialize` handshake, and optionally sets the model.
+   * Opens the transport and starts the background read loop.
    *
-   * @throws If this instance has already been disconnected (connections
-   *   are single-use — create a new instance instead).
+   * Call this before {@link initialize} to establish the Axon connection.
+   *
+   * When `replay` is `true` (the default), queries the axon for the
+   * current head sequence and replays all events up to that point
+   * without invoking handlers. Unresolved control requests are
+   * dispatched to handlers after replay completes.
+   *
+   * @throws {ConnectionStateError} If the connection is not reusable after a fatal broker error (`code: "terminated"`).
+   * @throws {ConnectionStateError} If the transport is already connected (`code: "already_connected"`).
+   * @throws If both `replay` and `afterSequence` are set.
    */
-  async initialize(): Promise<void> {
-    if (this.closed) {
-      throw new Error(
-        "This ClaudeAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
+  async connect(): Promise<void> {
+    if (this.fatal) {
+      throw new ConnectionStateError(
+        "terminated",
+        "This connection hit a fatal broker error and cannot be reused. Create a new instance.",
       );
     }
     if (this.readLoopRunning) {
-      throw new Error("Already initialized. Call disconnect() before reinitializing.");
+      throw new ConnectionStateError(
+        "already_connected",
+        "Already connected. Call disconnect() before reconnecting.",
+      );
     }
+
+    this.suppressTransportAutoReconnect = false;
+    this.readLoopDone = false;
+
+    const replayTargetSequence = await resolveReplayTarget(this.axon, this.options, this.log);
+
+    if (!this.transport) {
+      this.transport = new AxonTransport(this.axon, {
+        verbose: this.options.verbose,
+        onAxonEvent: (ev) => {
+          this.axonEventListeners.emit(ev);
+          this.emitTimelineEvent(ev);
+        },
+        afterSequence: this.options.afterSequence,
+        replayTargetSequence,
+      });
+    }
+
     await this.transport.connect();
     this.startReadLoop();
+    this.hasEverConnected = true;
+  }
+
+  /**
+   * Runs the **Claude agent protocol `initialize` step** with the Claude Code CLI.
+   *
+   * This is **required once** after {@link connect} on first startup: `connect()` only
+   * opens the transport and read loop; the agent does not accept prompts or control
+   * traffic until this handshake completes. If {@link ClaudeAxonConnectionOptions.model}
+   * was set, a `set_model` control request is sent immediately afterward.
+   *
+   * @throws {ConnectionStateError} If the connection is not reusable after a fatal broker error (`code: "terminated"`).
+   * @throws {ConnectionStateError} If {@link connect} has not been called yet (`code: "not_connected"`).
+   * @throws {ConnectionStateError} If the handshake has already completed (`code: "already_initialized"`).
+   */
+  async initialize(): Promise<void> {
+    if (this.fatal) {
+      throw new ConnectionStateError(
+        "terminated",
+        "This connection hit a fatal broker error and cannot be reused. Create a new instance.",
+      );
+    }
+    if (!this.readLoopRunning) {
+      throw new ConnectionStateError(
+        "not_connected",
+        "Not connected. Call connect() before initialize().",
+      );
+    }
+    if (this.handshakeComplete) {
+      throw new ConnectionStateError(
+        "already_initialized",
+        "Already initialized. Call disconnect() before reinitializing.",
+      );
+    }
 
     await this.sendInitialize();
     this.handshakeComplete = true;
@@ -297,21 +392,45 @@ export class ClaudeAxonConnection {
    * `ClaudeAxonConnection` instance to reconnect.
    */
   abortStream(): void {
+    if (!this.transport) {
+      return;
+    }
     this.streamAborted = true;
     this.transport.abortStream();
   }
 
   /**
-   * Closes the transport, fails all pending control requests, clears
-   * listeners, and runs the `onDisconnect` callback if one was provided.
+   * Closes the transport, fails all pending control requests, and runs the
+   * `onDisconnect` callback if one was provided.
    *
-   * Idempotent — subsequent calls are no-ops.
+   * User-registered listeners ({@link onAxonEvent}, {@link onTimelineEvent},
+   * {@link onControlRequest}) are **preserved** so they keep working after
+   * another {@link connect}.
+   *
+   * Idempotent — subsequent calls are no-ops until the next {@link connect}.
    *
    * @returns Resolves once all teardown (including `onDisconnect`) completes.
    */
   async disconnect(): Promise<void> {
-    if (this.closed) return;
+    if (this.fatal) {
+      if (this.transport) {
+        try {
+          await this.transport.close();
+        } catch {
+          // best-effort
+        }
+        this.transport = undefined;
+      }
+      return;
+    }
+
+    if (!this.transport && !this.readLoopRunning) {
+      return;
+    }
+
+    this.suppressTransportAutoReconnect = true;
     this.closed = true;
+    this.timelineAbortController.abort();
 
     // Unblock any waiters and clear buffered messages
     for (const waiter of this.messageWaiters) {
@@ -327,11 +446,17 @@ export class ClaudeAxonConnection {
       pending.reject(new Error("Client disconnected"));
     }
     this.pendingControlRequests.clear();
-    this.axonEventListeners.clear();
-    this.controlRequestHandlers.clear();
 
-    await this.transport.close();
+    if (this.transport) {
+      await this.transport.close();
+      this.transport = undefined;
+    }
+    this.readLoopRunning = false;
     await runDisconnectHook(this.disconnectFn, this.log, this.handleError);
+
+    this.timelineAbortController = new AbortController();
+    this.closed = false;
+    this.readLoopDone = false;
   }
 
   // -----------------------------------------------------------------------
@@ -350,6 +475,45 @@ export class ClaudeAxonConnection {
     return this.axonEventListeners.add(listener);
   }
 
+  /**
+   * Registers a listener for classified timeline events (push API).
+   *
+   * Every Axon event on the channel is classified into one of:
+   * - `claude_protocol` — a known Claude protocol event (user or agent message)
+   * - `system` — a broker system event (`turn.started`, `turn.completed`, `broker.error`)
+   * - `unknown` — anything else
+   *
+   * For a pull-based alternative, see {@link receiveTimelineEvents}.
+   * Both APIs deliver the same events; choose whichever fits your
+   * consumption pattern.
+   *
+   * @param listener - Callback invoked with each {@link ClaudeTimelineEvent}.
+   * @returns An unsubscribe function that removes the listener.
+   */
+  onTimelineEvent(listener: TimelineEventListener<ClaudeTimelineEvent>): () => void {
+    return this.timelineEventListeners.add(listener);
+  }
+
+  /**
+   * Async generator that yields classified timeline events (pull API).
+   *
+   * Mirrors the pull-based pattern of {@link receiveAgentEvents}. The
+   * generator completes when the connection is disconnected or the
+   * read loop ends.
+   *
+   * For a push-based alternative, see {@link onTimelineEvent}.
+   * Both APIs deliver the same events; choose whichever fits your
+   * consumption pattern.
+   *
+   * @returns An async generator of {@link ClaudeTimelineEvent}.
+   */
+  async *receiveTimelineEvents(): AsyncGenerator<ClaudeTimelineEvent, void, undefined> {
+    yield* timelineEventGenerator<ClaudeTimelineEvent>(
+      (listener) => this.onTimelineEvent(listener),
+      this.timelineAbortController.signal,
+    );
+  }
+
   // -----------------------------------------------------------------------
   // Read loop — routes control messages vs SDK messages
   // -----------------------------------------------------------------------
@@ -365,19 +529,26 @@ export class ClaudeAxonConnection {
     this.readLoopRunning = true;
 
     (async () => {
+      const transport = this.transport;
+      if (!transport) {
+        this.readLoopRunning = false;
+        return;
+      }
+
       let reconnected = false;
 
       const consumeStream = async (): Promise<"ended" | "error"> => {
         try {
-          for await (const message of this.transport.readMessages()) {
+          for await (const message of transport.readMessages()) {
             if (this.closed) return "ended";
             this.routeMessage(message);
           }
           return "ended";
         } catch (err) {
           this.log("readLoop", `error: ${err}`);
+          this.handleError(err);
           if (err instanceof SystemError) {
-            // this is a fatal error. We never started the connection, so mark it closed.
+            this.fatal = true;
             this.closed = true;
           }
           for (const [, pending] of this.pendingControlRequests) {
@@ -390,24 +561,19 @@ export class ClaudeAxonConnection {
 
       const outcome = await consumeStream();
 
-      if (!this.closed && !this.streamAborted && !reconnected) {
+      if (
+        !this.closed &&
+        !this.suppressTransportAutoReconnect &&
+        !this.streamAborted &&
+        !reconnected
+      ) {
         const label = outcome === "error" ? "error" : "ended unexpectedly";
-        console.warn(`[ClaudeAxonConnection] SSE stream ${label}, reconnecting...`);
+        this.log("readLoop", `SSE stream ${label}, reconnecting...`);
         reconnected = true;
-        this.handshakeComplete = false;
         try {
-          await this.transport.reconnect();
-
-          const reInitialize = async () => {
-            await this.sendInitialize();
-            this.handshakeComplete = true;
-            if (this.options.model) {
-              await this.setModel(this.options.model);
-            }
-            console.warn("[ClaudeAxonConnection] Reconnected successfully");
-          };
-
-          await Promise.all([consumeStream(), reInitialize()]);
+          await transport.reconnect();
+          this.log("readLoop", "reconnected successfully");
+          await consumeStream();
         } catch (reconnectErr) {
           this.log("readLoop", `reconnect failed: ${reconnectErr}`);
         }
@@ -416,11 +582,20 @@ export class ClaudeAxonConnection {
       this.readLoopDone = true;
       this.readLoopRunning = false;
       this.streamAborted = false;
+      this.timelineAbortController.abort();
       for (const waiter of this.messageWaiters) {
         waiter(null);
       }
       this.messageWaiters.length = 0;
     })();
+  }
+
+  /**
+   * Classifies a raw Axon event and emits it to timeline listeners.
+   */
+  private emitTimelineEvent(ev: AxonEventView): void {
+    const event = classifyClaudeAxonEvent(ev);
+    this.timelineEventListeners.emit(event);
   }
 
   /**
@@ -493,7 +668,7 @@ export class ClaudeAxonConnection {
         this.messageQueue.length >= ClaudeAxonConnection.MESSAGE_QUEUE_HIGH_WATER_MARK
       ) {
         this.messageQueueWarned = true;
-        console.warn(
+        this.handleError(
           `[ClaudeAxonConnection] Message queue has ${this.messageQueue.length} buffered messages. ` +
             "Ensure you are consuming messages via receiveMessages() or receiveResponse().",
         );
@@ -567,7 +742,11 @@ export class ClaudeAxonConnection {
       });
     });
 
-    await this.transport.write(JSON.stringify(controlRequest));
+    const transport = this.transport;
+    if (!transport) {
+      throw new ConnectionStateError("not_connected", "Not connected. Call connect() first.");
+    }
+    await transport.write(JSON.stringify(controlRequest));
     return promise;
   }
 
@@ -672,7 +851,7 @@ export class ClaudeAxonConnection {
       }
 
       if (!this.closed) {
-        await this.transport.write(JSON.stringify(controlResponse));
+        await this.transport?.write(JSON.stringify(controlResponse));
       }
     } catch (err) {
       if (this.closed) return;
@@ -684,7 +863,7 @@ export class ClaudeAxonConnection {
           error: String(err),
         },
       };
-      await this.transport.write(JSON.stringify(errorResponse));
+      await this.transport?.write(JSON.stringify(errorResponse));
     }
   }
 
@@ -701,17 +880,29 @@ export class ClaudeAxonConnection {
    *
    * @param prompt - A string message or a fully formed `SDKUserMessage`.
    *
+   * @throws {ConnectionStateError} If not connected (`code: "not_connected"`) or after a fatal error (`code: "terminated"`).
+   *
    * @example
    * ```ts
    * await conn.send("What files are in this directory?");
    * ```
    */
   async send(prompt: string | SDKUserMessage): Promise<void> {
-    if (this.closed) {
-      throw new Error("Connection is disconnected. Cannot send messages.");
+    if (this.fatal) {
+      throw new ConnectionStateError(
+        "terminated",
+        "This connection hit a fatal broker error and cannot be reused. Create a new instance.",
+      );
     }
     if (!this.readLoopRunning) {
-      throw new Error("Connection is not initialized. Call initialize() first.");
+      throw new ConnectionStateError(
+        "not_connected",
+        "Connection is not connected. Call connect() or initialize() first.",
+      );
+    }
+    const transport = this.transport;
+    if (!transport) {
+      throw new ConnectionStateError("not_connected", "Not connected. Call connect() first.");
     }
     const message: SDKUserMessage =
       typeof prompt === "string"
@@ -721,7 +912,21 @@ export class ClaudeAxonConnection {
             parent_tool_use_id: null,
           }
         : prompt;
-    await this.transport.write(JSON.stringify(message));
+    await transport.write(JSON.stringify(message));
+  }
+
+  /**
+   * Publishes a custom event to the Axon channel.
+   *
+   * The event will appear in the SSE stream and be classified by the
+   * timeline (typically as `kind: "unknown"` unless the `event_type`
+   * matches a known Claude protocol message type).
+   *
+   * @param params - The event to publish (same shape as `Axon.publish()`).
+   * @returns The publish result with sequence number and timestamp.
+   */
+  async publish(params: AxonPublishParams): Promise<PublishResultView> {
+    return this.axon.publish(params);
   }
 
   // -----------------------------------------------------------------------
@@ -731,13 +936,13 @@ export class ClaudeAxonConnection {
   /**
    * Async iterator that yields every `SDKMessage` from Claude indefinitely.
    *
-   * Does **not** stop at `result` messages — use {@link receiveResponse}
+   * Does **not** stop at `result` messages — use {@link receiveAgentResponse}
    * for single-turn convenience. Iteration ends when the transport closes
    * or {@link disconnect} is called.
    *
    * @yields Each `SDKMessage` as it arrives from the agent.
    */
-  async *receiveMessages(): AsyncGenerator<SDKMessage, void, undefined> {
+  async *receiveAgentEvents(): AsyncGenerator<SDKMessage, void, undefined> {
     while (true) {
       const msg = await this.nextMessage();
       if (msg === null) return;
@@ -750,25 +955,39 @@ export class ClaudeAxonConnection {
    * `result` message, then terminates automatically.
    *
    * Convenient for single-turn usage: send a prompt, iterate
-   * `receiveResponse()`, and the loop ends when Claude finishes.
+   * `receiveAgentResponse()`, and the loop ends when Claude finishes.
    *
    * @yields Each `SDKMessage` up to and including the `result`.
    *
    * @example
    * ```ts
    * await conn.send("Summarize this file.");
-   * for await (const msg of conn.receiveResponse()) {
+   * for await (const msg of conn.receiveAgentResponse()) {
    *   console.log(msg.type, msg);
    * }
    * ```
    */
-  async *receiveResponse(): AsyncGenerator<SDKMessage, void, undefined> {
-    for await (const msg of this.receiveMessages()) {
+  async *receiveAgentResponse(): AsyncGenerator<SDKMessage, void, undefined> {
+    for await (const msg of this.receiveAgentEvents()) {
       yield msg;
       if (msg.type === "result") {
         return;
       }
     }
+  }
+
+  /**
+   * @deprecated Use {@link receiveAgentEvents} instead.
+   */
+  async *receiveMessages(): AsyncGenerator<SDKMessage, void, undefined> {
+    yield* this.receiveAgentEvents();
+  }
+
+  /**
+   * @deprecated Use {@link receiveAgentResponse} instead.
+   */
+  async *receiveResponse(): AsyncGenerator<SDKMessage, void, undefined> {
+    yield* this.receiveAgentResponse();
   }
 
   // -----------------------------------------------------------------------

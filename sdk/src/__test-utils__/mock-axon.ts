@@ -1,3 +1,4 @@
+import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import { vi } from "vitest";
 import { SYSTEM_EVENT_ORIGIN } from "../shared/errors/system-error.js";
 
@@ -8,7 +9,8 @@ export interface MockAxonEvent {
   sequence?: number;
 }
 
-export function makeAgentEvent(
+function makeEvent(
+  origin: "AGENT_EVENT" | "USER_EVENT" | "SYSTEM_EVENT" | "EXTERNAL_EVENT",
   eventType: string,
   payload: unknown,
   sequence?: number,
@@ -16,25 +18,44 @@ export function makeAgentEvent(
   return {
     event_type: eventType,
     payload: JSON.stringify(payload),
-    origin: "AGENT_EVENT",
+    origin,
     ...(sequence != null ? { sequence } : {}),
   };
 }
 
-export function makeUserEvent(
-  eventType: string,
-  payload: unknown,
-  sequence?: number,
-): MockAxonEvent {
+export const makeAgentEvent = (et: string, p: unknown, s?: number) =>
+  makeEvent("AGENT_EVENT", et, p, s);
+export const makeUserEvent = (et: string, p: unknown, s?: number) =>
+  makeEvent("USER_EVENT", et, p, s);
+export const makeSystemEvent = (et: string, p: unknown, s?: number) =>
+  makeEvent("SYSTEM_EVENT", et, p, s);
+export const makeExternalEvent = (et: string, p: unknown, s?: number) =>
+  makeEvent("EXTERNAL_EVENT", et, p, s);
+
+/**
+ * Creates a full {@link AxonEventView} with sensible defaults.
+ * Used across test suites that need a complete event shape
+ * (timeline classification, user-message extraction, etc.).
+ */
+export function makeFullAxonEvent(overrides: Partial<AxonEventView> = {}): AxonEventView {
   return {
-    event_type: eventType,
-    payload: JSON.stringify(payload),
-    origin: "USER_EVENT",
-    ...(sequence != null ? { sequence } : {}),
+    axon_id: "axn_test",
+    event_type: "turn.started",
+    origin: "SYSTEM_EVENT",
+    payload: "{}",
+    sequence: 1,
+    source: "test",
+    timestamp_ms: Date.now(),
+    ...overrides,
   };
 }
 
-export function makeSystemEvent(
+/**
+ * Like {@link makeSystemEvent} but takes a pre-formatted string payload
+ * instead of JSON-serializing an object. Useful for `broker.error` events
+ * whose payloads are plain error messages.
+ */
+export function makeSystemEventWithRawPayload(
   eventType: string,
   payload: string,
   sequence?: number,

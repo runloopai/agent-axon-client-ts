@@ -70,7 +70,6 @@ app.post(
       .prompt({ sessionId, prompt })
       .then((resp) => {
         console.log("[prompt] turn complete, stopReason:", resp.stopReason);
-        ws.broadcast({ type: "turn_complete", ...resp });
       })
       .catch((err) => {
         console.error("[prompt] turn error:", err);
@@ -121,7 +120,7 @@ app.post(
     const { connection, sessionId } = mgr.requireSession();
     const { modelId } = req.body;
     res.json(
-      await connection.unstable_setSessionModel({ sessionId, modelId }),
+      await connection.protocol.unstable_setSessionModel({ sessionId, modelId }),
     );
   }),
 );
@@ -186,12 +185,11 @@ app.post(
       mcpServers: [],
     });
     mgr.activeSessionId = resp.sessionId;
-    const raw = resp as Record<string, unknown>;
     res.json({
       sessionId: resp.sessionId,
-      modes: raw.modes,
-      configOptions: raw.configOptions,
-      models: raw.models,
+      modes: resp.modes,
+      configOptions: resp.configOptions,
+      models: resp.models,
     });
   }),
 );

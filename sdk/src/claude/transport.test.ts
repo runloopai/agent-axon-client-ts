@@ -3,7 +3,7 @@ import {
   createControllableStream,
   createMockAxon,
   makeAgentEvent,
-  makeSystemEvent,
+  makeSystemEventWithRawPayload,
   makeUserEvent,
 } from "../__test-utils__/mock-axon.js";
 import { SystemError } from "../shared/errors/system-error.js";
@@ -196,7 +196,7 @@ describe("AxonTransport", () => {
       await transport.connect();
 
       ctrl.push(
-        makeSystemEvent(
+        makeSystemEventWithRawPayload(
           "broker.error",
           "agent failed: agent binary 'nonexistent_binary' not found on PATH",
         ),
@@ -212,7 +212,7 @@ describe("AxonTransport", () => {
     it("throws a SystemError with event metadata on broker.error", async () => {
       await transport.connect();
 
-      ctrl.push(makeSystemEvent("broker.error", "agent failed: process crashed", 99));
+      ctrl.push(makeSystemEventWithRawPayload("broker.error", "agent failed: process crashed", 99));
       ctrl.end();
 
       const gen = transport.readMessages()[Symbol.asyncIterator]();
@@ -236,7 +236,7 @@ describe("AxonTransport", () => {
 
       await transport2.connect();
 
-      ctrl2.push(makeSystemEvent("broker.error", "agent failed: something bad"));
+      ctrl2.push(makeSystemEventWithRawPayload("broker.error", "agent failed: something bad"));
       ctrl2.end();
 
       const gen = transport2.readMessages()[Symbol.asyncIterator]();
@@ -330,6 +330,440 @@ describe("AxonTransport", () => {
 
       expect(axon.subscribeSse).toHaveBeenCalledTimes(1);
       expect(transport.isReady()).toBe(false);
+    });
+  });
+
+  describe("readMessages() — edge cases", () => {
+    it("skips AGENT_EVENT with null payload", async () => {
+      await transport.connect();
+
+      ctrl.push({ event_type: "assistant", payload: null as never, origin: "AGENT_EVENT" });
+      ctrl.push(makeAgentEvent("result", { type: "result" }));
+      ctrl.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of transport.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ type: "result" });
+    });
+
+    it("skips AGENT_EVENT with non-object payload (e.g. string)", async () => {
+      await transport.connect();
+
+      ctrl.push({ event_type: "assistant", payload: '"just a string"', origin: "AGENT_EVENT" });
+      ctrl.push(makeAgentEvent("result", { type: "result" }));
+      ctrl.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of transport.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ type: "result" });
+    });
+
+    it("calls onAxonEvent for every event including skipped ones", async () => {
+      const onAxonEvent = vi.fn();
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { onAxonEvent });
+
+      await t.connect();
+
+      ctrl2.push(makeUserEvent("query", { type: "user" }, 1));
+      ctrl2.push(makeAgentEvent("assistant", { type: "assistant" }, 2));
+      ctrl2.end();
+
+      for await (const _msg of t.readMessages()) {
+        /* drain */
+      }
+      expect(onAxonEvent).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("readMessages() — replay", () => {
+    it("buffers control_request during replay and yields unresolved ones after", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 5 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "control_request",
+        payload: JSON.stringify({ request_id: "req-1", type: "can_use_tool" }),
+        origin: "AGENT_EVENT",
+        sequence: 1,
+      });
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant", text: "hi" }),
+        origin: "AGENT_EVENT",
+        sequence: 5,
+      });
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ request_id: "req-1" });
+    });
+
+    it("resolves control_request when matching control_response seen during replay", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 10 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "control_request",
+        payload: JSON.stringify({ request_id: "req-1", type: "can_use_tool" }),
+        origin: "AGENT_EVENT",
+        sequence: 1,
+      });
+      ctrl2.push({
+        event_type: "control_response",
+        payload: JSON.stringify({ response: { request_id: "req-1", permission: "allow" } }),
+        origin: "USER_EVENT",
+        sequence: 2,
+      });
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant", text: "done" }),
+        origin: "AGENT_EVENT",
+        sequence: 10,
+      });
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(0);
+    });
+
+    it("yields live events after replay completes", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 2 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant", text: "replayed" }),
+        origin: "AGENT_EVENT",
+        sequence: 2,
+      });
+      ctrl2.push(makeAgentEvent("assistant", { type: "assistant", text: "live" }, 3));
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ text: "live" });
+    });
+
+    it("skips replay control_request with null payload", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 5 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "control_request",
+        payload: null as never,
+        origin: "AGENT_EVENT",
+        sequence: 1,
+      });
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant" }),
+        origin: "AGENT_EVENT",
+        sequence: 5,
+      });
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(0);
+    });
+
+    it("handles unparseable control_request payload during replay", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 5 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "control_request",
+        payload: "NOT JSON",
+        origin: "AGENT_EVENT",
+        sequence: 1,
+      });
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant" }),
+        origin: "AGENT_EVENT",
+        sequence: 5,
+      });
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(0);
+    });
+
+    it("handles unparseable control_response payload during replay", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 5 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "control_request",
+        payload: JSON.stringify({ request_id: "req-1", type: "can_use_tool" }),
+        origin: "AGENT_EVENT",
+        sequence: 1,
+      });
+      ctrl2.push({
+        event_type: "control_response",
+        payload: "NOT JSON",
+        origin: "USER_EVENT",
+        sequence: 2,
+      });
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant" }),
+        origin: "AGENT_EVENT",
+        sequence: 5,
+      });
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ request_id: "req-1" });
+    });
+
+    it("handles control_response with null payload during replay", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 5 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "control_request",
+        payload: JSON.stringify({ request_id: "req-1", type: "can_use_tool" }),
+        origin: "AGENT_EVENT",
+        sequence: 1,
+      });
+      ctrl2.push({
+        event_type: "control_response",
+        payload: null as never,
+        origin: "USER_EVENT",
+        sequence: 2,
+      });
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant" }),
+        origin: "AGENT_EVENT",
+        sequence: 5,
+      });
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ request_id: "req-1" });
+    });
+
+    it("skips control_request without request_id during replay", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 5 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "control_request",
+        payload: JSON.stringify({ type: "can_use_tool" }),
+        origin: "AGENT_EVENT",
+        sequence: 1,
+      });
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant" }),
+        origin: "AGENT_EVENT",
+        sequence: 5,
+      });
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(0);
+    });
+
+    it("flushes unresolved requests when stream ends before replay target", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 100 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "control_request",
+        payload: JSON.stringify({ request_id: "req-1", type: "can_use_tool" }),
+        origin: "AGENT_EVENT",
+        sequence: 1,
+      });
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ request_id: "req-1" });
+    });
+
+    it("fires onAxonEvent during replay", async () => {
+      const onAxonEvent = vi.fn();
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, {
+        onAxonEvent,
+        replayTargetSequence: 3,
+      });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant" }),
+        origin: "AGENT_EVENT",
+        sequence: 1,
+      });
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant" }),
+        origin: "AGENT_EVENT",
+        sequence: 3,
+      });
+      ctrl2.end();
+
+      for await (const _msg of t.readMessages()) {
+        /* drain */
+      }
+      expect(onAxonEvent).toHaveBeenCalledTimes(2);
+    });
+
+    it("connects with afterSequence when provided", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { afterSequence: 42 });
+      await t.connect();
+
+      expect(mock.axon.subscribeSse).toHaveBeenCalledWith({ after_sequence: 42 });
+    });
+
+    it("handles replay with gap — first live event after target flushes buffer", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 5 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "control_request",
+        payload: JSON.stringify({ request_id: "req-1", type: "can_use_tool" }),
+        origin: "AGENT_EVENT",
+        sequence: 3,
+      });
+      // Gap: no event with sequence 5 — jump directly to 7 (live)
+      ctrl2.push(makeAgentEvent("assistant", { type: "assistant", text: "live" }, 7));
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({ request_id: "req-1" });
+      expect(messages[1]).toMatchObject({ text: "live" });
+    });
+
+    it("handles control_request with non-object parsed payload during replay", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 5 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "control_request",
+        payload: "42",
+        origin: "AGENT_EVENT",
+        sequence: 1,
+      });
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant" }),
+        origin: "AGENT_EVENT",
+        sequence: 5,
+      });
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(0);
+    });
+
+    it("handles replay with no unresolved requests — logs completion", async () => {
+      const ctrl2 = createControllableStream(true);
+      const mock = createMockAxon(ctrl2);
+      const t = new AxonTransport(mock.axon as never, { replayTargetSequence: 2 });
+      await t.connect();
+
+      ctrl2.push({
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant" }),
+        origin: "AGENT_EVENT",
+        sequence: 2,
+      });
+      ctrl2.push(makeAgentEvent("assistant", { type: "assistant", text: "live" }, 3));
+      ctrl2.end();
+
+      const messages: unknown[] = [];
+      for await (const msg of t.readMessages()) {
+        messages.push(msg);
+      }
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ text: "live" });
+    });
+  });
+
+  describe("abortStream()", () => {
+    it("aborts the SSE controller and allows reconnect", async () => {
+      await transport.connect();
+      transport.abortStream();
+      expect(ctrl.stream.controller?.abort).toHaveBeenCalledOnce();
+      expect(transport.isReady()).toBe(true);
+    });
+
+    it("no-ops when called before connect", () => {
+      transport.abortStream();
     });
   });
 

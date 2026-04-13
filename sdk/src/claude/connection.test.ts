@@ -1,8 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { makeFullAxonEvent } from "../__test-utils__/mock-axon.js";
 import { SystemError } from "../shared/errors/system-error.js";
+import {
+  classifyClaudeAxonEvent,
+  isClaudeProtocolEventType,
+} from "./classify-claude-axon-event.js";
 import { ClaudeAxonConnection } from "./connection.js";
 import type { Transport } from "./transport.js";
-import type { WireData } from "./types.js";
+import type { ClaudeTimelineEvent, WireData } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Mock Transport
@@ -93,7 +98,10 @@ function createMockTransport(): MockTransport {
 }
 
 function createMockAxon() {
-  return { id: "test-axon" };
+  return {
+    id: "test-axon",
+    publish: vi.fn().mockResolvedValue({ sequence: 1, timestamp_ms: Date.now() }),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -117,9 +125,12 @@ async function createConnectedClient(
     onError: options?.onError,
     systemPrompt: options?.systemPrompt,
     appendSystemPrompt: options?.appendSystemPrompt,
+    replay: false,
   });
 
-  // Replace internal transport with mock
+  // Replace internal transport with mock before connect() creates a real one.
+  // We cast to access the private field, then call connect() which will detect
+  // the transport is already set and skip creation.
   (conn as unknown as { transport: MockTransport }).transport = transport;
 
   // Queue up the initialize control response so initialize() succeeds.
@@ -151,6 +162,7 @@ async function createConnectedClient(
     }
   });
 
+  await conn.connect();
   await conn.initialize();
   return conn;
 }
@@ -195,11 +207,14 @@ describe("ClaudeAxonConnection", () => {
       expect(JSON.parse(modelCall as string).request.model).toBe("claude-sonnet-4-5");
     });
 
-    it("throws if called on an already-disconnected instance", async () => {
+    it("throws if initialize() is called after disconnect without connect()", async () => {
       const conn = await createConnectedClient(transport);
       await conn.disconnect();
 
-      await expect(conn.initialize()).rejects.toThrow("already been disconnected");
+      await expect(conn.initialize()).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "not_connected",
+      });
     });
   });
 
@@ -242,6 +257,26 @@ describe("ClaudeAxonConnection", () => {
         return p.type === "user" && p.parent_tool_use_id === "tool_123";
       });
       expect(sent).toBeDefined();
+    });
+  });
+
+  describe("publish()", () => {
+    it("delegates to axon.publish() with the provided params", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const params = {
+        event_type: "agent_config",
+        origin: "EXTERNAL_EVENT" as const,
+        payload: JSON.stringify({ agentType: "claude", model: "test" }),
+        source: "combined-app",
+      };
+
+      const result = await conn.publish(params);
+
+      const axon = (conn as unknown as { axon: ReturnType<typeof createMockAxon> }).axon;
+      expect(axon.publish).toHaveBeenCalledOnce();
+      expect(axon.publish).toHaveBeenCalledWith(params);
+      expect(result).toEqual(expect.objectContaining({ sequence: 1 }));
     });
   });
 
@@ -511,9 +546,16 @@ describe("ClaudeAxonConnection", () => {
 
       conn.abortStream();
 
-      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
-        .axonEventListeners;
-      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (
+        conn as unknown as {
+          axonEventListeners: { emit: (ev: unknown) => void };
+        }
+      ).axonEventListeners;
+      listeners.emit({
+        event_type: "test",
+        payload: "{}",
+        origin: "AGENT_EVENT",
+      });
       expect(listener).toHaveBeenCalledOnce();
     });
 
@@ -532,9 +574,16 @@ describe("ClaudeAxonConnection", () => {
       const listener = vi.fn();
       conn.onAxonEvent(listener);
 
-      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
-        .axonEventListeners;
-      const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
+      const listeners = (
+        conn as unknown as {
+          axonEventListeners: { emit: (ev: unknown) => void };
+        }
+      ).axonEventListeners;
+      const fakeEvent = {
+        event_type: "test",
+        payload: "{}",
+        origin: "AGENT_EVENT",
+      };
       listeners.emit(fakeEvent);
 
       expect(listener).toHaveBeenCalledOnce();
@@ -547,9 +596,16 @@ describe("ClaudeAxonConnection", () => {
       const listener = vi.fn();
       const unsub = conn.onAxonEvent(listener);
 
-      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
-        .axonEventListeners;
-      const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
+      const listeners = (
+        conn as unknown as {
+          axonEventListeners: { emit: (ev: unknown) => void };
+        }
+      ).axonEventListeners;
+      const fakeEvent = {
+        event_type: "test",
+        payload: "{}",
+        origin: "AGENT_EVENT",
+      };
 
       listeners.emit(fakeEvent);
       expect(listener).toHaveBeenCalledOnce();
@@ -573,9 +629,16 @@ describe("ClaudeAxonConnection", () => {
       conn.onAxonEvent(throwingListener);
       conn.onAxonEvent(normalListener);
 
-      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
-        .axonEventListeners;
-      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (
+        conn as unknown as {
+          axonEventListeners: { emit: (ev: unknown) => void };
+        }
+      ).axonEventListeners;
+      listeners.emit({
+        event_type: "test",
+        payload: "{}",
+        origin: "AGENT_EVENT",
+      });
 
       expect(throwingListener).toHaveBeenCalledOnce();
       expect(normalListener).toHaveBeenCalledOnce();
@@ -591,15 +654,22 @@ describe("ClaudeAxonConnection", () => {
         throw listenerError;
       });
 
-      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
-        .axonEventListeners;
-      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (
+        conn as unknown as {
+          axonEventListeners: { emit: (ev: unknown) => void };
+        }
+      ).axonEventListeners;
+      listeners.emit({
+        event_type: "test",
+        payload: "{}",
+        origin: "AGENT_EVENT",
+      });
 
       expect(spy).toHaveBeenCalledWith("[ClaudeAxonConnection]", listenerError);
       spy.mockRestore();
     });
 
-    it("disconnect() clears all Axon event listeners", async () => {
+    it("disconnect() preserves Axon event listener registrations", async () => {
       const conn = await createConnectedClient(transport);
 
       const listener = vi.fn();
@@ -607,11 +677,19 @@ describe("ClaudeAxonConnection", () => {
 
       await conn.disconnect();
 
-      const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
-        .axonEventListeners;
-      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const listeners = (
+        conn as unknown as {
+          axonEventListeners: { emit: (ev: unknown) => void };
+        }
+      ).axonEventListeners;
+      const fakeEvent = {
+        event_type: "test",
+        payload: "{}",
+        origin: "AGENT_EVENT",
+      };
+      listeners.emit(fakeEvent);
 
-      expect(listener).not.toHaveBeenCalled();
+      expect(listener).toHaveBeenCalledWith(fakeEvent);
     });
   });
 
@@ -645,10 +723,69 @@ describe("ClaudeAxonConnection", () => {
     });
   });
 
-  describe("initialize() double-initialize guard", () => {
+  describe("connect() / initialize() guards", () => {
+    it("throws if connect() is called while already connected", async () => {
+      const conn = await createConnectedClient(transport);
+      await expect(conn.connect()).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "already_connected",
+      });
+    });
+
     it("throws if initialize() is called while already initialized", async () => {
       const conn = await createConnectedClient(transport);
-      await expect(conn.initialize()).rejects.toThrow("Already initialized");
+      await expect(conn.initialize()).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "already_initialized",
+      });
+    });
+
+    it("connect() succeeds after disconnect on the same instance", async () => {
+      const conn = await createConnectedClient(transport);
+      await conn.disconnect();
+      (conn as unknown as { transport: MockTransport }).transport = transport;
+      await expect(conn.connect()).resolves.toBeUndefined();
+    });
+
+    it("connect() alone does not complete the handshake", async () => {
+      const axon = createMockAxon();
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        replay: false,
+      });
+      (conn as unknown as { transport: MockTransport }).transport = transport;
+
+      await conn.connect();
+
+      expect(conn.isConnected).toBe(true);
+      expect(conn.isInitialized).toBe(false);
+    });
+
+    it("initialize() throws when connect() has not been called", async () => {
+      const axon = createMockAxon();
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        replay: false,
+      });
+      (conn as unknown as { transport: MockTransport }).transport = transport;
+
+      await expect(conn.initialize()).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "not_connected",
+      });
+    });
+
+    it("connect() throws terminated after a fatal broker SystemError", async () => {
+      const onError = vi.fn();
+      const conn = await createConnectedClient(transport, { onError });
+      const fatal = new SystemError("agent failed: agent binary 'bad_binary' not found on PATH", {
+        event_type: "broker.error",
+      });
+      transport._throw(fatal);
+      await new Promise((r) => setTimeout(r, 80));
+      await expect(conn.connect()).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "terminated",
+      });
+      expect(onError).toHaveBeenCalledWith(fatal);
     });
   });
 
@@ -787,6 +924,7 @@ describe("ClaudeAxonConnection", () => {
       const axon = createMockAxon();
       const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
         systemPrompt: "You are a helpful bot.",
+        replay: false,
       });
       (conn as unknown as { transport: MockTransport }).transport = transport;
 
@@ -805,6 +943,7 @@ describe("ClaudeAxonConnection", () => {
         }
       });
 
+      await conn.connect();
       await conn.initialize();
 
       const initCall = transport._written.find((w) => {
@@ -820,6 +959,7 @@ describe("ClaudeAxonConnection", () => {
       const axon = createMockAxon();
       const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
         appendSystemPrompt: "Always respond in JSON.",
+        replay: false,
       });
       (conn as unknown as { transport: MockTransport }).transport = transport;
 
@@ -838,6 +978,7 @@ describe("ClaudeAxonConnection", () => {
         }
       });
 
+      await conn.connect();
       await conn.initialize();
 
       const initCall = transport._written.find((w) => {
@@ -915,44 +1056,20 @@ describe("ClaudeAxonConnection", () => {
   });
 
   describe("auto-reconnect", () => {
-    it("re-subscribes and re-initializes when the stream ends unexpectedly", async () => {
+    it("re-subscribes when the stream ends unexpectedly", async () => {
       await createConnectedClient(transport);
 
       transport._end();
 
       await vi.waitFor(() => {
-        expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining("SSE stream ended unexpectedly"),
-        );
+        expect(transport.reconnect).toHaveBeenCalledOnce();
       });
 
-      await vi.waitFor(() => {
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
-      });
-
-      expect(transport.reconnect).toHaveBeenCalledOnce();
-
-      const reconnectInitCalls = transport._written.filter((w) => {
+      const initCalls = transport._written.filter((w) => {
         const p = JSON.parse(w);
         return p.type === "control_request" && p.request?.subtype === "initialize";
       });
-      expect(reconnectInitCalls.length).toBe(2);
-    });
-
-    it("re-sends set_model after reconnect when model option was provided", async () => {
-      await createConnectedClient(transport, { model: "claude-sonnet-4-5" });
-
-      transport._end();
-
-      await vi.waitFor(() => {
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
-      });
-
-      const modelCalls = transport._written.filter((w) => {
-        const p = JSON.parse(w);
-        return p.type === "control_request" && p.request?.subtype === "set_model";
-      });
-      expect(modelCalls.length).toBe(2);
+      expect(initCalls.length).toBe(1);
     });
 
     it("does not reconnect when disconnect() was called", async () => {
@@ -983,7 +1100,7 @@ describe("ClaudeAxonConnection", () => {
       transport._end();
 
       await vi.waitFor(() => {
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Reconnected successfully"));
+        expect(transport.reconnect).toHaveBeenCalledOnce();
       });
 
       transport._push({ type: "assistant", content: "after-reconnect" });
@@ -997,7 +1114,10 @@ describe("ClaudeAxonConnection", () => {
       }
 
       expect(messages).toHaveLength(2);
-      expect(messages[0]).toMatchObject({ type: "assistant", content: "after-reconnect" });
+      expect(messages[0]).toMatchObject({
+        type: "assistant",
+        content: "after-reconnect",
+      });
     });
 
     it("does not reconnect on fatal broker errors (agent binary not found)", async () => {
@@ -1032,7 +1152,9 @@ describe("ClaudeAxonConnection", () => {
 
   describe("systemPrompt / appendSystemPrompt options", () => {
     it("includes systemPrompt in the initialize control request", async () => {
-      await createConnectedClient(transport, { systemPrompt: "You are a pirate." });
+      await createConnectedClient(transport, {
+        systemPrompt: "You are a pirate.",
+      });
 
       const initCall = transport._written.find((w) => {
         const p = JSON.parse(w);
@@ -1044,7 +1166,9 @@ describe("ClaudeAxonConnection", () => {
     });
 
     it("includes appendSystemPrompt in the initialize control request", async () => {
-      await createConnectedClient(transport, { appendSystemPrompt: "Always be concise." });
+      await createConnectedClient(transport, {
+        appendSystemPrompt: "Always be concise.",
+      });
 
       const initCall = transport._written.find((w) => {
         const p = JSON.parse(w);
@@ -1083,5 +1207,465 @@ describe("ClaudeAxonConnection", () => {
       expect(parsed.request.systemPrompt).toBeUndefined();
       expect(parsed.request.appendSystemPrompt).toBeUndefined();
     });
+  });
+
+  describe("onTimelineEvent", () => {
+    function emitAxonEvent(
+      conn: ClaudeAxonConnection,
+      event: {
+        event_type: string;
+        payload: string;
+        origin: string;
+        sequence?: number;
+      },
+    ) {
+      // Call the private emitTimelineEvent directly since the mock transport
+      // bypasses the real onAxonEvent callback wired in the constructor.
+      const emitTimeline = (
+        conn as unknown as { emitTimelineEvent: (ev: unknown) => void }
+      ).emitTimelineEvent.bind(conn);
+      emitTimeline(event);
+    }
+
+    it("classifies AGENT_EVENT assistant as claude_protocol with eventType", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant", content: "Hello" }),
+        origin: "AGENT_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("claude_protocol");
+      if (events[0].kind === "claude_protocol") {
+        expect(events[0].eventType).toBe("assistant");
+        expect(events[0].data.type).toBe("assistant");
+      }
+    });
+
+    it("classifies USER_EVENT query as claude_protocol with eventType", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "query",
+        payload: JSON.stringify({
+          type: "user",
+          message: { role: "user", content: "Hi" },
+        }),
+        origin: "USER_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("claude_protocol");
+      if (events[0].kind === "claude_protocol") {
+        expect(events[0].eventType).toBe("query");
+      }
+      expect(events[0].axonEvent.origin).toBe("USER_EVENT");
+    });
+
+    it("classifies control_request as claude_protocol with eventType", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "control_request",
+        payload: JSON.stringify({
+          type: "control_request",
+          request_id: "req_1",
+          request: { subtype: "initialize", hooks: null },
+        }),
+        origin: "USER_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("claude_protocol");
+      if (events[0].kind === "claude_protocol") {
+        expect(events[0].eventType).toBe("control_request");
+      }
+    });
+
+    it("classifies AGENT_EVENT system/init as claude_protocol with eventType 'system'", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "system",
+        payload: JSON.stringify({
+          type: "system",
+          subtype: "init",
+          model: "claude-sonnet-4-6",
+          cwd: "/home/user",
+        }),
+        origin: "AGENT_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("claude_protocol");
+      if (events[0].kind === "claude_protocol") {
+        expect(events[0].eventType).toBe("system");
+      }
+    });
+
+    it("classifies SYSTEM_EVENT turn.started as system", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "turn.started",
+        payload: JSON.stringify({ turn_id: "t-42" }),
+        origin: "SYSTEM_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("system");
+      if (events[0].kind === "system") {
+        expect(events[0].data.type).toBe("turn.started");
+        if (events[0].data.type === "turn.started") {
+          expect(events[0].data.turnId).toBe("t-42");
+        }
+      }
+    });
+
+    it("classifies SYSTEM_EVENT turn.completed as system", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "turn.completed",
+        payload: JSON.stringify({ turn_id: "t-42", stop_reason: "end_turn" }),
+        origin: "SYSTEM_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("system");
+      if (events[0].kind === "system") {
+        expect(events[0].data.type).toBe("turn.completed");
+        if (events[0].data.type === "turn.completed") {
+          expect(events[0].data.stopReason).toBe("end_turn");
+        }
+      }
+    });
+
+    it("classifies unknown EXTERNAL_EVENT as unknown", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "custom.metric",
+        payload: JSON.stringify({ foo: "bar" }),
+        origin: "EXTERNAL_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("unknown");
+      expect(events[0].data).toBeNull();
+    });
+
+    it("returns an unsubscribe function", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      const unsub = conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant", content: "Hi" }),
+        origin: "AGENT_EVENT",
+      });
+      expect(events).toHaveLength(1);
+
+      unsub();
+
+      emitAxonEvent(conn, {
+        event_type: "assistant",
+        payload: JSON.stringify({ type: "assistant", content: "Bye" }),
+        origin: "AGENT_EVENT",
+      });
+      expect(events).toHaveLength(1);
+    });
+
+    it("disconnect() preserves timeline listener registrations", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const listener = vi.fn();
+      conn.onTimelineEvent(listener);
+
+      await conn.disconnect();
+
+      const timelineListeners = (
+        conn as unknown as {
+          timelineEventListeners: { emit: (ev: ClaudeTimelineEvent) => void };
+        }
+      ).timelineEventListeners;
+      const fake: ClaudeTimelineEvent = {
+        kind: "unknown",
+        data: null,
+        axonEvent: {
+          event_type: "assistant",
+          payload: "{}",
+          origin: "AGENT_EVENT",
+        } as never,
+      };
+      timelineListeners.emit(fake);
+      expect(listener).toHaveBeenCalledWith(fake);
+    });
+
+    it("classifies SYSTEM_EVENT broker.error as system", async () => {
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "broker.error",
+        payload: JSON.stringify({ message: "something broke" }),
+        origin: "SYSTEM_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("system");
+      if (events[0].kind === "system") {
+        expect(events[0].data.type).toBe("broker.error");
+        if (events[0].data.type === "broker.error") {
+          expect(events[0].data.message).toBe("something broke");
+        }
+      }
+    });
+
+    it("warns and classifies as unknown when known event_type has invalid JSON", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const conn = await createConnectedClient(transport);
+
+      const events: ClaudeTimelineEvent[] = [];
+      conn.onTimelineEvent((ev) => events.push(ev));
+
+      emitAxonEvent(conn, {
+        event_type: "assistant",
+        payload: "not valid json {{{",
+        origin: "AGENT_EVENT",
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].kind).toBe("unknown");
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("[classifyClaudeAxonEvent]"));
+
+      warnSpy.mockRestore();
+    });
+  });
+
+  describe("receiveAgentEvents / receiveAgentResponse (renamed)", () => {
+    it("receiveAgentEvents() yields SDK messages", async () => {
+      const conn = await createConnectedClient(transport);
+
+      transport._push({ type: "assistant", content: "Hi" });
+      transport._push({ type: "result", cost: 0.01 });
+      conn.abortStream();
+      transport._end();
+
+      const messages: WireData[] = [];
+      for await (const msg of conn.receiveAgentEvents()) {
+        messages.push(msg as unknown as WireData);
+      }
+
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({ type: "assistant" });
+    });
+
+    it("receiveAgentResponse() yields until result", async () => {
+      const conn = await createConnectedClient(transport);
+
+      transport._push({ type: "assistant", content: "thinking..." });
+      transport._push({ type: "result", cost: 0.05 });
+      transport._push({ type: "assistant", content: "next turn" });
+
+      const messages: WireData[] = [];
+      for await (const msg of conn.receiveAgentResponse()) {
+        messages.push(msg as unknown as WireData);
+      }
+
+      expect(messages).toHaveLength(2);
+      expect(messages[1]).toMatchObject({ type: "result" });
+    });
+
+    it("deprecated receiveMessages() delegates to receiveAgentEvents()", async () => {
+      const conn = await createConnectedClient(transport);
+
+      transport._push({ type: "assistant", content: "Hi" });
+      conn.abortStream();
+      transport._end();
+
+      const messages: WireData[] = [];
+      for await (const msg of conn.receiveMessages()) {
+        messages.push(msg as unknown as WireData);
+      }
+
+      expect(messages).toHaveLength(1);
+    });
+
+    it("deprecated receiveResponse() delegates to receiveAgentResponse()", async () => {
+      const conn = await createConnectedClient(transport);
+
+      transport._push({ type: "result", cost: 0.01 });
+
+      const messages: WireData[] = [];
+      for await (const msg of conn.receiveResponse()) {
+        messages.push(msg as unknown as WireData);
+      }
+
+      expect(messages).toHaveLength(1);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isClaudeProtocolEventType
+// ---------------------------------------------------------------------------
+
+describe("isClaudeProtocolEventType", () => {
+  it("returns true for known event_type values (wire names)", () => {
+    expect(isClaudeProtocolEventType("query")).toBe(true);
+    expect(isClaudeProtocolEventType("assistant")).toBe(true);
+    expect(isClaudeProtocolEventType("result")).toBe(true);
+    expect(isClaudeProtocolEventType("system")).toBe(true);
+    expect(isClaudeProtocolEventType("control_request")).toBe(true);
+    expect(isClaudeProtocolEventType("control_response")).toBe(true);
+  });
+
+  it("returns true for SDK message type keys", () => {
+    expect(isClaudeProtocolEventType("user")).toBe(true);
+  });
+
+  it("returns false for system event types", () => {
+    expect(isClaudeProtocolEventType("turn.started")).toBe(false);
+    expect(isClaudeProtocolEventType("turn.completed")).toBe(false);
+    expect(isClaudeProtocolEventType("broker.error")).toBe(false);
+  });
+
+  it("returns false for arbitrary strings", () => {
+    expect(isClaudeProtocolEventType("custom.event")).toBe(false);
+    expect(isClaudeProtocolEventType("")).toBe(false);
+    expect(isClaudeProtocolEventType("session/update")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyClaudeAxonEvent (standalone)
+// ---------------------------------------------------------------------------
+
+describe("classifyClaudeAxonEvent", () => {
+  const makeAxonEvent = (overrides: Partial<Parameters<typeof makeFullAxonEvent>[0]> = {}) =>
+    makeFullAxonEvent({
+      event_type: "assistant",
+      origin: "AGENT_EVENT",
+      payload: JSON.stringify({ type: "assistant", content: "Hi" }),
+      ...overrides,
+    });
+
+  it("classifies known protocol event with valid JSON and eventType", () => {
+    const ev = makeAxonEvent({
+      event_type: "assistant",
+      payload: JSON.stringify({ type: "assistant", content: "Hello" }),
+    });
+    const result = classifyClaudeAxonEvent(ev as never);
+    expect(result.kind).toBe("claude_protocol");
+    if (result.kind === "claude_protocol") {
+      expect(result.eventType).toBe("assistant");
+      expect(result.data.type).toBe("assistant");
+    }
+  });
+
+  it("populates eventType from Axon event_type for each known type", () => {
+    const cases: Array<{
+      event_type: string;
+      payload: Record<string, unknown>;
+    }> = [
+      {
+        event_type: "query",
+        payload: { type: "user", message: { role: "user", content: "Hi" } },
+      },
+      { event_type: "result", payload: { type: "result", cost: 0.01 } },
+      {
+        event_type: "system",
+        payload: {
+          type: "system",
+          subtype: "init",
+          model: "claude-sonnet-4-6",
+        },
+      },
+      {
+        event_type: "control_request",
+        payload: {
+          type: "control_request",
+          request_id: "req_1",
+          request: { subtype: "initialize" },
+        },
+      },
+      {
+        event_type: "control_response",
+        payload: {
+          type: "control_response",
+          response: { subtype: "success", request_id: "req_1" },
+        },
+      },
+    ];
+
+    for (const { event_type, payload } of cases) {
+      const ev = makeAxonEvent({
+        event_type,
+        payload: JSON.stringify(payload),
+      });
+      const result = classifyClaudeAxonEvent(ev as never);
+      expect(result.kind).toBe("claude_protocol");
+      if (result.kind === "claude_protocol") {
+        expect(result.eventType).toBe(event_type);
+      }
+    }
+  });
+
+  it("falls through to unknown for non-protocol non-system event", () => {
+    const ev = makeAxonEvent({
+      event_type: "custom.metric",
+      origin: "EXTERNAL_EVENT",
+      payload: JSON.stringify({ foo: "bar" }),
+    });
+    const result = classifyClaudeAxonEvent(ev as never);
+    expect(result.kind).toBe("unknown");
+    expect(result.data).toBeNull();
+  });
+
+  it("classifies AGENT_EVENT with non-protocol event_type as unknown", () => {
+    const ev = makeAxonEvent({
+      event_type: "some.random.type",
+      origin: "AGENT_EVENT",
+      payload: JSON.stringify({ type: "something" }),
+    });
+    const result = classifyClaudeAxonEvent(ev as never);
+    expect(result.kind).toBe("unknown");
+  });
+
+  it("falls to unknown when parsed payload lacks type field", () => {
+    const ev = makeAxonEvent({
+      event_type: "assistant",
+      payload: JSON.stringify({ content: "no type field" }),
+    });
+    const result = classifyClaudeAxonEvent(ev as never);
+    expect(result.kind).toBe("unknown");
   });
 });

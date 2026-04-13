@@ -1,38 +1,17 @@
 import type {
   Client,
-  Agent,
-  PromptResponse,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
-  SessionUpdate,
-  ReadTextFileRequest,
-  ReadTextFileResponse,
-  WriteTextFileRequest,
-  WriteTextFileResponse,
-  CreateTerminalRequest,
-  CreateTerminalResponse,
-  TerminalOutputRequest,
-  TerminalOutputResponse,
-  WaitForTerminalExitRequest,
-  WaitForTerminalExitResponse,
-  KillTerminalRequest,
-  KillTerminalResponse,
-  ReleaseTerminalRequest,
-  ReleaseTerminalResponse,
   ElicitationRequest,
   ElicitationResponse,
 } from "@runloop/agent-axon-client/acp";
 import { CLIENT_METHODS } from "@runloop/agent-axon-client/acp";
-import type { WsEvent } from "./ws.ts";
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
-import { TerminalManager } from "./terminal-manager.ts";
+import type { BaseWsEvent } from "../shared/ws-events.ts";
 
-export type ClientEventListener = (event: WsEvent) => void;
+export type ClientEventListener = (event: BaseWsEvent) => void;
 
 export class NodeACPClient implements Client {
-  private terminalManager = new TerminalManager();
   private listeners = new Set<ClientEventListener>();
   autoApprovePermissions = true;
   private pendingPermissions = new Map<
@@ -59,7 +38,7 @@ export class NodeACPClient implements Client {
     };
   }
 
-  private emit(event: WsEvent): void {
+  private emit(event: BaseWsEvent): void {
     for (const listener of this.listeners) {
       try {
         listener(event);
@@ -113,118 +92,8 @@ export class NodeACPClient implements Client {
     return response;
   }
 
-  async sessionUpdate(params: SessionNotification): Promise<void> {
-    this.emit({
-      type: "session_update",
-      sessionId: params.sessionId ?? null,
-      update: params.update,
-    });
-  }
-
-  async readTextFile(
-    params: ReadTextFileRequest,
-  ): Promise<ReadTextFileResponse> {
-    console.log(
-      `[ACP] fs/read_text_file: "${params.path}" line=${params.line ?? 0} limit=${params.limit ?? "all"}`,
-    );
-    const raw = await fs.readFile(params.path, "utf-8");
-    let lines = raw.split("\n");
-
-    if (params.line != null && params.line > 0) {
-      lines = lines.slice(params.line - 1);
-    }
-    if (params.limit != null && params.limit > 0) {
-      lines = lines.slice(0, params.limit);
-    }
-
-    const content = lines.join("\n");
-    this.emit({ type: "file_read", path: params.path, lines: lines.length });
-    return { content };
-  }
-
-  async writeTextFile(
-    params: WriteTextFileRequest,
-  ): Promise<WriteTextFileResponse> {
-    console.log(
-      `[ACP] fs/write_text_file: "${params.path}" (${Buffer.byteLength(params.content)} bytes)`,
-    );
-    await fs.mkdir(path.dirname(params.path), { recursive: true });
-    await fs.writeFile(params.path, params.content, "utf-8");
-    this.emit({
-      type: "file_write",
-      path: params.path,
-      bytes: Buffer.byteLength(params.content),
-    });
-    return {};
-  }
-
-  async createTerminal(
-    params: CreateTerminalRequest,
-  ): Promise<CreateTerminalResponse> {
-    const cmdStr = [params.command, ...(params.args ?? [])].join(" ");
-    console.log(
-      `[ACP] terminal/create: "${cmdStr}" cwd=${params.cwd ?? "(none)"}`,
-    );
-
-    const terminalId = this.terminalManager.create({
-      command: params.command,
-      args: params.args,
-      cwd: params.cwd,
-      env: params.env,
-      outputByteLimit: params.outputByteLimit,
-    });
-
-    this.emit({ type: "terminal_create", terminalId, command: cmdStr });
-    return { terminalId };
-  }
-
-  async terminalOutput(
-    params: TerminalOutputRequest,
-  ): Promise<TerminalOutputResponse> {
-    const entry = this.terminalManager.get(params.terminalId);
-    if (!entry) throw new Error(`Terminal ${params.terminalId} not found`);
-
-    this.emit({
-      type: "terminal_output",
-      terminalId: params.terminalId,
-      output: entry.output,
-      exited: entry.exited,
-    });
-
-    const exceeded =
-      entry.outputByteLimit > 0 &&
-      Buffer.byteLength(entry.output) >= entry.outputByteLimit;
-
-    return {
-      output: entry.output,
-      truncated: exceeded,
-      ...(entry.exited
-        ? { exitStatus: { exitCode: entry.exitCode, signal: entry.signal } }
-        : {}),
-    };
-  }
-
-  async waitForTerminalExit(
-    params: WaitForTerminalExitRequest,
-  ): Promise<WaitForTerminalExitResponse> {
-    const result = await this.terminalManager.waitForExit(params.terminalId);
-    return { exitCode: result.exitCode, signal: result.signal };
-  }
-
-  async killTerminal(
-    params: KillTerminalRequest,
-  ): Promise<KillTerminalResponse> {
-    this.terminalManager.kill(params.terminalId);
-    this.emit({ type: "terminal_kill", terminalId: params.terminalId });
-    return {};
-  }
-
-  async releaseTerminal(
-    params: ReleaseTerminalRequest,
-  ): Promise<ReleaseTerminalResponse> {
-    this.terminalManager.release(params.terminalId);
-    this.emit({ type: "terminal_release", terminalId: params.terminalId });
-    return {};
+  async sessionUpdate(_params: SessionNotification): Promise<void> {
+    // Session updates are consumed via timeline events on the frontend.
   }
 
   private static IGNORED_NOTIFICATIONS = new Set([
@@ -273,7 +142,6 @@ export class NodeACPClient implements Client {
   }
 
   shutdown(): void {
-    this.terminalManager.releaseAll();
     for (const pending of this.pendingPermissions.values()) {
       pending.reject(new Error("Client shutting down"));
     }

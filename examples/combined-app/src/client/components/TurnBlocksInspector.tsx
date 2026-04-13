@@ -2,6 +2,8 @@ import { useState } from "react";
 import type {
   TurnBlock,
   ChatMessage,
+  ChatItem,
+  AgentConfigItem,
   ToolCallBlock,
   ThinkingBlock,
   TextBlock,
@@ -14,7 +16,7 @@ import type {
   SystemInitBlock,
   ToolKind,
 } from "../types.js";
-import { toolKindMeta, statusIndicator } from "./shared.js";
+import { toolKindMeta, statusIndicator, groupBlocks } from "./shared.js";
 
 function getToolCallDisplayTitle(block: ToolCallBlock): string {
   const ri = block.rawInput as Record<string, unknown> | undefined;
@@ -208,45 +210,6 @@ function SystemInitSummary({ block }: { block: SystemInitBlock }) {
   );
 }
 
-type RenderItem =
-  | { kind: "block"; block: TurnBlock }
-  | { kind: "group"; groupKind: ToolKind; blocks: ToolCallBlock[] };
-
-function groupBlocks(blocks: TurnBlock[], isLive: boolean): RenderItem[] {
-  if (isLive) {
-    return blocks.map((block) => ({ kind: "block" as const, block }));
-  }
-
-  const items: RenderItem[] = [];
-  let i = 0;
-  while (i < blocks.length) {
-    const block = blocks[i];
-    if (block.type === "tool_call" && block.status === "completed") {
-      let j = i + 1;
-      while (
-        j < blocks.length &&
-        blocks[j].type === "tool_call" &&
-        (blocks[j] as ToolCallBlock).kind === block.kind &&
-        (blocks[j] as ToolCallBlock).status === "completed"
-      ) {
-        j++;
-      }
-      if (j - i >= 3) {
-        items.push({
-          kind: "group",
-          groupKind: block.kind,
-          blocks: blocks.slice(i, j) as ToolCallBlock[],
-        });
-        i = j;
-        continue;
-      }
-    }
-    items.push({ kind: "block", block });
-    i++;
-  }
-  return items;
-}
-
 function BlockRenderer({ block, isLive, isLastBlock }: { block: TurnBlock; isLive: boolean; isLastBlock: boolean }) {
   switch (block.type) {
     case "thinking":
@@ -302,6 +265,18 @@ const STOP_REASON_LABELS: Record<string, string> = {
   max_turn_requests: "Turn limit",
   refusal: "Refused",
 };
+
+function ConfigItemGroup({ item }: { item: AgentConfigItem }) {
+  const agentType = item.config.agentType ?? "agent";
+  return (
+    <div className="tbi-message-group tbi-system">
+      <div className="tbi-message-header">
+        <span className="tbi-role-badge tbi-role-system">{"\u2699"}</span>
+        <span className="tbi-message-label">Agent Started ({agentType})</span>
+      </div>
+    </div>
+  );
+}
 
 function MessageGroup({
   message,
@@ -374,16 +349,18 @@ export function TurnBlocksInspector({
   currentTurnBlocks,
   isAgentTurn,
 }: {
-  messages: ChatMessage[];
+  messages: ChatItem[];
   currentTurnBlocks: TurnBlock[];
   isAgentTurn: boolean;
 }) {
   const totalBlocks = messages.reduce(
-    (sum, m) => sum + (m.blocks?.length ?? 0),
+    (sum, m) => sum + ("blocks" in m ? (m.blocks?.length ?? 0) : 0),
     0,
   ) + currentTurnBlocks.length;
 
   const liveItems = groupBlocks(currentTurnBlocks, true);
+
+  let msgIndex = 0;
 
   return (
     <div className="tbi-container">
@@ -401,13 +378,19 @@ export function TurnBlocksInspector({
           <div className="tbi-empty">No turns yet</div>
         )}
 
-        {messages.map((msg, i) => (
-          <MessageGroup
-            key={msg.id}
-            message={msg}
-            index={i}
-          />
-        ))}
+        {messages.map((msg) => {
+          if (msg.role === "system") {
+            return <ConfigItemGroup key={msg.id} item={msg} />;
+          }
+          const idx = msgIndex++;
+          return (
+            <MessageGroup
+              key={msg.id}
+              message={msg}
+              index={idx}
+            />
+          );
+        })}
 
         {currentTurnBlocks.length > 0 && (
           <div className="tbi-message-group tbi-assistant tbi-live">

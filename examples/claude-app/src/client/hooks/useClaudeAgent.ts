@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import type { AxonEventView } from "@runloop/agent-axon-client/claude";
+import { extractClaudeUserMessage } from "@runloop/agent-axon-client/claude";
+import type { AxonEventView, ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
 import type { WsEvent } from "../../server/ws.ts";
 
-export type { AxonEventView } from "@runloop/agent-axon-client/claude";
+export type { AxonEventView, ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -143,6 +144,8 @@ export interface UseClaudeAgentReturn {
   currentModel: string | null;
   /** Raw Axon events for the event viewer. */
   axonEvents: AxonEventView[];
+  /** Classified timeline events (protocol, system, unknown) for the timeline view. */
+  timelineEvents: ClaudeTimelineEvent[];
   /** A pending control request awaiting user input (e.g. AskUserQuestion), or null. */
   pendingControlRequest: PendingControlRequest | null;
   start: (config: { blueprintName?: string; launchCommands?: string[]; systemPrompt?: string; model?: string; dangerouslySkipPermissions?: boolean }) => Promise<void>;
@@ -197,6 +200,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [pendingControlRequest, setPendingControlRequest] = useState<PendingControlRequest | null>(null);
   const [axonEvents, setAxonEvents] = useState<AxonEventView[]>([]);
+  const [timelineEvents, setTimelineEvents] = useState<ClaudeTimelineEvent[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const blocksRef = useRef<TurnBlock[]>([]);
@@ -703,6 +707,24 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
         return;
       }
 
+      if (parsed.type === "timeline_event") {
+        const tlEvent = parsed.event;
+        setTimelineEvents((prev) => [...prev, tlEvent]);
+
+        const userMsg = extractClaudeUserMessage(tlEvent.data, tlEvent.axonEvent);
+        if (userMsg) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `user-${userMsg.sequence}`,
+              role: "user" as const,
+              content: userMsg.text,
+            },
+          ]);
+        }
+        return;
+      }
+
       if (parsed.type === "connection_progress") {
         setConnectionStatus(parsed.step);
         return;
@@ -775,26 +797,6 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
 
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
     if (!text.trim() && (!content || content.length === 0)) return;
-
-    const attachments: UserAttachment[] | undefined = content
-      ?.filter((c) => c.type === "image" || c.type === "file")
-      .map((c) => ({
-        type: c.type as "image" | "file",
-        name: c.name as string | undefined,
-        data: c.data as string | undefined,
-        mimeType: c.mimeType as string | undefined,
-        text: c.text as string | undefined,
-      }));
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `user-${Date.now()}`,
-        role: "user",
-        content: text,
-        ...(attachments && attachments.length > 0 ? { attachments } : {}),
-      },
-    ]);
 
     blocksRef.current = [];
     thinkingStartRef.current = null;
@@ -875,6 +877,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     setCurrentModel(null);
     setPendingControlRequest(null);
     setAxonEvents([]);
+    setTimelineEvents([]);
   }, []);
 
   return {
@@ -894,6 +897,7 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
     permissionMode,
     currentModel,
     axonEvents,
+    timelineEvents,
     pendingControlRequest,
     start,
     sendMessage,

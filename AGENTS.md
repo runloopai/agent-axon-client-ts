@@ -33,8 +33,13 @@ bun install          # install all workspace dependencies
 bun run build        # build the SDK
 bun run test         # run SDK tests
 bun run check        # lint + format check (SDK)
+bun run check:fix    # lint + format auto-fix (SDK)
 bun run typecheck    # type-check src + tests (no emit)
 ```
+
+## Git safety
+
+- **Never use `git stash pop`** (or `git stash apply`) during debugging or any automated workflow. Other agents may be running concurrently on the same worktree, and popping the stash can overwrite their in-progress changes or introduce merge conflicts that silently corrupt files.
 
 ## Key constraints
 
@@ -55,11 +60,13 @@ bun run build      # TypeScript compilation
 bun run test       # Vitest suite
 ```
 
-If any step fails, fix the issue and re-run from that step. Common Biome fixes:
+If any step fails, fix the issue and re-run from that step.
+
+If `bun run check` fails, run `bun run check:fix` to auto-fix most lint and format issues, then re-run `bun run check` to confirm. Common Biome issues:
 
 - **Import sorting** — third-party imports first, then relative paths alphabetically.
 - **Type-only imports** — use `import { type Foo } from "bar"` when `Foo` is only used as a type.
-- **Formatting** — run `bun run check` to see the exact diff Biome expects.
+- **Formatting** — `check:fix` handles this automatically.
 
 ## Pull request conventions
 

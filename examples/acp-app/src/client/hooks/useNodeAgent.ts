@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import type { AuthMethod, ElicitationAction } from "@runloop/agent-axon-client/acp";
-import { isUsageUpdate, isSessionInfoUpdate, type AxonEventView } from "@runloop/agent-axon-client/acp";
+import type { AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, StopReason } from "@runloop/agent-axon-client/acp";
+import { isUsageUpdate, isSessionInfoUpdate, extractACPUserMessage, type AxonEventView } from "@runloop/agent-axon-client/acp";
 import type { ClientEvent } from "../../server/acp-client.js";
 import type {
   AgentInfo,
@@ -12,6 +12,7 @@ import type {
   PendingElicitation,
   SessionListEntry,
   UsageState,
+  UserAttachment,
   UseNodeAgentReturn,
 } from "./types.js";
 import { api } from "./api.js";
@@ -66,7 +67,6 @@ export type {
 } from "./types.js";
 
 export function useNodeAgent(): UseNodeAgentReturn {
-  // --- Connection lifecycle state ---
   const [connectionPhase, setConnectionPhase] = useState<ConnectionPhase>("idle");
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,38 +83,96 @@ export function useNodeAgent(): UseNodeAgentReturn {
     sessionMeta: null,
   });
 
-  // --- Auth state ---
   const [authMethods, setAuthMethods] = useState<AuthMethod[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authDismissed, setAuthDismissed] = useState(false);
 
-  // --- Permission state ---
   const [pendingPermission, setPendingPermission] = useState<PendingPermission | null>(null);
   const [autoApprovePermissions, setAutoApprovePermissionsState] = useState(true);
 
-  // --- Elicitation state ---
   const [pendingElicitation, setPendingElicitation] = useState<PendingElicitation | null>(null);
 
-  // --- Session list state ---
   const [sessions, setSessions] = useState<SessionListEntry[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
 
-  // --- Simple state ---
   const [usage, setUsage] = useState<UsageState | null>(null);
   const [axonEvents, setAxonEvents] = useState<AxonEventView[]>([]);
 
-  // --- Sub-hooks ---
   const turnBlocks = useTurnBlocks();
   const activity = useActivity();
   const sessionConfig = useSessionConfig((err) => setError(err));
 
-  // Merge sub-hook errors into our error state
   useEffect(() => {
     if (turnBlocks.error) setError(turnBlocks.error);
   }, [turnBlocks.error]);
 
-  // --- WebSocket ---
   const wsRef = useRef<WebSocket | null>(null);
+
+  function handleTimelineEvent(tlEvent: ACPTimelineEvent) {
+    setAxonEvents((prev) => [...prev, tlEvent.axonEvent]);
+
+    const userMsg = extractACPUserMessage(tlEvent.data, tlEvent.axonEvent);
+    if (userMsg) {
+      const attachments: UserAttachment[] = [];
+      for (const block of userMsg.content) {
+        if (block.type === "image" && "data" in block && "mimeType" in block) {
+          attachments.push({
+            type: "image",
+            data: (block as { data: string }).data,
+            mimeType: (block as { mimeType: string }).mimeType,
+          });
+        }
+      }
+      turnBlocks.addUserMessage(
+        userMsg.text,
+        `user-${userMsg.sequence}`,
+        attachments.length > 0 ? attachments : undefined,
+      );
+      return;
+    }
+
+    if (tlEvent.kind === "system") {
+      const { data } = tlEvent;
+      if (data.type === "turn.started") {
+        turnBlocks.setIsAgentTurn(true);
+        turnBlocks.setIsStreaming(false);
+      } else if (data.type === "turn.completed") {
+        turnBlocks.setIsAgentTurn(false);
+        turnBlocks.setIsStreaming(false);
+        turnBlocks.lastStopReasonRef.current = data.stopReason as StopReason;
+      }
+      return;
+    }
+
+    if (tlEvent.kind === "acp_protocol") {
+      if (tlEvent.axonEvent.event_type === "session/update") {
+        const payload = tlEvent.data as Record<string, unknown>;
+        const inner = (payload as { update?: unknown }).update;
+        if (!inner || typeof inner !== "object") return;
+        const update = inner as SessionUpdate;
+        turnBlocks.onSessionUpdate(update);
+        activity.onSessionUpdate(update);
+        sessionConfig.onSessionUpdate(update);
+
+        if (isUsageUpdate(update)) {
+          const { size, used, cost = null } = update;
+          setUsage({ size, used, cost });
+        }
+
+        if (isSessionInfoUpdate(update)) {
+          if (update.title) {
+            setSessions((prev) =>
+              prev.map((s) =>
+                s.sessionId === sessionId
+                  ? { ...s, title: update.title, updatedAt: update.updatedAt }
+                  : s,
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
 
   const connectWs = useCallback(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -126,31 +184,34 @@ export function useNodeAgent(): UseNodeAgentReturn {
       let data: ClientEvent;
       try { data = JSON.parse(ev.data); } catch { return; }
 
-      if (data.type === "axon_event") {
-        setAxonEvents((prev) => [...prev, (data as { type: "axon_event"; event: AxonEventView }).event]);
+      if (data.type === "timeline_event") {
+        handleTimelineEvent(data.event);
         return;
       }
 
       if (data.type === "connection_progress") {
-        setConnectionStatus((data as { type: "connection_progress"; step: string }).step);
+        setConnectionStatus(data.step);
         return;
       }
 
-      // Fan out to sub-hooks (turn_started / turn_completed are handled here)
-      turnBlocks.onEvent(data);
-      activity.onEvent(data);
-      sessionConfig.onEvent(data);
+      if (data.type === "turn_error") {
+        turnBlocks.flushBlocksToMessages();
+        turnBlocks.setIsAgentTurn(false);
+        turnBlocks.setIsStreaming(false);
+        setError(data.error ?? "Turn failed");
+        return;
+      }
 
-      // Permission
       if (data.type === "permission_request") {
         const { requestId, request } = data;
+        const toolCall = (request as Record<string, unknown>).toolCall as Record<string, unknown> | undefined;
         setPendingPermission({
           requestId,
-          toolTitle: request.toolCall?.title ?? "unknown",
-          toolKind: request.toolCall?.kind ?? "other",
-          toolCallId: request.toolCall?.toolCallId ?? "",
-          rawInput: request.toolCall?.rawInput,
-          options: request.options,
+          toolTitle: (toolCall?.title as string) ?? "unknown",
+          toolKind: (toolCall?.kind as string) ?? "other",
+          toolCallId: (toolCall?.toolCallId as string) ?? "",
+          rawInput: toolCall?.rawInput,
+          options: (request as Record<string, unknown>).options as PendingPermission["options"],
         });
         return;
       }
@@ -160,17 +221,17 @@ export function useNodeAgent(): UseNodeAgentReturn {
         return;
       }
 
-      // Elicitation
       if (data.type === "elicitation_request") {
         const { request, requestId } = data;
+        const req = request as Record<string, unknown>;
         setPendingElicitation({
           requestId,
-          message: request.message,
-          mode: request.mode,
-          schema: request.mode === "form"
-            ? request.requestedSchema as PendingElicitation["schema"]
+          message: req.message as string,
+          mode: req.mode as "form" | "url",
+          schema: req.mode === "form"
+            ? req.requestedSchema as PendingElicitation["schema"]
             : undefined,
-          url: request.mode === "url" ? request.url : undefined,
+          url: req.mode === "url" ? req.url as string : undefined,
         });
         return;
       }
@@ -179,36 +240,12 @@ export function useNodeAgent(): UseNodeAgentReturn {
         setPendingElicitation(null);
         return;
       }
-
-      // Remaining session_update cases
-      if (data.type === "session_update") {
-        const { update } = data;
-
-        if (isUsageUpdate(update)) {
-          const { size, used, cost = null } = update;
-          setUsage({ size, used, cost });
-          return;
-        }
-
-        if (isSessionInfoUpdate(update)) {
-          if (update.title) {
-            const sid = (data as { sessionId: string | null }).sessionId;
-            setSessions((prev) =>
-              prev.map((s) =>
-                s.sessionId === sid
-                  ? { ...s, title: update.title, updatedAt: update.updatedAt }
-                  : s,
-              ),
-            );
-          }
-        }
-      }
     };
 
     socket.onclose = () => {
       wsRef.current = null;
     };
-  }, [turnBlocks.onEvent, activity.onEvent, sessionConfig.onEvent]);
+  }, [turnBlocks.onSessionUpdate, turnBlocks.addUserMessage, turnBlocks.flushBlocksToMessages, activity.onSessionUpdate, sessionConfig.onSessionUpdate]);
 
   useEffect(() => {
     return () => {
@@ -216,15 +253,11 @@ export function useNodeAgent(): UseNodeAgentReturn {
     };
   }, []);
 
-  // --- Reset helpers ---
-
   const resetChatState = useCallback(() => {
     turnBlocks.resetChat();
     activity.resetActivity();
     setUsage(null);
   }, [turnBlocks.resetChat, activity.resetActivity]);
-
-  // --- Actions ---
 
   const start = useCallback(async (
     config: { agentBinary: string; launchArgs?: string[]; launchCommands?: string[]; systemPrompt?: string },
@@ -287,17 +320,7 @@ export function useNodeAgent(): UseNodeAgentReturn {
   const sendMessage = useCallback(async (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => {
     if (!text.trim() && (!content || content.length === 0)) return;
 
-    const attachments = content
-      ?.filter((c) => c.type === "image" || c.type === "file")
-      .map((c) => ({
-        type: c.type as "image" | "file",
-        name: c.name as string | undefined,
-        data: c.data as string | undefined,
-        mimeType: c.mimeType as string | undefined,
-        text: c.text as string | undefined,
-      }));
-
-    turnBlocks.startTurn(text, attachments && attachments.length > 0 ? attachments : undefined);
+    turnBlocks.startTurn();
 
     setIsSendingPrompt(true);
     try {
@@ -309,11 +332,14 @@ export function useNodeAgent(): UseNodeAgentReturn {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
-      turnBlocks.onEvent({ type: "turn_error", error: message } as ClientEvent);
+      turnBlocks.flushBlocksToMessages();
+      turnBlocks.setIsAgentTurn(false);
+      turnBlocks.setIsStreaming(false);
+      turnBlocks.setError(message);
     } finally {
       setIsSendingPrompt(false);
     }
-  }, [turnBlocks.startTurn, turnBlocks.onEvent]);
+  }, [turnBlocks.startTurn, turnBlocks.flushBlocksToMessages]);
 
   const cancel = useCallback(async () => {
     try { await api("/api/cancel", {}); } catch (err) {
@@ -452,8 +478,6 @@ export function useNodeAgent(): UseNodeAgentReturn {
     activity.resetActivity();
   }, [turnBlocks.resetChat, activity.resetActivity]);
 
-  // --- Compose return ---
-
   return {
     connectionPhase,
     connectionStatus,
@@ -466,8 +490,8 @@ export function useNodeAgent(): UseNodeAgentReturn {
     usage,
     plan: turnBlocks.plan,
     toolActivity: activity.toolActivity,
-    fileOps: activity.fileOps,
-    terminals: activity.terminals,
+    fileOps: [],
+    terminals: new Map(),
     currentMode: sessionConfig.currentMode,
     availableModes: sessionConfig.availableModes,
     configOptions: sessionConfig.configOptions,

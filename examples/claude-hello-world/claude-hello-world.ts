@@ -55,9 +55,6 @@ const runloop = new RunloopSDK();
 
 console.log("Starting devbox...");
 const axon = await runloop.axon.create({ name: "hello-world-session" });
-// The runloop/agents blueprint used has Claude pre-installed.
-// When using a ClaudeSDKConnection, ensure the Agent is on the blueprint by
-// using the AgentAPI or a Blueprint.
 const devbox = await runloop.devbox.create({
   name: "claude-hello-world",
   mounts: [
@@ -87,6 +84,7 @@ const client = new ClaudeAxonConnection(axon, devbox, {
 });
 
 console.log("Connecting to Claude...");
+await client.connect();
 try {
   await client.initialize();
 } catch (err) {
@@ -103,7 +101,7 @@ console.log("Connected.\n");
 console.log("Sending prompt: 'Say hello world'\n");
 await client.send("Say hello world");
 
-for await (const msg of client.receiveResponse()) {
+for await (const msg of client.receiveAgentResponse()) {
   renderMessage(msg);
 }
 

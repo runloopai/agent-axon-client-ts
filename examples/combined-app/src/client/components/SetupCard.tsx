@@ -120,7 +120,7 @@ export function SetupCard({
         <div className="form-group">
           <label>Launch Commands</label>
           <div className="form-hint">Shell commands to run in the sandbox before starting the agent (one per line).</div>
-          <input value={launchCommands} onChange={(e) => setLaunchCommands(e.target.value)} placeholder="git clone https://..." disabled={connecting} />
+          <textarea className="setup-textarea" value={launchCommands} onChange={(e) => setLaunchCommands(e.target.value)} placeholder="git clone https://..." disabled={connecting} rows={2} />
         </div>
         <div className="form-group">
           <label>System Prompt</label>

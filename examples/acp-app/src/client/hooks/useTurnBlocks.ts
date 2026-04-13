@@ -1,14 +1,12 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import type { ToolCallContent } from "@runloop/agent-axon-client/acp";
+import { useState, useRef, useCallback } from "react";
+import type { ToolCallContent, SessionUpdate } from "@runloop/agent-axon-client/acp";
 import {
   isAgentMessageChunk,
   isAgentThoughtChunk,
   isToolCall,
   isToolCallProgress,
   isPlan,
-  isUserMessageChunk,
 } from "@runloop/agent-axon-client/acp";
-import type { ClientEvent } from "../../server/acp-client.js";
 import type {
   TurnBlock,
   ChatMessage,
@@ -31,9 +29,15 @@ export interface UseTurnBlocksReturn {
   plan: PlanEntry[] | null;
   error: string | null;
   blocksRef: React.RefObject<TurnBlock[]>;
-  startTurn: (userText: string, attachments?: UserAttachment[]) => void;
+  lastStopReasonRef: React.RefObject<StopReason | undefined>;
+  setIsAgentTurn: (v: boolean) => void;
+  setIsStreaming: (v: boolean) => void;
+  startTurn: () => void;
+  addUserMessage: (text: string, id: string, attachments?: UserAttachment[]) => void;
+  flushBlocksToMessages: (stopReason?: StopReason) => void;
   resetChat: () => void;
-  onEvent: (event: ClientEvent) => void;
+  setError: (err: string | null) => void;
+  onSessionUpdate: (update: SessionUpdate) => void;
 }
 
 export function useTurnBlocks(): UseTurnBlocksReturn {
@@ -75,8 +79,7 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     thinkingStartRef.current = null;
   }
 
-  /** Flush accumulated blocks into messages as an assistant message. */
-  function flushBlocksToMessages(stopReason?: StopReason) {
+  const flushBlocksToMessages = useCallback((stopReason?: StopReason) => {
     finalizeThinking();
     const turnBlocks = blocksRef.current;
     if (turnBlocks.length > 0) {
@@ -94,26 +97,31 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     blocksRef.current = [];
     thinkingStartRef.current = null;
     setCurrentTurnBlocks([]);
-  }
+  }, []);
 
-  const startTurn = useCallback((userText: string, attachments?: UserAttachment[]) => {
+  const startTurn = useCallback(() => {
     flushBlocksToMessages(lastStopReasonRef.current);
     lastStopReasonRef.current = undefined;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `user-${Date.now()}`,
-        role: "user",
-        content: userText,
-        ...(attachments && attachments.length > 0 ? { attachments } : {}),
-      },
-    ]);
     blocksRef.current = [];
     thinkingStartRef.current = null;
     setCurrentTurnBlocks([]);
     setIsAgentTurn(true);
     setIsStreaming(false);
-  }, []);
+  }, [flushBlocksToMessages]);
+
+  const addUserMessage = useCallback((text: string, id: string, attachments?: UserAttachment[]) => {
+    flushBlocksToMessages(lastStopReasonRef.current);
+    lastStopReasonRef.current = undefined;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id,
+        role: "user" as const,
+        content: text,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      },
+    ]);
+  }, [flushBlocksToMessages]);
 
   const resetChat = useCallback(() => {
     lastStopReasonRef.current = undefined;
@@ -127,36 +135,7 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     setError(null);
   }, []);
 
-  const onEvent = useCallback((data: ClientEvent) => {
-    if (data.type === "turn_started") {
-      setIsAgentTurn(true);
-      setIsStreaming(false);
-      return;
-    }
-
-    if (data.type === "turn_completed") {
-      setIsAgentTurn(false);
-      setIsStreaming(false);
-      lastStopReasonRef.current = data.stopReason as StopReason;
-      return;
-    }
-
-    if (data.type === "turn_complete") {
-      return;
-    }
-
-    if (data.type === "turn_error") {
-      flushBlocksToMessages();
-      setIsAgentTurn(false);
-      setIsStreaming(false);
-      setError(data.error ?? "Turn failed");
-      return;
-    }
-
-    if (data.type !== "session_update") return;
-
-    const { update } = data;
-
+  const onSessionUpdate = useCallback((update: SessionUpdate) => {
     if (isAgentMessageChunk(update)) {
       finalizeThinking();
       const { content, messageId = null } = update;
@@ -315,17 +294,6 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
       }
       return;
     }
-
-    if (isUserMessageChunk(update)) {
-      const { content } = update;
-      const text = content.type === "text" ? content.text : "";
-      if (text) {
-        setMessages((prev) => [
-          ...prev,
-          { id: `user-replay-${Date.now()}`, role: "user", content: text },
-        ]);
-      }
-    }
   }, []);
 
   return {
@@ -336,8 +304,14 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     plan,
     error,
     blocksRef,
+    lastStopReasonRef,
+    setIsAgentTurn,
+    setIsStreaming,
     startTurn,
+    addUserMessage,
+    flushBlocksToMessages,
     resetChat,
-    onEvent,
+    setError,
+    onSessionUpdate,
   };
 }

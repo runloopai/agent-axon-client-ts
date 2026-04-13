@@ -1,22 +1,65 @@
+import type {
+  AvailableCommand,
+  Diff,
+  ModelInfo,
+  PermissionOption,
+  SessionInfo,
+  SessionMode,
+  Terminal,
+  ToolCallStatus,
+  ToolKind,
+  AgentCapabilities,
+  ClientCapabilities,
+  ElicitationPropertySchema,
+  ElicitationSchema,
+  Implementation,
+  PlanEntry,
+  SessionConfigOption,
+} from "@runloop/agent-axon-client/acp";
+import type { ACPTimelineEvent, AxonEventView } from "@runloop/agent-axon-client/acp";
+import type { ClaudeTimelineEvent, SDKControlRequest } from "@runloop/agent-axon-client/claude";
+
+export type {
+  AgentCapabilities,
+  AvailableCommand,
+  ClientCapabilities,
+  Diff,
+  ElicitationPropertySchema,
+  ElicitationSchema,
+  Implementation,
+  ModelInfo,
+  PermissionOption,
+  PlanEntry,
+  PlanEntryPriority,
+  PlanEntryStatus,
+  SessionConfigOption,
+  SessionInfo,
+  SessionMode,
+  Terminal,
+  ToolCallStatus,
+  ToolKind,
+} from "@runloop/agent-axon-client/acp";
+export type { ACPTimelineEvent, AxonEventView } from "@runloop/agent-axon-client/acp";
+export type { ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
+
+export type TimelineEvent = ACPTimelineEvent | ClaudeTimelineEvent;
+
 export type AgentType = "claude" | "acp";
 
 export type ConnectionPhase = "idle" | "connecting" | "ready" | "error";
 
+// --- Attachment types ---
+
+export type Attachment =
+  | { type: "image"; data: string; mimeType: string; name: string; preview: string }
+  | { type: "file"; name: string; text: string; mimeType: string };
+
+export type AttachmentContentItem =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string }
+  | { type: "file"; name: string; text: string; mimeType: string };
+
 // --- Tool call types ---
-
-export type ToolKind =
-  | "read"
-  | "edit"
-  | "delete"
-  | "move"
-  | "search"
-  | "execute"
-  | "think"
-  | "fetch"
-  | "switch_mode"
-  | "other";
-
-export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed";
 
 export interface ToolCallLocation {
   path: string;
@@ -27,29 +70,8 @@ export interface ToolCallLocation {
 export interface ContentItem {
   type: "content" | "diff" | "terminal";
   text?: string;
-  diff?: DiffContent;
-  terminal?: TerminalContent;
-}
-
-export interface DiffContent {
-  path: string;
-  oldText?: string | null;
-  newText: string;
-}
-
-export interface TerminalContent {
-  terminalId: string;
-}
-
-// --- Plan entry (unified todo + plan) ---
-
-export type PlanEntryStatus = "pending" | "in_progress" | "completed";
-export type PlanEntryPriority = "high" | "medium" | "low";
-
-export interface PlanEntry {
-  content: string;
-  status: PlanEntryStatus;
-  priority?: PlanEntryPriority | null;
+  diff?: Diff;
+  terminal?: Terminal;
 }
 
 // --- Turn block types ---
@@ -206,6 +228,29 @@ export interface ChatMessage {
   durationMs?: number;
 }
 
+export interface AgentStartedPayload {
+  agentType: string;
+  agentId: string;
+  model?: string;
+  agentBinary?: string;
+  blueprintName?: string;
+  launchArgs?: string[];
+  launchCommands?: string[];
+  systemPrompt?: string;
+  autoApprovePermissions?: boolean;
+  dangerouslySkipPermissions?: boolean;
+  [key: string]: unknown;
+}
+
+export interface AgentConfigItem {
+  id: string;
+  role: "system";
+  itemType: "agent_started";
+  config: AgentStartedPayload;
+}
+
+export type ChatItem = ChatMessage | AgentConfigItem;
+
 // --- Usage ---
 
 export interface UsageState {
@@ -237,17 +282,10 @@ export interface PendingControlRequest {
   toolName: string;
   toolUseId: string;
   questions: ControlRequestQuestion[];
-  rawRequest: Record<string, unknown>;
+  rawRequest: SDKControlRequest;
 }
 
 // --- ACP-specific: permission ---
-
-export interface PermissionOption {
-  optionId: string;
-  name: string;
-  kind: string;
-  description?: string;
-}
 
 export interface PendingPermission {
   requestId: string;
@@ -260,94 +298,17 @@ export interface PendingPermission {
 
 // --- ACP-specific: elicitation ---
 
-export interface ElicitationFieldSchema {
-  type: "string" | "number" | "integer" | "boolean" | "array";
-  title?: string | null;
-  description?: string | null;
-  default?: unknown;
-  enum?: string[] | null;
-  oneOf?: Array<{ const: string; title: string }> | null;
-  items?: { enum?: string[]; oneOf?: Array<{ const: string; title: string }> } | null;
-}
-
 export interface PendingElicitation {
   requestId: string;
   message: string;
   mode: "form" | "url";
-  schema?: {
-    title?: string | null;
-    description?: string | null;
-    properties?: Record<string, ElicitationFieldSchema>;
-    required?: string[] | null;
-  };
+  schema?: ElicitationSchema;
   url?: string;
-}
-
-// --- ACP-specific: session config ---
-
-export interface SessionMode {
-  id: string;
-  name: string;
-  description?: string;
-}
-
-export interface ModelInfo {
-  modelId: string;
-  name: string;
-}
-
-export interface AvailableCommandInput {
-  hint: string;
-}
-
-export interface AvailableCommand {
-  name: string;
-  description?: string;
-  input?: AvailableCommandInput | null;
-}
-
-export interface SessionConfigOption {
-  id: string;
-  type: string;
-  name: string;
-  currentValue?: string;
-  options?: Array<{ value?: string; name: string; options?: Array<{ value?: string; name: string }> }>;
 }
 
 // --- ACP-specific: agent info ---
 
-export interface AgentInfo {
-  name?: string;
-  title?: string | null;
-  version?: string;
-}
-
-export interface AgentCapabilities {
-  loadSession?: boolean;
-  promptCapabilities?: {
-    image?: boolean;
-    audio?: boolean;
-    embeddedContext?: boolean;
-  };
-  mcpCapabilities?: {
-    http?: boolean;
-    sse?: boolean;
-  };
-  sessionCapabilities?: {
-    list?: Record<string, unknown>;
-  };
-}
-
-export interface ClientCapabilities {
-  fs?: {
-    readTextFile?: boolean;
-    writeTextFile?: boolean;
-  };
-  terminal?: boolean;
-  elicitation?: {
-    form?: Record<string, unknown>;
-  };
-}
+export type AgentInfo = Implementation;
 
 export interface ConnectionDetails {
   protocolVersion: number | null;
@@ -394,71 +355,46 @@ export interface TerminalState {
   timestamp: number;
 }
 
-export interface SessionListEntry {
-  sessionId: string;
-  title?: string;
-  updatedAt?: string;
-  cwd: string;
-}
 
-// --- Axon event (re-export shape) ---
+// --- Unified hook return type (discriminated union) ---
 
-export interface AxonEventView {
-  id: string;
-  axon_id: string;
-  event_type: string;
-  origin: string;
-  payload: string;
-  created_at: string;
-  sequence: number;
-  source: string;
-  timestamp_ms: number;
-  [key: string]: unknown;
-}
-
-// --- Start config types ---
-
-export interface ClaudeStartConfig {
-  blueprintName?: string;
-  launchCommands?: string[];
-  systemPrompt?: string;
-  model?: string;
-  dangerouslySkipPermissions?: boolean;
-}
-
-export interface ACPStartConfig {
-  agentBinary: string;
-  launchArgs?: string[];
-  launchCommands?: string[];
-  systemPrompt?: string;
-  autoApprovePermissions?: boolean;
-}
-
-export type StartConfig =
-  | { agentType: "claude"; config: ClaudeStartConfig }
-  | { agentType: "acp"; config: ACPStartConfig };
-
-// --- Unified hook return type ---
-
-export interface UseAgentReturn {
-  agentType: AgentType | null;
+export interface SharedAgentState {
   connectionPhase: ConnectionPhase;
   connectionStatus: string | null;
   error: string | null;
-  messages: ChatMessage[];
+  messages: ChatItem[];
   currentTurnBlocks: TurnBlock[];
   isAgentTurn: boolean;
   isStreaming: boolean;
   isSendingPrompt: boolean;
   usage: UsageState | null;
+  autoApprovePermissions: boolean;
+  devboxId: string | null;
+  axonId: string | null;
+  runloopUrl: string | null;
+  axonEvents: AxonEventView[];
+  timelineEvents: TimelineEvent[];
+  availableCommands: AvailableCommand[];
 
-  // Claude-specific
+  sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
+  cancel: () => Promise<void>;
+  shutdown: () => Promise<void>;
+  setAutoApprovePermissions: (enabled: boolean) => Promise<void>;
+}
+
+export interface ClaudeAgentState extends SharedAgentState {
+  agentType: "claude";
   initInfo: InitInfo | null;
   permissionMode: string | null;
   currentModel: string | null;
   pendingControlRequest: PendingControlRequest | null;
+  setModel: (model: string) => Promise<void>;
+  setPermissionMode: (mode: string) => Promise<void>;
+  sendControlResponse: (requestId: string, response: { behavior: string; updatedInput?: unknown }) => Promise<void>;
+}
 
-  // ACP-specific
+export interface ACPAgentState extends SharedAgentState {
+  agentType: "acp";
   plan: PlanEntry[] | null;
   toolActivity: ToolActivity[];
   fileOps: FileOp[];
@@ -475,31 +411,9 @@ export interface UseAgentReturn {
   authMethods: unknown[];
   isAuthenticated: boolean;
   authDismissed: boolean;
-  availableCommands: AvailableCommand[];
-  sessions: SessionListEntry[];
+  sessions: SessionInfo[];
   isLoadingSessions: boolean;
-
-  // Common
-  autoApprovePermissions: boolean;
-  devboxId: string | null;
-  axonId: string | null;
   sessionId: string | null;
-  runloopUrl: string | null;
-  axonEvents: AxonEventView[];
-
-  // Actions
-  start: (params: StartConfig) => Promise<void>;
-  sendMessage: (text: string, content?: Array<{ type: string; [key: string]: unknown }>) => Promise<void>;
-  cancel: () => Promise<void>;
-  shutdown: () => Promise<void>;
-  setAutoApprovePermissions: (enabled: boolean) => Promise<void>;
-
-  // Claude actions
-  setModel: (model: string) => Promise<void>;
-  setPermissionMode: (mode: string) => Promise<void>;
-  sendControlResponse: (requestId: string, response: Record<string, unknown>) => Promise<void>;
-
-  // ACP actions
   setMode: (modeId: string) => Promise<void>;
   setACPModel: (modelId: string) => Promise<void>;
   setConfigOption: (optionId: string, valueId: string) => Promise<void>;
@@ -512,3 +426,9 @@ export interface UseAgentReturn {
   switchSession: (sessionId: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
 }
+
+export interface IdleAgentState extends SharedAgentState {
+  agentType: null;
+}
+
+export type UseAgentReturn = ClaudeAgentState | ACPAgentState | IdleAgentState;

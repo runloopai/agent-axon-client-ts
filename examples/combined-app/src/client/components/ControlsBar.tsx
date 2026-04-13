@@ -1,11 +1,11 @@
-import type { ModelInfo } from "../types.js";
+import type { ModelInfo, SessionConfigOption } from "../types.js";
 
 export function ControlsBar({
   availableModes, currentMode, configOptions, availableModels, currentModelId, autoApprovePermissions, onSetMode, onSetModel, onSetConfigOption, onSetAutoApprovePermissions,
 }: {
   availableModes: Array<{ id: string; name?: string }>;
   currentMode: string | null;
-  configOptions: Array<{ id: string; type: string; name: string; currentValue?: string; options?: Array<{ value?: string; name: string; options?: Array<{ value?: string; name: string }> }> }>;
+  configOptions: SessionConfigOption[];
   availableModels: ModelInfo[];
   currentModelId: string | null;
   autoApprovePermissions: boolean;
@@ -45,12 +45,11 @@ export function ControlsBar({
       )}
       {configOptions.map((opt) => {
         if (opt.type === "boolean") {
-          const checked = opt.currentValue === "true";
           return (
             <label key={opt.id} className="config-toggle">
               <input
                 type="checkbox"
-                checked={checked}
+                checked={opt.currentValue}
                 onChange={(e) => onSetConfigOption(opt.id, String(e.target.checked))}
               />
               <span className="config-toggle-label">{opt.name}</span>
@@ -58,13 +57,12 @@ export function ControlsBar({
           );
         }
         if (opt.type !== "select") return null;
-        const rawOptions = opt.options ?? [];
-        const flatOptions: Array<{ value?: string; name: string }> = [];
-        for (const o of rawOptions) {
-          if (o.options) {
+        const flatOptions: Array<{ value: string; name: string }> = [];
+        for (const o of opt.options) {
+          if ("group" in o) {
             flatOptions.push(...o.options);
           } else {
-            flatOptions.push({ value: o.value, name: o.name ?? o.value ?? "" });
+            flatOptions.push(o);
           }
         }
         return (
@@ -76,7 +74,7 @@ export function ControlsBar({
               onChange={(e) => onSetConfigOption(opt.id, e.target.value)}
             >
               {flatOptions.map((val) => (
-                <option key={val.value ?? val.name} value={val.value ?? val.name}>
+                <option key={val.value} value={val.value}>
                   {val.name}
                 </option>
               ))}

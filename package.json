@@ -20,6 +20,7 @@
     "test": "bun run --filter '@runloop/agent-axon-client' test",
     "lint": "bun run --filter '@runloop/agent-axon-client' lint",
     "check": "bun run --filter '@runloop/agent-axon-client' check",
+    "check:fix": "bun run --filter '@runloop/agent-axon-client' check:fix",
     "clean": "rm -rf sdk/dist",
     "prepare": "husky"
   },

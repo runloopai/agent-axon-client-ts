@@ -62,13 +62,23 @@ export {
   ClientSideConnection,
   PROTOCOL_VERSION,
 } from "@agentclientprotocol/sdk";
+export { tryParseSystemEvent, tryParseTimelinePayload } from "../shared/timeline.js";
 export type {
   AxonEventListener,
   AxonEventView,
   BaseConnectionOptions,
+  SystemEvent,
+  SystemTimelineEvent,
+  TimelineEventListener,
+  UnknownTimelineEvent,
 } from "../shared/types.js";
+export {
+  type ExtractedACPUserMessage,
+  type ExtractedUserMessage,
+  extractACPUserMessage,
+} from "../shared/user-message.js";
 export { axonStream } from "./axon-stream.js";
-export { ACPAxonConnection } from "./connection.js";
+export { ACPAxonConnection, classifyACPAxonEvent, isACPProtocolEventType } from "./connection.js";
 export type {
   AgentMessageChunkUpdate,
   AgentThoughtChunkUpdate,
@@ -97,6 +107,14 @@ export {
 } from "./session-update-guards.js";
 export type {
   ACPAxonConnectionOptions,
+  ACPInitializeTimelineEvent,
+  ACPNewSessionTimelineEvent,
+  ACPOtherProtocolTimelineEvent,
+  ACPPromptTimelineEvent,
+  ACPProtocolTimelineEvent,
+  ACPSessionUpdateTimelineEvent,
+  ACPTimelineEvent,
   AxonStreamOptions,
+  CreateClientFn,
   SessionUpdateListener,
 } from "./types.js";

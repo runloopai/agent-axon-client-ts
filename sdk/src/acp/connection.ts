@@ -1,8 +1,9 @@
 import {
-  type Agent,
+  AGENT_METHODS,
   type AuthenticateRequest,
   type AuthenticateResponse,
   type CancelNotification,
+  CLIENT_METHODS,
   type Client,
   ClientSideConnection,
   type InitializeRequest,
@@ -23,14 +24,46 @@ import {
   type SetSessionModeRequest,
   type SetSessionModeResponse,
 } from "@agentclientprotocol/sdk";
+import type {
+  AxonEventView,
+  AxonPublishParams,
+  PublishResultView,
+} from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
+import { resolveReplayTarget } from "../shared/connect-guards.js";
+import { ConnectionStateError } from "../shared/errors/connection-state-error.js";
 import { InitializationError } from "../shared/errors/initialization-error.js";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
-import type { AxonEventListener } from "../shared/types.js";
+import { createClassifier } from "../shared/timeline.js";
+import { timelineEventGenerator } from "../shared/timeline-generator.js";
+import type { AxonEventListener, LogFn, TimelineEventListener } from "../shared/types.js";
 import { axonStream } from "./axon-stream.js";
-import type { ACPAxonConnectionOptions, SessionUpdateListener } from "./types.js";
+import type {
+  ACPAxonConnectionOptions,
+  ACPProtocolTimelineEvent,
+  ACPTimelineEvent,
+  SessionUpdateListener,
+} from "./types.js";
+
+// The @agentclientprotocol/sdk package does not expose an `isKnownMethod()`
+// helper, so we build a lookup Set from the exported method-name constants.
+// `isACPProtocolEventType()` below wraps this as the public API.
+const ACP_KNOWN_EVENT_TYPES: Set<string> = new Set([
+  ...Object.values(AGENT_METHODS),
+  ...Object.values(CLIENT_METHODS),
+]);
+
+/**
+ * Returns `true` if `eventType` is a known ACP protocol method
+ * (agent or client direction).
+ *
+ * @category Timeline
+ */
+export function isACPProtocolEventType(eventType: string): boolean {
+  return ACP_KNOWN_EVENT_TYPES.has(eventType);
+}
 
 /**
  * High-level ACP connection backed by an Axon transport.
@@ -60,18 +93,37 @@ export class ACPAxonConnection {
    * Use this for direct access to experimental/unstable protocol methods
    * (e.g. `unstable_forkSession`, `unstable_closeSession`). For stable
    * methods, prefer the proxied methods on this class directly.
+   *
+   * Only available after {@link connect} has been called.
    */
-  readonly protocol: ClientSideConnection;
+  get protocol(): ClientSideConnection {
+    if (!this._protocol) {
+      throw new ConnectionStateError("not_connected", "Not connected. Call connect() first.");
+    }
+    return this._protocol;
+  }
 
   /** Controller whose signal is passed to the Axon stream; aborting it tears down the SSE subscription. */
   private abortController: AbortController;
-  private disconnected = false;
+  private connected = false;
+
+  /** The Axon channel reference, kept for connect(). */
+  private axon: Axon;
+
+  /** Stored options for deferred connect(). */
+  private options: ACPAxonConnectionOptions;
+
+  /** Created during connect(). */
+  private _protocol: ClientSideConnection | null = null;
 
   /** Registered `session/update` notification listeners. */
   private sessionUpdateListeners = new Set<SessionUpdateListener>();
 
   /** Registered raw Axon event listeners (fired before JSON-RPC translation). */
   private axonEventListeners: ListenerSet<AxonEventListener>;
+
+  /** Registered timeline event listeners. */
+  private timelineEventListeners: ListenerSet<TimelineEventListener<ACPTimelineEvent>>;
 
   /** Error sink for listener exceptions and stream parse failures. */
   private handleError: (error: unknown) => void;
@@ -84,14 +136,14 @@ export class ACPAxonConnection {
   /** Optional teardown callback invoked by {@link disconnect}. */
   private disconnectFn: (() => void | Promise<void>) | undefined;
 
-  private log: (tag: string, ...args: unknown[]) => void;
+  private log: LogFn;
 
   /**
    * Creates a new ACP connection over the given Axon channel and devbox.
    *
-   * The constructor immediately opens an SSE subscription on the Axon
-   * channel. Connection errors surface on the first awaited method call
-   * (typically {@link initialize}).
+   * The constructor does **not** open an SSE subscription. Call
+   * {@link connect} to open the transport, then {@link initialize}
+   * to negotiate protocol capabilities.
    *
    * @param axon    - The Axon channel to communicate over (from `@runloop/api-client`).
    * @param devbox  - The Runloop devbox hosting the ACP agent.
@@ -100,29 +152,68 @@ export class ACPAxonConnection {
   constructor(axon: Axon, devbox: Devbox, options?: ACPAxonConnectionOptions) {
     this.axonId = axon.id;
     this.devboxId = devbox.id;
+    this.axon = axon;
+    this.options = options ?? {};
     this.abortController = new AbortController();
     this.log = makeLogger("acp-sdk", options?.verbose ?? false);
     this.handleError = options?.onError ?? makeDefaultOnError("ACPAxonConnection");
     this.handlePermission = options?.requestPermission;
     this.disconnectFn = options?.onDisconnect;
     this.axonEventListeners = new ListenerSet<AxonEventListener>(this.handleError);
-
-    const verbose = options?.verbose ?? false;
-    const stream = axonStream({
-      axon,
-      signal: this.abortController.signal,
-      onAxonEvent: (ev) => this.axonEventListeners.emit(ev),
-      onError: this.handleError,
-      log: verbose ? (tag, ...args) => this.log(tag, ...args) : undefined,
-    });
-
-    this.protocol = new ClientSideConnection((_agent: Agent) => this.createClient(), stream);
+    this.timelineEventListeners = new ListenerSet<TimelineEventListener<ACPTimelineEvent>>(
+      this.handleError,
+    );
     this.log("constructor", `axon=${axon.id} devbox=${this.devboxId}`);
   }
 
+  /**
+   * Opens the Axon SSE subscription and creates the underlying
+   * `ClientSideConnection`. Must be called before {@link initialize}.
+   *
+   * When `replay` is `true` (the default), queries the axon for the
+   * current head sequence and replays all events up to that point
+   * without invoking handlers. Unresolved permission requests are
+   * dispatched to handlers after replay completes.
+   *
+   * @throws {ConnectionStateError} If already connected (`code: "already_connected"`).
+   * @throws If both `replay` and `afterSequence` are set.
+   */
+  async connect(): Promise<void> {
+    if (this.connected) {
+      throw new ConnectionStateError(
+        "already_connected",
+        "Already connected. Call disconnect() before reconnecting.",
+      );
+    }
+
+    const replayTargetSequence = await resolveReplayTarget(this.axon, this.options, this.log);
+
+    const verbose = this.options.verbose ?? false;
+    const stream = axonStream({
+      axon: this.axon,
+      signal: this.abortController.signal,
+      onAxonEvent: (ev) => {
+        this.axonEventListeners.emit(ev);
+        this.emitTimelineEvent(ev);
+      },
+      onError: this.handleError,
+      log: verbose ? (tag, ...args) => this.log(tag, ...args) : undefined,
+      afterSequence: this.options.afterSequence,
+      replayTargetSequence,
+    });
+
+    const customCreateClient = this.options.createClient;
+    this._protocol = new ClientSideConnection(
+      customCreateClient ? (agent) => customCreateClient(agent) : () => this.createClient(),
+      stream,
+    );
+    this.connected = true;
+    this.log("connect", "connected");
+  }
+
   private ensureConnected(): void {
-    if (this.disconnected) {
-      throw new Error("Connection is disconnected. Create a new instance.");
+    if (!this.connected) {
+      throw new ConnectionStateError("not_connected", "Not connected. Call connect() first.");
     }
   }
 
@@ -131,8 +222,11 @@ export class ACPAxonConnection {
   // ---------------------------------------------------------------------------
 
   /**
-   * Establishes the connection and negotiates protocol capabilities.
-   * Must be called before any other agent method.
+   * Runs the **ACP `initialize` protocol step** (capability negotiation with the agent).
+   *
+   * This is **required once** after {@link connect} on first startup of the agent session:
+   * the transport is already open after `connect()`, but the ACP wire protocol expects
+   * `initialize` before `newSession`, `prompt`, or other agent methods.
    *
    * @param params - Protocol version, client info, and capability negotiation fields.
    * @returns The agent's supported capabilities and protocol version.
@@ -296,6 +390,59 @@ export class ACPAxonConnection {
     return this.axonEventListeners.add(listener);
   }
 
+  /**
+   * Registers a listener for classified timeline events (push API).
+   *
+   * Every Axon event on the channel is classified into one of:
+   * - `acp_protocol` — a known ACP protocol event (agent or client method)
+   * - `system` — a broker system event (`turn.started`, `turn.completed`, `broker.error`)
+   * - `unknown` — anything else
+   *
+   * For a pull-based alternative, see {@link receiveTimelineEvents}.
+   * Both APIs deliver the same events; choose whichever fits your
+   * consumption pattern.
+   *
+   * @param listener - Callback invoked with each {@link ACPTimelineEvent}.
+   * @returns An unsubscribe function that removes the listener.
+   */
+  onTimelineEvent(listener: TimelineEventListener<ACPTimelineEvent>): () => void {
+    return this.timelineEventListeners.add(listener);
+  }
+
+  /**
+   * Publishes a custom event to the Axon channel.
+   *
+   * The event will appear in the SSE stream and be classified by the
+   * timeline (typically as `kind: "unknown"` unless the `event_type`
+   * matches a known ACP protocol method).
+   *
+   * @param params - The event to publish (same shape as `Axon.publish()`).
+   * @returns The publish result with sequence number and timestamp.
+   */
+  async publish(params: AxonPublishParams): Promise<PublishResultView> {
+    return this.axon.publish(params);
+  }
+
+  /**
+   * Async generator that yields classified timeline events (pull API).
+   *
+   * Mirrors the pull-based pattern of `receiveMessages()` in the Claude
+   * module. The generator completes when the connection is disconnected
+   * or the abort signal fires.
+   *
+   * For a push-based alternative, see {@link onTimelineEvent}.
+   * Both APIs deliver the same events; choose whichever fits your
+   * consumption pattern.
+   *
+   * @returns An async generator of {@link ACPTimelineEvent}.
+   */
+  async *receiveTimelineEvents(): AsyncGenerator<ACPTimelineEvent, void, undefined> {
+    yield* timelineEventGenerator<ACPTimelineEvent>(
+      (listener) => this.onTimelineEvent(listener),
+      this.abortController.signal,
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
@@ -321,33 +468,47 @@ export class ACPAxonConnection {
   /**
    * Aborts the underlying SSE stream without clearing registered listeners.
    *
-   * Unlike {@link disconnect}, listeners remain registered. Note that after
-   * calling this method, the connection cannot be reused — create a new
-   * `ACPAxonConnection` instance to reconnect.
+   * Unlike {@link disconnect}, this does not run {@link ACPAxonConnectionOptions.onDisconnect}
+   * and does not reset {@link connect} state. Prefer {@link disconnect} followed by
+   * {@link connect} for a full teardown and reconnect on the same instance.
    */
   abortStream(): void {
     this.abortController.abort();
   }
 
   /**
-   * Aborts the Axon stream, clears all registered listeners, and runs the
-   * `onDisconnect` callback (e.g. devbox teardown) if one was provided.
+   * Aborts the Axon stream, resets protocol state so {@link connect} can be
+   * called again, and runs the `onDisconnect` callback (e.g. devbox teardown)
+   * if one was provided.
+   *
+   * User-registered listeners ({@link onSessionUpdate}, {@link onAxonEvent},
+   * {@link onTimelineEvent}) are **preserved** across disconnect/reconnect.
    *
    * @returns Resolves once the `onDisconnect` callback (if any) completes.
    */
   async disconnect(): Promise<void> {
-    if (this.disconnected) return;
-    this.disconnected = true;
+    if (!this.connected && !this._protocol) {
+      return;
+    }
     this.log("disconnect", "disconnecting");
     this.abortStream();
-    this.sessionUpdateListeners.clear();
-    this.axonEventListeners.clear();
+    this.connected = false;
+    this._protocol = null;
+    this.abortController = new AbortController();
     await runDisconnectHook(this.disconnectFn, this.log, this.handleError);
   }
 
   // ---------------------------------------------------------------------------
   // Private
   // ---------------------------------------------------------------------------
+
+  /**
+   * Classifies a raw Axon event and emits it to timeline listeners.
+   */
+  private emitTimelineEvent(ev: AxonEventView): void {
+    const event = classifyACPAxonEvent(ev);
+    this.timelineEventListeners.emit(event);
+  }
 
   /**
    * Builds the ACP `Client` callbacks handed to the `ClientSideConnection`.
@@ -396,3 +557,29 @@ export class ACPAxonConnection {
     };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Timeline event classification
+// ---------------------------------------------------------------------------
+
+/**
+ * Classifies a raw Axon event into an {@link ACPTimelineEvent}.
+ *
+ * Classification rules:
+ * 1. `SYSTEM_EVENT` with `turn.started` / `turn.completed` / `broker.error` -> `system`
+ * 2. Known ACP protocol `event_type` (agent or client method) -> `acp_protocol`
+ * 3. Everything else -> `unknown`
+ *
+ * @category Timeline
+ */
+export const classifyACPAxonEvent = createClassifier<ACPProtocolTimelineEvent>({
+  label: "classifyACPAxonEvent",
+  isProtocolEventType: isACPProtocolEventType,
+  toProtocolEvent: (data, ev) =>
+    ({
+      kind: "acp_protocol",
+      eventType: ev.event_type,
+      data,
+      axonEvent: ev,
+    }) as ACPProtocolTimelineEvent,
+});

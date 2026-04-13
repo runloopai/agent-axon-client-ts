@@ -30,11 +30,10 @@ const pendingControlResponses = new Map<
 async function runReadLoop(conn: ClaudeAxonConnection): Promise<void> {
   console.log("[read-loop] started");
   try {
-    for await (const msg of conn.receiveMessages()) {
-      const msgType = (msg as any).type;
-      const msgSubtype = (msg as any).subtype;
+    for await (const msg of conn.receiveAgentEvents()) {
+      const msgSubtype = "subtype" in msg ? (msg as { subtype: string }).subtype : undefined;
       console.log(
-        `[read-loop] received: type=${msgType} subtype=${msgSubtype}`,
+        `[read-loop] received: type=${msg.type} subtype=${msgSubtype}`,
       );
 
       // Capture init message for later reference
@@ -122,6 +121,10 @@ app.post("/api/start", async (req, res) => {
       ws.broadcast({ type: "axon_event", event: ev });
     });
 
+    conn.onTimelineEvent((ev) => {
+      ws.broadcast({ type: "timeline_event", event: ev });
+    });
+
     const skipPerms = dangerouslySkipPermissions !== false;
 
     // Intercept can_use_tool control requests.
@@ -169,6 +172,7 @@ app.post("/api/start", async (req, res) => {
     });
 
     ws.broadcast({ type: "connection_progress", step: "Connecting to Claude Code..." });
+    await conn.connect();
     await conn.initialize();
 
     // Start the background read loop

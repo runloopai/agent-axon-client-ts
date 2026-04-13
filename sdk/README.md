@@ -71,6 +71,7 @@ const devbox = await sdk.devbox.create({
 
 // Wrap the Axon channel in a high-level ACP connection and negotiate capabilities
 const conn = new ACPAxonConnection(axon, devbox);
+await conn.connect();
 await conn.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "my-app", version: "1.0.0" },
@@ -116,11 +117,12 @@ const devbox = await sdk.devbox.create({
 
 // Connect to Claude Code and set the model
 const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
+await conn.connect();
 await conn.initialize();
 
 // Send a prompt and iterate over response messages until a "result" message arrives
 await conn.send("What files are in this directory?");
-for await (const msg of conn.receiveResponse()) {
+for await (const msg of conn.receiveAgentResponse()) {
   console.log(msg.type, msg);
 }
 
@@ -150,12 +152,14 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 | `requestPermission` | `(params) => Promise<Response>` | Custom permission handler (defaults to auto-approve) |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Mutually exclusive with `replay`.** |
+| `replay` | `boolean` | When `true` (the default), replays historical events without dispatching to session/permission handlers until replay completes; timeline listeners still receive events. Set to `false` for legacy behavior (handlers run for every replayed event). **Mutually exclusive with `afterSequence`.** |
 
 **ACP Methods** (proxied from `ClientSideConnection`):
 
 | Method | Description |
 |--------|-------------|
-| `initialize(params)` | Establishes the connection and negotiates capabilities |
+| `initialize(params)` | ACP handshake and capability negotiation (requires `connect()` first) |
 | `newSession(params)` | Creates a new conversation session |
 | `loadSession(params)` | Loads an existing session |
 | `listSessions(params)` | Lists existing sessions |
@@ -171,13 +175,16 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 
 | Property / Method | Description |
 |---|---|
-| `protocol: ClientSideConnection` | Escape hatch for experimental/unstable ACP methods |
+| `connect()` | Open the Axon SSE stream and wire the `ClientSideConnection` (call before `initialize()`) |
+| `protocol: ClientSideConnection` | Escape hatch for experimental/unstable ACP methods (available after `connect()`) |
 | `axonId: string` | The Axon channel ID |
 | `devboxId: string` | The Runloop devbox ID |
 | `signal: AbortSignal` | Fires when the connection closes |
 | `closed: Promise<void>` | Resolves when the connection closes |
 | `onSessionUpdate(listener)` | Register a session update listener. Returns unsubscribe function. |
 | `onAxonEvent(listener)` | Register an Axon event listener. Returns unsubscribe function. |
+| `onTimelineEvent(listener)` | Register a classified timeline event listener. Returns unsubscribe function. |
+| `receiveTimelineEvents()` | Async generator yielding classified `ACPTimelineEvent`s |
 | `abortStream()` | Abort the SSE stream without clearing listeners (useful for testing / reconnect) |
 | `disconnect()` | Abort the stream, clear all listeners, and run the `onDisconnect` callback |
 
@@ -216,11 +223,12 @@ const conn = new ACPAxonConnection(axon, devbox, {
   onError: (err) => console.warn("transport error:", err),
 });
 
-// Register listeners before initialize() so no events are missed
+// Register listeners before connect() / initialize() so no events are missed
 conn.onSessionUpdate((sessionId, update) => {
   console.log(sessionId, update);
 });
 
+await conn.connect();
 await conn.initialize({
   protocolVersion: PROTOCOL_VERSION,
   clientInfo: { name: "my-app", version: "1.0.0" },
@@ -239,6 +247,8 @@ Low-level function that creates an ACP-compatible duplex stream backed by an `Ax
 | `signal` | `AbortSignal` | No | Cancellation signal |
 | `onAxonEvent` | `(event: AxonEventView) => void` | No | Callback for every Axon event |
 | `onError` | `(error: unknown) => void` | No | Callback for swallowed parse errors |
+| `afterSequence` | `number` | No | Resume from this sequence — only events after it are delivered. Mutually exclusive with `replayTargetSequence`. On `ACPAxonConnection`, the connection-level `replay` option (default `true`) is mutually exclusive with `afterSequence` — see Event replay section. |
+| `replayTargetSequence` | `number` | No | Marks the end of the historical replay window for buffered agent requests. Set by `ACPAxonConnection` when `replay` is enabled. Mutually exclusive with `afterSequence`. |
 
 **Returns**: `{ readable: ReadableStream<AnyMessage>; writable: WritableStream<AnyMessage> }`
 
@@ -331,6 +341,8 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 | `model` | `string` | Model ID (e.g. `"claude-sonnet-4-5"`) — set after initialization |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` (e.g. devbox shutdown) |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. **Mutually exclusive with `replay`.** |
+| `replay` | `boolean` | When `true` (the default), replays historical events without dispatching protocol handlers until replay completes; timeline listeners still receive events. Set to `false` for legacy behavior. **Mutually exclusive with `afterSequence`.** |
 
 **Listeners & Lifecycle**:
 
@@ -338,16 +350,20 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 |---|---|
 | `axonId: string` | The Axon channel ID |
 | `devboxId: string` | The Runloop devbox ID |
-| `initialize()` | Connect to Claude Code, initialize the control protocol, and set model if configured |
+| `connect()` | Open the transport and start the background read loop |
+| `initialize()` | Protocol handshake + optional model set (requires `connect()` first) |
 | `disconnect()` | Close the transport, fail pending requests, and run `onDisconnect` if provided |
+| `abortStream()` | Abort the SSE stream without clearing listeners |
 
 **Messaging**:
 
 | Method | Description |
 |--------|-------------|
 | `send(prompt)` | Send a user message. Accepts a `string` or `SDKUserMessage`. |
-| `receiveMessages()` | Async iterator yielding all `SDKMessage`s indefinitely |
-| `receiveResponse()` | Async iterator yielding messages until (and including) a `result` message |
+| `receiveAgentEvents()` | Async iterator yielding all `SDKMessage`s indefinitely |
+| `receiveAgentResponse()` | Async iterator yielding messages until (and including) a `result` message |
+| `receiveMessages()` | **Deprecated** — use `receiveAgentEvents()` |
+| `receiveResponse()` | **Deprecated** — use `receiveAgentResponse()` |
 
 **Control**:
 
@@ -362,6 +378,8 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 | Method | Description |
 |--------|-------------|
 | `onAxonEvent(listener)` | Register an Axon event listener. Returns unsubscribe function. |
+| `onTimelineEvent(listener)` | Register a classified timeline event listener. Returns unsubscribe function. |
+| `receiveTimelineEvents()` | Async generator yielding classified `ClaudeTimelineEvent`s |
 | `onControlRequest(subtype, handler)` | Register a handler for incoming control requests (e.g. `"can_use_tool"`) |
 
 ### `AxonTransport`
@@ -397,6 +415,118 @@ await transport.close();
 | `reconnect()` | Abort the current SSE stream and re-subscribe |
 | `close()` | Close the transport |
 | `isReady()` | Whether the transport is connected and not closed |
+
+---
+
+## Timeline Events
+
+Both modules provide a unified timeline event stream that classifies every Axon event into a typed discriminated union. This is the recommended way to build chat UIs that interleave protocol events, system events (turn start/end), and custom events in a single chronological view.
+
+### Event structure
+
+Every timeline event has three fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `kind` | `string` | Discriminant: `"acp_protocol"`, `"claude_protocol"`, `"system"`, or `"unknown"` |
+| `data` | varies | Parsed typed payload (`SessionUpdate`, `SDKMessage`, `SystemEvent`, or `null`) |
+| `axonEvent` | `AxonEventView` | The raw Axon event with full metadata (origin, event_type, payload, sequence) |
+
+### ACP timeline events (`ACPTimelineEvent`)
+
+```typescript
+import type { ACPTimelineEvent } from "@runloop/agent-axon-client/acp";
+
+conn.onTimelineEvent((event: ACPTimelineEvent) => {
+  switch (event.kind) {
+    case "acp_protocol":
+      // event.eventType narrows the data type (e.g. "session/update" -> SessionNotification, "initialize" -> InitializeRequest | InitializeResponse)
+      // event.axonEvent.origin tells you direction: USER_EVENT (outbound) or AGENT_EVENT (inbound)
+      break;
+    case "system":
+      // event.data is SystemEvent: { type: "turn.started", turnId } | { type: "turn.completed", turnId, stopReason? } | { type: "broker.error", message }
+      break;
+    case "unknown":
+      // event.data is null — inspect event.axonEvent for raw data
+      break;
+  }
+});
+```
+
+### Claude timeline events (`ClaudeTimelineEvent`)
+
+```typescript
+import type { ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
+
+conn.onTimelineEvent((event: ClaudeTimelineEvent) => {
+  switch (event.kind) {
+    case "claude_protocol":
+      // event.data is SDKMessage (assistant, result, system, etc.)
+      break;
+    case "system":
+      // event.data is SystemEvent
+      break;
+    case "unknown":
+      // event.data is null
+      break;
+  }
+});
+```
+
+### Async generator pattern
+
+Both connections also provide `receiveTimelineEvents()` for pull-based consumption:
+
+```typescript
+for await (const event of conn.receiveTimelineEvents()) {
+  console.log(event.kind, event.data);
+}
+```
+
+### `tryParseTimelinePayload` helper
+
+For unknown events, use `tryParseTimelinePayload` to safely parse the raw JSON payload:
+
+```typescript
+import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
+
+conn.onTimelineEvent((event) => {
+  if (event.kind === "unknown") {
+    const payload = tryParseTimelinePayload<{ myField: string }>(event);
+    if (payload) console.log(payload.myField);
+  }
+});
+```
+
+### Event replay, `replay`, and `afterSequence`
+
+Both modules subscribe to the Axon SSE stream. By default, `replay` is **`true`**: the connection queries the channel head and replays all events up to that point **without** dispatching to session updates, permission handlers, or (Claude) control handlers — timeline listeners still receive every event. Unresolved permission/control work is flushed after replay completes.
+
+Set **`replay: false`** to restore the previous behavior: every replayed event invokes handlers immediately (useful if you rely on side effects during history replay).
+
+**`replay` and `afterSequence` are mutually exclusive** — you cannot set both on the same connection.
+
+Pass **`afterSequence`** to subscribe starting **after** a known sequence number (skips earlier events entirely — no full replay from the beginning):
+
+```typescript
+// ACP — skip events 0–42, receive 43+
+const conn = new ACPAxonConnection(axon, devbox, { afterSequence: 42 });
+await conn.connect();
+
+// Claude — same option
+const conn = new ClaudeAxonConnection(axon, devbox, { afterSequence: 42 });
+await conn.connect();
+```
+
+Track the cursor by persisting `AxonEventView.sequence` from `onAxonEvent`:
+
+```typescript
+let lastSeq: number | undefined;
+conn.onAxonEvent((ev) => { lastSeq = ev.sequence; });
+// Later, reconnect from where you left off:
+const conn2 = new ACPAxonConnection(axon, devbox, { afterSequence: lastSeq });
+await conn2.connect();
+```
 
 ---
 
@@ -442,6 +572,8 @@ Common options accepted by both `ACPAxonConnection` and `ClaudeAxonConnection`:
 | `verbose` | `boolean` | Emit verbose logs to stderr |
 | `onError` | `(error: unknown) => void` | Error callback (defaults to `console.error`) |
 | `onDisconnect` | `() => void \| Promise<void>` | Teardown callback invoked by `disconnect()` |
+| `afterSequence` | `number` | Resume from this Axon sequence number — only events after it are delivered. If omitted and `replay` is `false`, **all events from the beginning of the Axon channel are delivered to handlers**, replaying the entire session history. **Mutually exclusive with `replay`.** |
+| `replay` | `boolean` | When `true` (the default), `connect()` replays all events from the beginning of the Axon channel without dispatching to session/protocol handlers (timeline listeners still receive events). Unresolved permission/control requests are delivered after replay. Set `false` to process the full history with handlers firing for every event. **Mutually exclusive with `afterSequence`.** |
 
 ### `AxonEventView`
 
@@ -467,6 +599,16 @@ Callback type for raw Axon event listeners:
 type AxonEventListener = (event: AxonEventView) => void;
 ```
 
+### `SystemEvent`
+
+Typed representation of recognized broker system events:
+
+```typescript
+type SystemEvent =
+  | { type: "turn.started"; turnId: string }
+  | { type: "turn.completed"; turnId: string; stopReason?: string };
+```
+
 ### `WireData` (Claude module)
 
 Generic JSON wire format used by the Claude transport:
@@ -477,7 +619,7 @@ type WireData = Record<string, any>;
 
 ## Known Limitations
 
-- **Eager SSE connection** (ACP): The `ACPAxonConnection` constructor immediately opens an SSE subscription via `axon.subscribeSse()`. Connection errors surface on the first awaited method call, not at construction time.
+- **Explicit `connect()` required** (ACP & Claude): Both `ACPAxonConnection` and `ClaudeAxonConnection` require an explicit `await conn.connect()` call before `initialize()`. The constructor is lightweight and synchronous.
 - **Automatic reconnection (single retry)**: If an SSE stream drops unexpectedly, the SDK re-subscribes once and logs a `console.warn`. If the retry also fails, the connection is terminal — create a new instance.
 - **Permission handling** (Claude): The `ClaudeAxonConnection` auto-approves all tool use by default. Register a `"can_use_tool"` handler via `onControlRequest()` to customize.
 
@@ -491,18 +633,29 @@ The Axon broker delivers events in this order for a given turn:
 
 This means **`await conn.prompt(...)` returns before the agent's response text has been delivered via `onSessionUpdate`**. If you need to know when all content for a turn has arrived, use one of these strategies:
 
-- **Use `onAxonEvent` to watch for `turn.started` / `turn.completed` system events** (recommended). These bracket all content for a turn:
+- **Use `onTimelineEvent` to watch for `system` events** (recommended). These bracket all content for a turn. Use a `switch` on `event.kind` and the exported `SYSTEM_EVENT_TYPES` constants for exhaustive, type-safe matching:
 
   ```typescript
-  // onAxonEvent receives every raw Axon event — filter by origin/type
-  // to bracket turns and know when all session updates have been flushed
-  conn.onAxonEvent((event) => {
-    if (event.origin !== "SYSTEM_EVENT") return;
-    if (event.event_type === "turn.started") {
-      // Agent turn began — disable input, show cancel button
-    }
-    if (event.event_type === "turn.completed") {
-      // All content for this turn has been delivered
+  import { SYSTEM_EVENT_TYPES } from "@runloop/agent-axon-client/shared";
+
+  conn.onTimelineEvent((event) => {
+    switch (event.kind) {
+      case "system":
+        switch (event.data.type) {
+          case SYSTEM_EVENT_TYPES.TURN_STARTED:
+            // Agent turn began — disable input, show cancel button
+            break;
+          case SYSTEM_EVENT_TYPES.TURN_COMPLETED:
+            // All content for this turn has been delivered
+            break;
+        }
+        break;
+      case "acp_protocol":
+        // Protocol event — event.data is the session update payload
+        break;
+      case "unknown":
+        // Unrecognized event — inspect event.axonEvent for raw data
+        break;
     }
   });
   ```
