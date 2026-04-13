@@ -15,6 +15,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../..");
 const AGENT_EXAMPLES_DIR = resolve(__dirname, "..");
 const TEMPLATES_DIR = resolve(AGENT_EXAMPLES_DIR, "templates");
+const SDK_PACKAGE_JSON = resolve(REPO_ROOT, "sdk/package.json");
+
+async function getSdkVersion(): Promise<string> {
+  const content = await readFile(SDK_PACKAGE_JSON, "utf-8");
+  const pkg = JSON.parse(content) as { version: string };
+  return pkg.version;
+}
 
 class Semaphore {
   private permits: number;
@@ -52,7 +59,7 @@ Options:
   --use-case <name>    Run only this use case (default: all)
   --parallel <n>       Max concurrent devboxes (default: 5)
   --timeout <ms>       Default timeout per use case (default: 30000)
-  --validate           Validate last output without running (reads compatibility.md)
+  --validate           Validate generated output without running (checks compatibility.md and llms.txt)
   --help               Show help
 
 Examples:
@@ -158,21 +165,50 @@ async function loadTemplate(name: string): Promise<string> {
   return readFile(templatePath, "utf-8");
 }
 
+/**
+ * Assert that no template placeholders remain in the output.
+ * Throws if any {{placeholder}} patterns are found.
+ */
+function assertNoUnresolvedPlaceholders(output: string, templateName: string): void {
+  const placeholderMatch = output.match(/\{\{[^}]+\}\}/g);
+  if (placeholderMatch) {
+    throw new Error(
+      `Unresolved placeholder(s) in ${templateName}: ${placeholderMatch.join(", ")}`,
+    );
+  }
+}
+
+/**
+ * Aggregate multiple agent results for a single protocol into one status.
+ * Rules (in priority order):
+ *   1. If any result is "fail", the protocol status is "fail".
+ *   2. If any result is "pass", the protocol status is "pass".
+ *   3. If any result is "skip", the protocol status is "skip".
+ *   4. Otherwise (no results), status is "pending".
+ */
+function aggregateProtocolStatus(results: RunResult[]): RunResult["status"] | "pending" {
+  if (results.length === 0) return "pending";
+  if (results.some((r) => r.status === "fail")) return "fail";
+  if (results.some((r) => r.status === "pass")) return "pass";
+  if (results.some((r) => r.status === "skip")) return "skip";
+  return "pending";
+}
+
 function buildProtocolFeatureRows(results: RunResult[], useCases: UseCase[]): string {
   let rows = "";
   for (const uc of useCases) {
-    const acpResult = results.find(
+    const acpResults = results.filter(
       (r) => r.useCase === uc.name && r.protocol === "acp",
     );
-    const claudeResult = results.find(
+    const claudeResults = results.filter(
       (r) => r.useCase === uc.name && r.protocol === "claude",
     );
 
     const acpStatus = uc.protocols.includes("acp")
-      ? acpResult?.status ?? "pending"
+      ? aggregateProtocolStatus(acpResults)
       : "N/A";
     const claudeStatus = uc.protocols.includes("claude")
-      ? claudeResult?.status ?? "pending"
+      ? aggregateProtocolStatus(claudeResults)
       : "N/A";
 
     rows += `| ${uc.name} | ${acpStatus} | ${claudeStatus} |\n`;
@@ -230,13 +266,17 @@ async function generateCompatibilityMd(
   agents: AgentConfig[],
 ): Promise<string> {
   const template = await loadTemplate("compatibility.md");
+  const sdkVersion = await getSdkVersion();
 
-  return template
+  const output = template
     .replace("{{timestamp}}", new Date().toISOString())
-    .replace("{{sdkVersion}}", "0.3.0")
+    .replace("{{sdkVersion}}", sdkVersion)
     .replace("{{protocolFeatureRows}}", buildProtocolFeatureRows(results, useCases))
     .replace("{{acpAgentFeatureTable}}", buildAcpAgentFeatureTable(results, useCases, agents))
     .replace("{{runDetailsRows}}", buildRunDetailsRows(results));
+
+  assertNoUnresolvedPlaceholders(output, "compatibility.md");
+  return output;
 }
 
 function buildUseCasesList(useCases: UseCase[]): string {
@@ -250,7 +290,10 @@ function buildUseCasesList(useCases: UseCase[]): string {
 
 async function generateLlmsTxt(useCases: UseCase[]): Promise<string> {
   const template = await loadTemplate("llms.txt");
-  return template.replace("{{useCasesList}}", buildUseCasesList(useCases));
+  const output = template.replace("{{useCasesList}}", buildUseCasesList(useCases));
+
+  assertNoUnresolvedPlaceholders(output, "llms.txt");
+  return output;
 }
 
 interface ValidationError {
@@ -258,6 +301,11 @@ interface ValidationError {
   issue: string;
 }
 
+/**
+ * Validate that generated output files contain the expected content.
+ * For llms.txt, only the generated use-case list is validated (the exact format
+ * produced by buildUseCasesList), so hand-edited guidance sections won't break tests.
+ */
 async function validateOutput(
   useCases: UseCase[],
   agents: AgentConfig[],
@@ -290,6 +338,13 @@ async function validateOutput(
         });
       }
     }
+
+    if (content.includes("{{") && content.includes("}}")) {
+      errors.push({
+        file: "compatibility.md",
+        issue: "Unresolved template placeholder detected",
+      });
+    }
   }
 
   if (!existsSync(llmsPath)) {
@@ -298,12 +353,20 @@ async function validateOutput(
     const content = await readFile(llmsPath, "utf-8");
 
     for (const uc of useCases) {
-      if (!content.includes(`${uc.name}.ts`)) {
+      const expectedLine = `agent-examples/src/use-cases/${uc.name}.ts`;
+      if (!content.includes(expectedLine)) {
         errors.push({
           file: "llms.txt",
-          issue: `Use case "${uc.name}" not referenced`,
+          issue: `Use case "${uc.name}" not in generated list (expected: ${expectedLine})`,
         });
       }
+    }
+
+    if (content.includes("{{") && content.includes("}}")) {
+      errors.push({
+        file: "llms.txt",
+        issue: "Unresolved template placeholder detected",
+      });
     }
   }
 
@@ -407,22 +470,30 @@ async function main(): Promise<void> {
 
   printResults(results);
 
-  console.log("\nGenerating compatibility.md...");
-  const compatMd = await generateCompatibilityMd(results, USE_CASES, AGENTS);
-  await writeFile(resolve(AGENT_EXAMPLES_DIR, "compatibility.md"), compatMd);
+  const isPartialRun =
+    filteredAgents.length !== AGENTS.length || filteredUseCases.length !== USE_CASES.length;
 
-  console.log("Generating llms.txt...");
-  const llmsTxt = await generateLlmsTxt(USE_CASES);
-  await writeFile(resolve(REPO_ROOT, "llms.txt"), llmsTxt);
-
-  console.log("\nValidating output...");
-  const validationErrors = await validateOutput(USE_CASES, AGENTS);
-  if (validationErrors.length > 0) {
-    console.log("Validation warnings:");
-    for (const err of validationErrors) {
-      console.log(`  [${err.file}] ${err.issue}`);
-    }
+  if (isPartialRun) {
+    console.log("\nPartial run detected — skipping generation of canonical files.");
+    console.log("Run without --agent, --protocol, or --use-case filters to regenerate compatibility.md and llms.txt.\n");
   } else {
+    console.log("\nGenerating compatibility.md...");
+    const compatMd = await generateCompatibilityMd(results, USE_CASES, AGENTS);
+    await writeFile(resolve(AGENT_EXAMPLES_DIR, "compatibility.md"), compatMd);
+
+    console.log("Generating llms.txt...");
+    const llmsTxt = await generateLlmsTxt(USE_CASES);
+    await writeFile(resolve(REPO_ROOT, "llms.txt"), llmsTxt);
+
+    console.log("\nValidating output...");
+    const validationErrors = await validateOutput(USE_CASES, AGENTS);
+    if (validationErrors.length > 0) {
+      console.log("Validation failed:");
+      for (const err of validationErrors) {
+        console.log(`  [${err.file}] ${err.issue}`);
+      }
+      process.exit(1);
+    }
     console.log("Validation passed!");
   }
 

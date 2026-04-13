@@ -22,9 +22,6 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
   if (agent.protocol === "claude" && !anthropicApiKey) {
     throw new SkipError("ANTHROPIC_API_KEY not set (required for Claude)");
   }
-  if (agent.name === "claude-acp" && !anthropicApiKey) {
-    throw new SkipError("ANTHROPIC_API_KEY not set (required for claude-acp)");
-  }
 
   const sdk = new RunloopSDK({ bearerToken: runloopApiKey });
 
