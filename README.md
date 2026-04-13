@@ -1,9 +1,9 @@
 # @runloop/agent-axon-client
 
-[![CI](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@runloop/agent-axon-client)](https://www.npmjs.com/package/@runloop/agent-axon-client)
-[![codecov](https://codecov.io/gh/runloopai/agent-axon-client-ts/branch/main/graph/badge.svg)](https://codecov.io/gh/runloopai/agent-axon-client-ts)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[CI](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml)
+[npm](https://www.npmjs.com/package/@runloop/agent-axon-client)
+[codecov](https://codecov.io/gh/runloopai/agent-axon-client-ts)
+[License: MIT](https://opensource.org/licenses/MIT)
 
 > **Alpha — subject to change.** This SDK is in early development. APIs, interfaces, and behavior may change without notice between versions.
 
@@ -26,7 +26,7 @@ In short: **Runloop** hosts **devboxes** where agents run; a **broker mount** co
 - A [Runloop](https://runloop.ai) API key
   - Sign up for free at [platform.runloop.ai](https://platform.runloop.ai) (includes $50 in credits)
   - Navigate to [Settings](https://platform.runloop.ai/settings) → API Keys
-  - Create an API key (starts with `ak_`)
+  - Create an API key (starts with `ak`_)
   - Set environment variable: `export RUNLOOP_API_KEY=ak_your_key`
 - An [Anthropic](https://console.anthropic.com) API key (**only required for Claude module examples**)
   - Sign up at [console.anthropic.com](https://console.anthropic.com)
@@ -53,21 +53,22 @@ npm install @anthropic-ai/claude-agent-sdk
 ### Supported Features by Protocol
 
 
-| Capability                                   | Claude          | ACP             |
-| -------------------------------------------- | --------------- | --------------- |
-| Send prompts / messages                      | ✅               | ✅               |
-| Streaming responses                          | ✅               | ✅               |
-| Tool use / tool results                      | ⚠️ *Auto-approve | ⚠️ *Auto-approve |
-| Cancel / interrupt turns                     | ✅               | ✅               |
-| Permission / control requests (auto-approve) | ⚠️ *Auto-approve | ⚠️ *Auto-approve |
+| Capability                                   | Claude | ACP |
+| -------------------------------------------- | ------ | --- |
+| Send prompts / messages                      | ✅      | ✅   |
+| Streaming responses                          | ✅      | ✅   |
+| Tool use / tool results                      | ✅      | ✅   |
+| Cancel / interrupt turns                     | ✅      | ✅   |
+| Permission / control requests (auto-approve) | ✅      | ✅   |
+
 
 *Auto-approve only for now, permission request flow pending
 
 ### Coming Soon
 
+
 | Status     | Description                                                                                                                                |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 🚧 Planned | **Granular permission control** — Control request / response in transaction. This is currently resolved by allowing all |
 | 🚧 Planned | **Agent installation** — support for automatically getting agents installed on the devbox                                                  |
 | 🚧 Planned | **Devbox state-transition events** — expose devbox lifecycle state changes (creating → running → suspended → …) as first-class Axon events |
 | 🚧 Planned | **Axon subscribe over WebSockets** — WebSocket transport for Axon subscriptions, enabling browser clients without a backend proxy          |
@@ -78,8 +79,7 @@ npm install @anthropic-ai/claude-agent-sdk
 
 | Status | Description                                                                                                                          |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 🐛 Bug | Failure on binary missing — agent launch does not surface a clear error when the requested agent binary is not present on the devbox |
-| 🐛 Bug | Suspend and resume of a devbox will not work correctly at the moment, this will be fixed soon. |
+| 🐛 Bug | Suspend and resume of a devbox will not work correctly at the moment, this will be fixed soon.                                       |
 
 
 ## Modules
@@ -96,11 +96,13 @@ The SDK has two independent modules — pick the one that matches your agent's p
 ### Which module should I use?
 
 **Use the ACP module when:**
+
 - You want agent-agnostic code that works with multiple agents (OpenCode, Claude via ACP, future agents)
 - You need a standardized JSON-RPC 2.0 protocol
 - You want maximum compatibility and flexibility
 
 **Use the Claude module when:**
+
 - You're specifically using Claude Code
 - You want native Claude SDK message types
 - You need Claude-specific features
@@ -204,6 +206,7 @@ examples/
 ## Development
 
 **Prerequisites:**
+
 - [Node.js](https://nodejs.org) >= 22.0.0
 - [Bun](https://bun.sh) (package manager and task runner)
 
