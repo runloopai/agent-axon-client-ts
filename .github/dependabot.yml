@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: "weekly"
     commit-message:
-      prefix: "deps"
+      prefix: "chore(deps)"
     labels:
       - "dependencies"
 
@@ -14,7 +14,7 @@ updates:
     schedule:
       interval: "weekly"
     commit-message:
-      prefix: "deps"
+      prefix: "chore(deps)"
     labels:
       - "dependencies"
 
@@ -23,7 +23,7 @@ updates:
     schedule:
       interval: "weekly"
     commit-message:
-      prefix: "deps"
+      prefix: "chore(deps)"
     labels:
       - "dependencies"
 
@@ -32,7 +32,7 @@ updates:
     schedule:
       interval: "weekly"
     commit-message:
-      prefix: "deps"
+      prefix: "chore(deps)"
     labels:
       - "dependencies"
 
@@ -41,7 +41,7 @@ updates:
     schedule:
       interval: "weekly"
     commit-message:
-      prefix: "deps"
+      prefix: "chore(deps)"
     labels:
       - "dependencies"
 
@@ -50,6 +50,6 @@ updates:
     schedule:
       interval: "weekly"
     commit-message:
-      prefix: "ci"
+      prefix: "ci(deps)"
     labels:
       - "ci"
