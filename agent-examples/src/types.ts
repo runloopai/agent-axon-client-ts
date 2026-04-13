@@ -1,6 +1,6 @@
 import type { ACPAxonConnection } from "@runloop/agent-axon-client/acp";
 import type { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
-import type { Client, Agent, SessionUpdate } from "@agentclientprotocol/sdk";
+import type { Client, Agent } from "@agentclientprotocol/sdk";
 
 /**
  * Defines how to provision a specific agent.
@@ -27,19 +27,10 @@ export interface AgentConfig {
 }
 
 /**
- * Context provided to custom Client factories.
- */
-export interface ClientContext {
-  /** Log a message. */
-  log: (msg: string) => void;
-  /** Emit a session update to listeners. */
-  emitSessionUpdate: (params: { sessionId?: string; update: SessionUpdate }) => void;
-}
-
-/**
  * Factory function that creates a Client implementation.
+ * Matches the SDK's CreateClientFn signature directly.
  */
-export type CreateClientFn = (agent: Agent, ctx: ClientContext) => Client;
+export type CreateClientFn = (agent: Agent) => Client;
 
 /**
  * Defines a single compatibility test / use case.
@@ -65,6 +56,12 @@ export interface UseCase {
    * provide a factory that creates a custom Client implementation.
    */
   createClient?: CreateClientFn;
+
+  /**
+   * Client capabilities to advertise during ACP initialize.
+   * E.g., `{ elicitation: { form: {} } }` to enable elicitation.
+   */
+  clientCapabilities?: Record<string, unknown>;
 
   /**
    * The test body. Receives a fully initialized RunContext.

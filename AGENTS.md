@@ -1,11 +1,26 @@
 # AGENTS.md — agent-axon-client-ts monorepo
 
-> Repository-level reference for AI coding agents. For detailed SDK API docs see [`sdk/AGENTS.md`](sdk/AGENTS.md).
+> **Audience:** This file is intended for AI agents that are developing or maintaining code *in this repository*. It is not end-user documentation — it provides the conventions, tooling, and constraints an agent needs to work effectively in this monorepo.
+
+For detailed SDK API docs see [`sdk/AGENTS.md`](sdk/AGENTS.md).
+
+## Recipes for common SDK use cases
+
+The `agent-examples/` directory contains runnable recipes that demonstrate how to use `@runloop/agent-axon-client` for common scenarios. **Start with [`llms.txt`](llms.txt)** — it is the generated index of all available use cases, compatibility constraints, and implementation guidance. Use it to find the right recipe before writing new integration code from scratch.
+
+Workflow:
+
+1. Read `llms.txt` to identify which use case matches your task.
+2. Follow its pointers to the relevant file in `agent-examples/src/use-cases/`.
+3. Check `agent-examples/compatibility.md` if you need to verify protocol/agent support.
+
+The use-case list in `llms.txt` is auto-generated from `agent-examples/templates/llms.txt.template` and stays in sync with the latest SDK API.
 
 ## Repository layout
 
 ```
 sdk/                      → @runloop/agent-axon-client (published npm package)
+agent-examples/           → Runnable recipes for common SDK use cases (see above)
 examples/
   acp-hello-world/        → Minimal ACP single-prompt script
   acp-cli/                → Interactive ACP REPL

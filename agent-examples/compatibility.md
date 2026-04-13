@@ -7,12 +7,14 @@ SDK Version: 0.3.0
 
 | Use Case | ACP | Claude |
 |----------|-----|--------|
+| elicitation | pending | pending |
 | single-prompt | pass | pass |
 
 ## ACP Agent × Feature
 
 | Use Case | opencode |
 |----------|------------|
+| elicitation | pending |
 | single-prompt | pass |
 
 ---
@@ -21,5 +23,7 @@ SDK Version: 0.3.0
 
 | Agent | Use Case | Status | Duration | Notes |
 |-------|----------|--------|----------|-------|
+| opencode | elicitation | pending | - |  |
 | opencode | single-prompt | pass | 7.2s |  |
+| claude-code | elicitation | pending | - |  |
 | claude-code | single-prompt | pass | 6.6s |  |

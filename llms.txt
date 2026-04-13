@@ -16,6 +16,7 @@ This file is for generating code that uses `@runloop/agent-axon-client` and rela
 
 ## Use Cases
 
+- agent-examples/src/use-cases/elicitation.ts — Handle agent-initiated user input requests (acp + claude)
 - agent-examples/src/use-cases/single-prompt.ts — Send one prompt, receive text response (acp + claude)
 
 ## Compatibility Matrix

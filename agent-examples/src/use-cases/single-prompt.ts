@@ -1,29 +1,33 @@
+import { isAgentMessageChunk } from "@runloop/agent-axon-client/acp";
 import type { UseCase } from "../types.js";
-import {
-  collectAgentText,
-  assertAgentResponded,
-  collectMessages,
-  assertResultSuccess,
-  assertAssistantResponded,
-} from "../validator.js";
 
 const PROMPT = "Say hello world";
 
 /**
  * Single-prompt use case: send one prompt, receive a text response.
  * Tests the basic request/response flow for both ACP and Claude protocols.
+ *
+ * This example inlines SDK calls to show the actual API surface.
  */
 export default {
   name: "single-prompt",
   description: "Send one prompt, receive text response",
   protocols: ["acp", "claude"],
-  timeoutMs: 60_000,
+  timeoutMs: 10_000,
 
   async run(ctx) {
     if (ctx.acp) {
       ctx.log("Running ACP path...");
 
-      const { chunks, unsub } = collectAgentText(ctx.acp);
+      // Collect text chunks from session updates
+      const chunks: string[] = [];
+      const unsub = ctx.acp.onSessionUpdate((_sessionId, update) => {
+        if (isAgentMessageChunk(update)) {
+          if (update.content.type === "text" && update.content.text) {
+            chunks.push(update.content.text);
+          }
+        }
+      });
 
       ctx.log(`Sending prompt: "${PROMPT}"`);
       await ctx.acp.prompt({
@@ -34,7 +38,9 @@ export default {
       unsub();
 
       ctx.log(`Received ${chunks.length} text chunks`);
-      assertAgentResponded(chunks);
+      if (chunks.filter((c) => c.trim().length > 0).length === 0) {
+        throw new Error("Agent did not respond with any text");
+      }
 
       ctx.log("Pass: Agent responded with text");
     } else if (ctx.claude) {
@@ -43,12 +49,32 @@ export default {
       ctx.log(`Sending prompt: "${PROMPT}"`);
       await ctx.claude.send(PROMPT);
 
+      // Collect messages until the result
       ctx.log("Collecting messages...");
-      const messages = await collectMessages(ctx.claude);
+      let resultReceived = false;
+      let hasAssistantText = false;
 
-      ctx.log(`Received ${messages.length} messages`);
-      assertResultSuccess(messages);
-      assertAssistantResponded(messages);
+      for await (const msg of ctx.claude.receiveAgentResponse()) {
+        if (msg.type === "result") {
+          if (msg.is_error) {
+            throw new Error(`Result was an error: ${msg.subtype}`);
+          }
+          resultReceived = true;
+        }
+        if (msg.type === "assistant") {
+          const hasText = msg.message.content.some(
+            (block) => block.type === "text" && block.text.trim().length > 0,
+          );
+          if (hasText) hasAssistantText = true;
+        }
+      }
+
+      if (!resultReceived) {
+        throw new Error("No result message received");
+      }
+      if (!hasAssistantText) {
+        throw new Error("Assistant did not respond with any text");
+      }
 
       ctx.log("Pass: Agent responded with text");
     } else {

@@ -27,9 +27,7 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
 
   const mergedAgent = mergeOverrides(agent, useCase.provisionOverrides);
 
-  const logs: string[] = [];
   const log = (msg: string) => {
-    logs.push(`[${new Date().toISOString()}] ${msg}`);
     console.log(`[${agent.name}/${useCase.name}] ${msg}`);
   };
 
@@ -64,7 +62,9 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
   };
 
   if (mergedAgent.protocol === "acp") {
-    const conn = new ACPAxonConnection(axon, devbox);
+    const conn = new ACPAxonConnection(axon, devbox, {
+      createClient: useCase.createClient,
+    });
 
     log("Connecting (ACP)...");
     await conn.connect();
@@ -72,7 +72,8 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
     log("Initializing (ACP)...");
     await conn.initialize({
       protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "agent-examples", version: "0.0.0" },
+      clientInfo: { name: "agent-examples", version: "0.1.0" },
+      ...(useCase.clientCapabilities ? { clientCapabilities: useCase.clientCapabilities } : {}),
     });
 
     log("Creating session...");

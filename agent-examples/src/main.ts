@@ -58,7 +58,7 @@ Options:
   --protocol <proto>   Run only for this protocol: acp, claude (default: all)
   --use-case <name>    Run only this use case (default: all)
   --parallel <n>       Max concurrent devboxes (default: 5)
-  --timeout <ms>       Default timeout per use case (default: 30000)
+  --timeout <ms>       Default timeout per use case, capped at 10000 (default: 10000)
   --validate           Validate generated output without running (checks compatibility.md and llms.txt)
   --help               Show help
 
@@ -72,6 +72,7 @@ Examples:
 
 const DISCONNECT_TIMEOUT_MS = 10_000;
 const CLEANUP_TIMEOUT_MS = 30_000;
+const MAX_USE_CASE_TIMEOUT_MS = 10_000;
 
 async function runOne(
   agent: AgentConfig,
@@ -85,7 +86,10 @@ async function runOne(
     const { ctx: setupCtx } = await setup(agent, useCase);
     ctx = setupCtx;
 
-    const timeout = useCase.timeoutMs ?? defaultTimeout;
+    const timeout = Math.min(
+      useCase.timeoutMs ?? defaultTimeout,
+      MAX_USE_CASE_TIMEOUT_MS,
+    );
     await withTimeout(useCase.run(ctx), timeout, `${useCase.name} execution`);
 
     return {
@@ -381,7 +385,7 @@ async function main(): Promise<void> {
       protocol: { type: "string" },
       "use-case": { type: "string" },
       parallel: { type: "string", default: "5" },
-      timeout: { type: "string", default: "30000" },
+      timeout: { type: "string", default: "10000" },
       validate: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
