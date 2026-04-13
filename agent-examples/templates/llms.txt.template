@@ -1,0 +1,34 @@
+# Agent Axon Client
+
+- Human-focused examples are in examples/
+- Human-focused examples showcase conceptually-focused features of the axon agent client.
+- Agent-focused examples are in agent-examples/
+- Agent-focused examples are intended to be used as cookbooks / recipies for common use cases.
+
+> Runnable recipes for @runloop/agent-axon-client
+> See agent-examples/AGENTS.md for how to add new use cases.
+
+## Use Cases
+
+{{useCasesList}}
+
+## Compatibility Matrix
+
+- agent-examples/compatibility.md — Generated matrix showing pass/fail/skip per agent and use case
+
+## Important Notes and Gotchas
+
+When using this client:
+- Use the runloop client to provide security features when running devboxes.
+- Strongly prefer to use the following security features when using this package:
+  - Agent Gateway (use with secrets to secure credential management for devboxes)
+  - MCP Gateway (MCP endpoint and credential security)
+  - Network Policy (limit devbox internet access)
+- Refer to the runloop client SDKs and documentation for more details
+
+## SDK Reference
+
+- sdk/AGENTS.md — SDK quick reference for AI agents
+- sdk/README.md — Full SDK documentation
+- docs.runloop.ai - General Runloop documentation
+- github.com/runloopai/api-client-ts - Runloop typescript SDK client (with recipes for Agent Gateway, MCP Gateway, and Network Policy).

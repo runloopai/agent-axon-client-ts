@@ -8,12 +8,13 @@ import type { RunResult, AgentConfig, UseCase, RunContext } from "./types.js";
 import { SkipError } from "./types.js";
 import { AGENTS } from "./agents.js";
 import { USE_CASES } from "./use-cases/index.js";
-import { setup, teardown } from "./scaffold.js";
+import { setup, disconnect, cleanup } from "./scaffold.js";
 import { withTimeout } from "./validator.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../..");
 const AGENT_EXAMPLES_DIR = resolve(__dirname, "..");
+const TEMPLATES_DIR = resolve(AGENT_EXAMPLES_DIR, "templates");
 
 class Semaphore {
   private permits: number;
@@ -62,6 +63,9 @@ Examples:
 `);
 }
 
+const DISCONNECT_TIMEOUT_MS = 10_000;
+const CLEANUP_TIMEOUT_MS = 30_000;
+
 async function runOne(
   agent: AgentConfig,
   useCase: UseCase,
@@ -105,7 +109,16 @@ async function runOne(
     };
   } finally {
     if (ctx) {
-      await teardown(ctx);
+      try {
+        await withTimeout(disconnect(ctx), DISCONNECT_TIMEOUT_MS, "disconnect");
+      } catch (err) {
+        ctx.log(`Disconnect timeout/error (continuing): ${err instanceof Error ? err.message : String(err)}`);
+      }
+      try {
+        await withTimeout(cleanup(ctx), CLEANUP_TIMEOUT_MS, "cleanup (devbox shutdown)");
+      } catch (err) {
+        ctx.log(`Cleanup timeout/error (continuing): ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
   }
 }
@@ -140,24 +153,13 @@ function printResults(results: RunResult[]): void {
   console.log(`Total: ${results.length} | Passed: ${passed} | Failed: ${failed} | Skipped: ${skipped}`);
 }
 
-function generateCompatibilityMd(
-  results: RunResult[],
-  useCases: UseCase[],
-  agents: AgentConfig[],
-): string {
-  const timestamp = new Date().toISOString();
+async function loadTemplate(name: string): Promise<string> {
+  const templatePath = resolve(TEMPLATES_DIR, `${name}.template`);
+  return readFile(templatePath, "utf-8");
+}
 
-  let md = `# Agent Axon Client — Compatibility Matrix
-
-Generated: ${timestamp}
-SDK Version: 0.3.0
-
-## Protocol × Feature
-
-| Use Case | ACP | Claude |
-|----------|-----|--------|
-`;
-
+function buildProtocolFeatureRows(results: RunResult[], useCases: UseCase[]): string {
+  let rows = "";
   for (const uc of useCases) {
     const acpResult = results.find(
       (r) => r.useCase === uc.name && r.protocol === "acp",
@@ -173,80 +175,82 @@ SDK Version: 0.3.0
       ? claudeResult?.status ?? "pending"
       : "N/A";
 
-    md += `| ${uc.name} | ${acpStatus} | ${claudeStatus} |\n`;
+    rows += `| ${uc.name} | ${acpStatus} | ${claudeStatus} |\n`;
   }
+  return rows.trimEnd();
+}
 
-  md += `
-## ACP Agent × Feature
-
-| Use Case |`;
+function buildAcpAgentFeatureTable(
+  results: RunResult[],
+  useCases: UseCase[],
+  agents: AgentConfig[],
+): string {
   const acpAgents = agents.filter((a) => a.protocol === "acp");
+  if (acpAgents.length === 0) {
+    return "No ACP agents configured.";
+  }
+
+  let table = "| Use Case |";
   for (const agent of acpAgents) {
-    md += ` ${agent.name} |`;
+    table += ` ${agent.name} |`;
   }
-  md += "\n|----------|";
+  table += "\n|----------|";
   for (const _ of acpAgents) {
-    md += "------------|";
+    table += "------------|";
   }
-  md += "\n";
+  table += "\n";
 
   const acpUseCases = useCases.filter((uc) => uc.protocols.includes("acp"));
   for (const uc of acpUseCases) {
-    md += `| ${uc.name} |`;
+    table += `| ${uc.name} |`;
     for (const agent of acpAgents) {
       const result = results.find(
         (r) => r.useCase === uc.name && r.agent === agent.name,
       );
-      md += ` ${result?.status ?? "pending"} |`;
+      table += ` ${result?.status ?? "pending"} |`;
     }
-    md += "\n";
+    table += "\n";
   }
+  return table.trimEnd();
+}
 
-  md += `
----
-
-## Run Details
-
-| Agent | Use Case | Status | Duration | Notes |
-|-------|----------|--------|----------|-------|
-`;
-
+function buildRunDetailsRows(results: RunResult[]): string {
+  let rows = "";
   for (const r of results) {
     const duration = `${(r.durationMs / 1000).toFixed(1)}s`;
     const notes = r.error ?? r.reason ?? "";
-    md += `| ${r.agent} | ${r.useCase} | ${r.status} | ${duration} | ${notes} |\n`;
+    rows += `| ${r.agent} | ${r.useCase} | ${r.status} | ${duration} | ${notes} |\n`;
   }
-
-  return md;
+  return rows.trimEnd();
 }
 
-function generateLlmsTxt(useCases: UseCase[]): string {
-  let txt = `# Agent Axon Client — Use Case Examples
+async function generateCompatibilityMd(
+  results: RunResult[],
+  useCases: UseCase[],
+  agents: AgentConfig[],
+): Promise<string> {
+  const template = await loadTemplate("compatibility.md");
 
-> Runnable recipes for @runloop/agent-axon-client
-> See agent-examples/AGENTS.md for how to add new use cases.
+  return template
+    .replace("{{timestamp}}", new Date().toISOString())
+    .replace("{{sdkVersion}}", "0.3.0")
+    .replace("{{protocolFeatureRows}}", buildProtocolFeatureRows(results, useCases))
+    .replace("{{acpAgentFeatureTable}}", buildAcpAgentFeatureTable(results, useCases, agents))
+    .replace("{{runDetailsRows}}", buildRunDetailsRows(results));
+}
 
-## Use Cases
-
-`;
-
+function buildUseCasesList(useCases: UseCase[]): string {
+  let list = "";
   for (const uc of useCases) {
     const protocols = uc.protocols.join(" + ");
-    txt += `- agent-examples/src/use-cases/${uc.name}.ts — ${uc.description} (${protocols})\n`;
+    list += `- agent-examples/src/use-cases/${uc.name}.ts — ${uc.description} (${protocols})\n`;
   }
+  return list.trimEnd();
+}
 
-  txt += `
-## Compatibility Matrix
-
-- agent-examples/compatibility.md — Generated matrix showing pass/fail/skip per agent and use case
-
-## SDK Reference
-
-- sdk/AGENTS.md — SDK quick reference for AI agents
-- sdk/README.md — Full SDK documentation
-`;
-
-  return txt;
+async function generateLlmsTxt(useCases: UseCase[]): Promise<string> {
+  const template = await loadTemplate("llms.txt");
+  return template.replace("{{useCasesList}}", buildUseCasesList(useCases));
 }
 
 interface ValidationError {
@@ -404,11 +408,11 @@ async function main(): Promise<void> {
   printResults(results);
 
   console.log("\nGenerating compatibility.md...");
-  const compatMd = generateCompatibilityMd(results, USE_CASES, AGENTS);
+  const compatMd = await generateCompatibilityMd(results, USE_CASES, AGENTS);
   await writeFile(resolve(AGENT_EXAMPLES_DIR, "compatibility.md"), compatMd);
 
   console.log("Generating llms.txt...");
-  const llmsTxt = generateLlmsTxt(USE_CASES);
+  const llmsTxt = await generateLlmsTxt(USE_CASES);
   await writeFile(resolve(REPO_ROOT, "llms.txt"), llmsTxt);
 
   console.log("\nValidating output...");

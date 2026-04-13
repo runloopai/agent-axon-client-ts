@@ -23,17 +23,18 @@ export const AGENTS: AgentConfig[] = [
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
     },
   },
-  {
-    name: "claude-acp",
-    protocol: "acp",
-    blueprint: "runloop/agents",
-    mount: {
-      protocol: "acp",
-      agent_binary: "claude",
-      launch_args: ["acp"],
-    },
-    env: {
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
-    },
-  },
+  // TODO: claude-acp hangs during ACP initialization — investigate and re-enable
+  // {
+  //   name: "claude-acp",
+  //   protocol: "acp",
+  //   blueprint: "runloop/agents",
+  //   mount: {
+  //     protocol: "acp",
+  //     agent_binary: "claude",
+  //     launch_args: ["acp"],
+  //   },
+  //   env: {
+  //     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
+  //   },
+  // },
 ];

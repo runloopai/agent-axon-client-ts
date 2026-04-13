@@ -95,6 +95,12 @@ export interface RunContext {
 
   /** Skip this use case with a reason. Throws a SkipError internally. */
   skip: (reason: string) => never;
+
+  /**
+   * Cleanup callback that shuts down the devbox.
+   * Separated from connection disconnect so runner can timeout each phase independently.
+   */
+  cleanup: () => Promise<void>;
 }
 
 /**

@@ -61,13 +61,13 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
   });
   log(`Devbox ready: ${devbox.id}`);
 
+  const cleanup = async () => {
+    log("Shutting down devbox...");
+    await devbox.shutdown();
+  };
+
   if (mergedAgent.protocol === "acp") {
-    const conn = new ACPAxonConnection(axon, devbox, {
-      onDisconnect: async () => {
-        log("Disconnected, shutting down devbox...");
-        await devbox.shutdown();
-      },
-    });
+    const conn = new ACPAxonConnection(axon, devbox);
 
     log("Connecting (ACP)...");
     await conn.connect();
@@ -91,16 +91,12 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
       skip: (reason: string) => {
         throw new SkipError(reason);
       },
+      cleanup,
     };
 
     return { ctx, sdk };
   } else {
-    const conn = new ClaudeAxonConnection(axon, devbox, {
-      onDisconnect: async () => {
-        log("Disconnected, shutting down devbox...");
-        await devbox.shutdown();
-      },
-    });
+    const conn = new ClaudeAxonConnection(axon, devbox);
 
     log("Connecting (Claude)...");
     await conn.connect();
@@ -117,6 +113,7 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
       skip: (reason: string) => {
         throw new SkipError(reason);
       },
+      cleanup,
     };
 
     return { ctx, sdk };
@@ -124,20 +121,23 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
 }
 
 /**
- * Clean up resources after a use case run.
+ * Disconnect the connection (transport only, no devbox shutdown).
  */
-export async function teardown(ctx: RunContext): Promise<void> {
-  try {
-    if (ctx.acp) {
-      ctx.log("Disconnecting ACP...");
-      await ctx.acp.disconnect();
-    } else if (ctx.claude) {
-      ctx.log("Disconnecting Claude...");
-      await ctx.claude.disconnect();
-    }
-  } catch (err) {
-    ctx.log(`Teardown error (ignored): ${err instanceof Error ? err.message : String(err)}`);
+export async function disconnect(ctx: RunContext): Promise<void> {
+  if (ctx.acp) {
+    ctx.log("Disconnecting ACP...");
+    await ctx.acp.disconnect();
+  } else if (ctx.claude) {
+    ctx.log("Disconnecting Claude...");
+    await ctx.claude.disconnect();
   }
+}
+
+/**
+ * Shut down the devbox.
+ */
+export async function cleanup(ctx: RunContext): Promise<void> {
+  await ctx.cleanup();
 }
 
 function mergeOverrides(
