@@ -67,9 +67,9 @@ export function tryParseTimelinePayload<T = unknown>(event: {
   try {
     return JSON.parse(raw) as T;
   } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
     console.warn(
-      `[tryParseTimelinePayload] Failed to parse JSON payload for event_type="${axonEvent.event_type}" sequence=${String(axonEvent.sequence)}:`,
-      err,
+      `[tryParseTimelinePayload] Failed to parse JSON payload for event_type="${axonEvent.event_type}" sequence=${String(axonEvent.sequence)}: ${reason}`,
     );
     return null;
   }

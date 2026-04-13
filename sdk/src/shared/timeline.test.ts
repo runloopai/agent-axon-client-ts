@@ -78,6 +78,7 @@ describe("tryParseSystemEvent", () => {
   });
 
   it("parses broker.error falling back to stringified payload", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const ev = makeAxonEvent({
       event_type: "broker.error",
       payload: "raw error string",
@@ -86,6 +87,8 @@ describe("tryParseSystemEvent", () => {
       type: "broker.error",
       message: "raw error string",
     });
+    expect(warnSpy).toHaveBeenCalledOnce();
+    warnSpy.mockRestore();
   });
 
   it("parses broker.error with JSON object missing message key", () => {
@@ -101,11 +104,14 @@ describe("tryParseSystemEvent", () => {
   });
 
   it("returns null for invalid JSON on turn events", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const ev = makeAxonEvent({
       event_type: "turn.started",
       payload: "not json",
     });
     expect(tryParseSystemEvent(ev)).toBeNull();
+    expect(warnSpy).toHaveBeenCalledOnce();
+    warnSpy.mockRestore();
   });
 
   it("returns null for unrecognized event_type", () => {
