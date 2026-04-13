@@ -52,11 +52,7 @@ const devbox = await sdk.devbox.create({
     },
   ],
 });
-// Constructor is lightweight — no SSE connection until connect() is called.
-// connect() opens the SSE stream and replays all events from the beginning
-// of the Axon channel by default (replay: true). Pass afterSequence to skip
-// already-seen events.
-// Shut down the devbox when we're finished using the axon.
+
 const agent = new ACPAxonConnection(axon, devbox, {
   onDisconnect: async () => {
     await devbox.shutdown();

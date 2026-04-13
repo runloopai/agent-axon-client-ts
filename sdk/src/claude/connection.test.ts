@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vite
 import { makeFullAxonEvent } from "../__test-utils__/mock-axon.js";
 import { SystemError } from "../shared/errors/system-error.js";
 import {
-  ClaudeAxonConnection,
   classifyClaudeAxonEvent,
   isClaudeProtocolEventType,
-} from "./connection.js";
+} from "./classify-claude-axon-event.js";
+import { ClaudeAxonConnection } from "./connection.js";
 import type { Transport } from "./transport.js";
 import type { ClaudeTimelineEvent, WireData } from "./types.js";
 

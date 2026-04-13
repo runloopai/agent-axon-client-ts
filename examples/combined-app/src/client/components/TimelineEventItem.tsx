@@ -20,7 +20,7 @@ import type {
   SDKResultMessage,
   SDKSystemMessage,
 } from "@runloop/agent-axon-client/claude";
-import type { TimelineEvent } from "../types.js";
+import type { AgentStartedPayload, TimelineEvent } from "../types.js";
 import { PayloadTree, formatTime, originLabel, originBadgeClass } from "./shared.js";
 
 type TimelineKind = "system" | "acp_protocol" | "claude_protocol" | "unknown";
@@ -149,8 +149,8 @@ function summarizeTimelineEvent(event: TimelineEvent): TimelineSummary {
     case "unknown": {
       const eventType = event.axonEvent.event_type;
       if (eventType === "agent_started") {
-        const cfg = tryParseTimelinePayload<Record<string, unknown>>({ axonEvent: event.axonEvent });
-        const agentType = (cfg?.agentType as string) ?? "";
+        const cfg = tryParseTimelinePayload<AgentStartedPayload>({ axonEvent: event.axonEvent });
+        const agentType = cfg?.agentType ?? "";
         return { icon: "\u2699\uFE0F", label: "Agent Started", summary: agentType, kindClass: "kind-custom" };
       }
       return { icon: "\u2753", label: eventType, summary: "unclassified", kindClass: "kind-unknown" };
@@ -185,13 +185,13 @@ function kindBadgeClass(kind: TimelineKind, custom: boolean): string {
 }
 
 function AgentConfigDetail({ event }: { event: TimelineEvent }) {
-  const cfg = tryParseTimelinePayload<Record<string, unknown>>({ axonEvent: event.axonEvent });
+  const cfg = tryParseTimelinePayload<AgentStartedPayload>({ axonEvent: event.axonEvent });
   if (!cfg) return <PayloadTree data={null} />;
 
   const entries: Array<[string, string]> = [];
-  if (cfg.agentType) entries.push(["Agent Type", String(cfg.agentType)]);
-  if (cfg.agentId) entries.push(["Agent ID", String(cfg.agentId)]);
-  if (cfg.model) entries.push(["Model", String(cfg.model)]);
+  if (cfg.agentType) entries.push(["Agent Type", cfg.agentType]);
+  if (cfg.agentId) entries.push(["Agent ID", cfg.agentId]);
+  if (cfg.model) entries.push(["Model", cfg.model]);
   if (cfg.agentBinary) entries.push(["Agent Binary", String(cfg.agentBinary)]);
   if (cfg.blueprintName) entries.push(["Blueprint", String(cfg.blueprintName)]);
   if (cfg.systemPrompt) entries.push(["System Prompt", String(cfg.systemPrompt)]);

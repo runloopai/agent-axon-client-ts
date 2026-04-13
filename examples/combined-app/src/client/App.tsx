@@ -5,7 +5,7 @@ import {
   useCallback,
   type KeyboardEvent,
 } from "react";
-import type { AgentType, AgentConfigItem, AvailableCommand, AxonEventView, UserAttachment } from "./types.js";
+import type { AgentType, AgentConfigItem, AgentStartedPayload, AvailableCommand, AxonEventView, UserAttachment } from "./types.js";
 import { useAgent } from "./hooks/useAgent.js";
 import { useAgentList } from "./hooks/useAgentList.js";
 import { useAttachments } from "./hooks/useAttachments.js";
@@ -65,7 +65,7 @@ function formatConfigValue(val: unknown): string {
   return String(val);
 }
 
-function buildConfigEntries(cfg: Record<string, unknown>): Array<[string, string]> {
+function buildConfigEntries(cfg: AgentStartedPayload): Array<[string, string]> {
   const entries: Array<[string, string]> = [];
   const seen = new Set<string>();
 

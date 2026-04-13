@@ -80,13 +80,15 @@ export {
   extractClaudeUserMessage,
 } from "../shared/user-message.js";
 export {
+  classifyClaudeAxonEvent,
+  isClaudeProtocolEventType,
+} from "./classify-claude-axon-event.js";
+export {
   ClaudeAxonConnection,
   type ClaudeAxonConnectionOptions,
   type ControlRequestHandler,
   type ControlRequestInner,
   type ControlRequestOfSubtype,
-  classifyClaudeAxonEvent,
-  isClaudeProtocolEventType,
 } from "./connection.js";
 export {
   AxonTransport,

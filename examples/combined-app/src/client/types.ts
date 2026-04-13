@@ -228,11 +228,25 @@ export interface ChatMessage {
   durationMs?: number;
 }
 
+export interface AgentStartedPayload {
+  agentType: string;
+  agentId: string;
+  model?: string;
+  agentBinary?: string;
+  blueprintName?: string;
+  launchArgs?: string[];
+  launchCommands?: string[];
+  systemPrompt?: string;
+  autoApprovePermissions?: boolean;
+  dangerouslySkipPermissions?: boolean;
+  [key: string]: unknown;
+}
+
 export interface AgentConfigItem {
   id: string;
   role: "system";
   itemType: "agent_started";
-  config: Record<string, unknown>;
+  config: AgentStartedPayload;
 }
 
 export type ChatItem = ChatMessage | AgentConfigItem;

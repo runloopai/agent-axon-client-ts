@@ -17,7 +17,6 @@ import { SystemError } from "../shared/errors/system-error.js";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
 import { makeDefaultOnError, makeLogger } from "../shared/logging.js";
-import { createClassifier } from "../shared/timeline.js";
 import { timelineEventGenerator } from "../shared/timeline-generator.js";
 import type {
   AxonEventListener,
@@ -25,8 +24,9 @@ import type {
   LogFn,
   TimelineEventListener,
 } from "../shared/types.js";
-import { AxonTransport, MESSAGE_TYPE_TO_EVENT_TYPE, type Transport } from "./transport.js";
-import type { ClaudeProtocolTimelineEvent, ClaudeTimelineEvent, WireData } from "./types.js";
+import { classifyClaudeAxonEvent } from "./classify-claude-axon-event.js";
+import { AxonTransport, type Transport } from "./transport.js";
+import type { ClaudeTimelineEvent, WireData } from "./types.js";
 
 /** The inner request payload — discriminated by `subtype`. */
 export type ControlRequestInner = SDKControlRequest["request"];
@@ -1070,47 +1070,3 @@ export class ClaudeAxonConnection {
     };
   }
 }
-
-// ---------------------------------------------------------------------------
-// Timeline event classification
-// ---------------------------------------------------------------------------
-
-const CLAUDE_KNOWN_EVENT_TYPES: Set<string> = new Set([
-  ...Object.keys(MESSAGE_TYPE_TO_EVENT_TYPE),
-  ...Object.values(MESSAGE_TYPE_TO_EVENT_TYPE),
-]);
-
-/**
- * Returns `true` if `eventType` is a known Claude protocol event type.
- *
- * @category Timeline
- */
-export function isClaudeProtocolEventType(eventType: string): boolean {
-  return CLAUDE_KNOWN_EVENT_TYPES.has(eventType);
-}
-
-/**
- * Classifies a raw Axon event into a {@link ClaudeTimelineEvent}.
- *
- * Classification rules:
- * 1. `SYSTEM_EVENT` with `turn.started` / `turn.completed` / `broker.error` -> `system`
- * 2. Known Claude protocol `event_type` -> `claude_protocol` with `eventType` discriminator
- * 3. Everything else -> `unknown`
- *
- * @category Timeline
- */
-export const classifyClaudeAxonEvent = createClassifier<ClaudeProtocolTimelineEvent>({
-  label: "classifyClaudeAxonEvent",
-  isProtocolEventType: isClaudeProtocolEventType,
-  toProtocolEvent: (data, ev) => {
-    if (data && typeof data === "object" && "type" in data) {
-      return {
-        kind: "claude_protocol",
-        eventType: ev.event_type,
-        data,
-        axonEvent: ev,
-      } as ClaudeProtocolTimelineEvent;
-    }
-    return null;
-  },
-});

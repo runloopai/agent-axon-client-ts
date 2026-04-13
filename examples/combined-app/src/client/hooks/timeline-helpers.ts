@@ -1,5 +1,5 @@
 import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
-import type { TimelineEvent, AgentConfigItem, UserAttachment } from "../types.js";
+import type { TimelineEvent, AgentConfigItem, AgentStartedPayload, UserAttachment } from "../types.js";
 
 /**
  * Returns `true` when the timeline event is a custom `agent_started` event
@@ -17,7 +17,11 @@ export function isAgentStartedEvent(
  */
 export function buildAgentConfigItem(event: TimelineEvent): AgentConfigItem | null {
   if (!isAgentStartedEvent(event)) return null;
-  const config = tryParseTimelinePayload<Record<string, unknown>>({ axonEvent: event.axonEvent }) ?? {};
+  const parsed = tryParseTimelinePayload<AgentStartedPayload>({ axonEvent: event.axonEvent });
+  if (!parsed || typeof parsed !== "object" || typeof parsed.agentType !== "string" || typeof parsed.agentId !== "string") {
+    return null;
+  }
+  const config: AgentStartedPayload = parsed;
   return {
     id: `config-${event.axonEvent.sequence}`,
     role: "system",

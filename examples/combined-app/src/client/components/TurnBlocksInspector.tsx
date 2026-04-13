@@ -267,7 +267,7 @@ const STOP_REASON_LABELS: Record<string, string> = {
 };
 
 function ConfigItemGroup({ item }: { item: AgentConfigItem }) {
-  const agentType = (item.config.agentType as string) ?? "agent";
+  const agentType = item.config.agentType ?? "agent";
   return (
     <div className="tbi-message-group tbi-system">
       <div className="tbi-message-header">
