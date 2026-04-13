@@ -5,6 +5,9 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
 
+permissions:
+  statuses: write
+
 jobs:
   trigger-smoke-tests:
     if: startsWith(github.head_ref, 'release-please--branches--main')
@@ -13,7 +16,6 @@ jobs:
       - name: Set pending commit status
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.SMOKE_TEST_PAT }}
           script: |
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
