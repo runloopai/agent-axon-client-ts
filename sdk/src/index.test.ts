@@ -45,4 +45,9 @@ describe("root exports", () => {
   it("shared namespace contains SystemError", () => {
     expect(SDK.shared.SystemError).toBeDefined();
   });
+
+  it("shared namespace contains ConnectionStateError", () => {
+    expect(SDK.shared.ConnectionStateError).toBeDefined();
+    expect(SDK.shared.isConnectionStateError).toBeDefined();
+  });
 });

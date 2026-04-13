@@ -12,6 +12,7 @@ import type {
 } from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { resolveReplayTarget } from "../shared/connect-guards.js";
+import { ConnectionStateError } from "../shared/errors/connection-state-error.js";
 import { SystemError } from "../shared/errors/system-error.js";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
@@ -284,19 +285,22 @@ export class ClaudeAxonConnection {
    * without invoking handlers. Unresolved control requests are
    * dispatched to handlers after replay completes.
    *
-   * @throws If this instance has already been disconnected (connections
-   *   are single-use — create a new instance instead).
-   * @throws If the transport is already connected.
+   * @throws {ConnectionStateError} If this instance has already been disconnected (`code: "disposed"`).
+   * @throws {ConnectionStateError} If the transport is already connected (`code: "already_connected"`).
    * @throws If both `replay` and `afterSequence` are set.
    */
   async connect(): Promise<void> {
     if (this.closed) {
-      throw new Error(
+      throw new ConnectionStateError(
+        "disposed",
         "This ClaudeAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
       );
     }
     if (this.readLoopRunning) {
-      throw new Error("Already connected. Call disconnect() before reconnecting.");
+      throw new ConnectionStateError(
+        "already_connected",
+        "Already connected. Call disconnect() before reconnecting.",
+      );
     }
 
     const replayTargetSequence = await resolveReplayTarget(this.axon, this.options, this.log);
@@ -323,22 +327,28 @@ export class ClaudeAxonConnection {
    *
    * You must call {@link connect} before calling this method.
    *
-   * @throws If this instance has already been disconnected.
-   * @throws If {@link connect} has not been called yet.
-   * @throws If the handshake has already completed. Call `disconnect()`
-   *   before reinitializing.
+   * @throws {ConnectionStateError} If this instance has already been disconnected (`code: "disposed"`).
+   * @throws {ConnectionStateError} If {@link connect} has not been called yet (`code: "not_connected"`).
+   * @throws {ConnectionStateError} If the handshake has already completed (`code: "already_initialized"`).
    */
   async initialize(): Promise<void> {
     if (this.closed) {
-      throw new Error(
+      throw new ConnectionStateError(
+        "disposed",
         "This ClaudeAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
       );
     }
     if (!this.readLoopRunning) {
-      throw new Error("Not connected. Call connect() before initialize().");
+      throw new ConnectionStateError(
+        "not_connected",
+        "Not connected. Call connect() before initialize().",
+      );
     }
     if (this.handshakeComplete) {
-      throw new Error("Already initialized. Call disconnect() before reinitializing.");
+      throw new ConnectionStateError(
+        "already_initialized",
+        "Already initialized. Call disconnect() before reinitializing.",
+      );
     }
 
     await this.sendInitialize();
@@ -802,6 +812,8 @@ export class ClaudeAxonConnection {
    *
    * @param prompt - A string message or a fully formed `SDKUserMessage`.
    *
+   * @throws {ConnectionStateError} If disconnected (`code: "disposed"`) or not connected (`code: "not_connected"`).
+   *
    * @example
    * ```ts
    * await conn.send("What files are in this directory?");
@@ -809,10 +821,16 @@ export class ClaudeAxonConnection {
    */
   async send(prompt: string | SDKUserMessage): Promise<void> {
     if (this.closed) {
-      throw new Error("Connection is disconnected. Cannot send messages.");
+      throw new ConnectionStateError(
+        "disposed",
+        "Connection is disconnected. Cannot send messages.",
+      );
     }
     if (!this.readLoopRunning) {
-      throw new Error("Connection is not connected. Call connect() or initialize() first.");
+      throw new ConnectionStateError(
+        "not_connected",
+        "Connection is not connected. Call connect() or initialize() first.",
+      );
     }
     const message: SDKUserMessage =
       typeof prompt === "string"

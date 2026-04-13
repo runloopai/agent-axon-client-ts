@@ -11,6 +11,11 @@
  */
 
 export { resolveReplayTarget } from "./connect-guards.js";
+export {
+  ConnectionStateError,
+  type ConnectionStateErrorCode,
+  isConnectionStateError,
+} from "./errors/connection-state-error.js";
 export { InitializationError } from "./errors/initialization-error.js";
 export { SystemError, type SystemErrorEventInfo } from "./errors/system-error.js";
 export { runDisconnectHook } from "./lifecycle.js";

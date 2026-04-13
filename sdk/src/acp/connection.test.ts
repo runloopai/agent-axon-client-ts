@@ -8,6 +8,7 @@ import {
   makeFullAxonEvent,
   makeSystemEvent,
 } from "../__test-utils__/mock-axon.js";
+import { ConnectionStateError } from "../shared/errors/connection-state-error.js";
 import { InitializationError } from "../shared/errors/initialization-error.js";
 import { ACPAxonConnection, classifyACPAxonEvent, isACPProtocolEventType } from "./connection.js";
 import type { ACPTimelineEvent } from "./types.js";
@@ -814,17 +815,29 @@ describe("ACPAxonConnection", () => {
 
       await conn.disconnect();
 
-      await expect(conn.initialize({} as never)).rejects.toThrow("disconnected");
-      expect(() => conn.newSession({} as never)).toThrow("disconnected");
-      expect(() => conn.loadSession({} as never)).toThrow("disconnected");
-      expect(() => conn.listSessions({} as never)).toThrow("disconnected");
-      expect(() => conn.prompt({} as never)).toThrow("disconnected");
-      expect(() => conn.cancel({} as never)).toThrow("disconnected");
-      expect(() => conn.authenticate({} as never)).toThrow("disconnected");
-      expect(() => conn.setSessionMode({} as never)).toThrow("disconnected");
-      expect(() => conn.setSessionConfigOption({} as never)).toThrow("disconnected");
-      expect(() => conn.extMethod("x", {})).toThrow("disconnected");
-      expect(() => conn.extNotification("x", {})).toThrow("disconnected");
+      await expect(conn.initialize({} as never)).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "disposed",
+      });
+      const expectDisposedSync = (fn: () => unknown) => {
+        try {
+          fn();
+          expect.fail("expected ConnectionStateError");
+        } catch (e) {
+          expect(e).toBeInstanceOf(ConnectionStateError);
+          expect((e as ConnectionStateError).code).toBe("disposed");
+        }
+      };
+      expectDisposedSync(() => conn.newSession({} as never));
+      expectDisposedSync(() => conn.loadSession({} as never));
+      expectDisposedSync(() => conn.listSessions({} as never));
+      expectDisposedSync(() => conn.prompt({} as never));
+      expectDisposedSync(() => conn.cancel({} as never));
+      expectDisposedSync(() => conn.authenticate({} as never));
+      expectDisposedSync(() => conn.setSessionMode({} as never));
+      expectDisposedSync(() => conn.setSessionConfigOption({} as never));
+      expectDisposedSync(() => conn.extMethod("x", {}));
+      expectDisposedSync(() => conn.extNotification("x", {}));
     });
   });
 

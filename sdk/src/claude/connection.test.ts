@@ -211,7 +211,10 @@ describe("ClaudeAxonConnection", () => {
       const conn = await createConnectedClient(transport);
       await conn.disconnect();
 
-      await expect(conn.initialize()).rejects.toThrow("already been disconnected");
+      await expect(conn.initialize()).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "disposed",
+      });
     });
   });
 
@@ -680,18 +683,27 @@ describe("ClaudeAxonConnection", () => {
   describe("connect() / initialize() guards", () => {
     it("throws if connect() is called while already connected", async () => {
       const conn = await createConnectedClient(transport);
-      await expect(conn.connect()).rejects.toThrow("Already connected");
+      await expect(conn.connect()).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "already_connected",
+      });
     });
 
     it("throws if initialize() is called while already initialized", async () => {
       const conn = await createConnectedClient(transport);
-      await expect(conn.initialize()).rejects.toThrow("Already initialized");
+      await expect(conn.initialize()).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "already_initialized",
+      });
     });
 
     it("connect() throws on a disconnected instance", async () => {
       const conn = await createConnectedClient(transport);
       await conn.disconnect();
-      await expect(conn.connect()).rejects.toThrow("already been disconnected");
+      await expect(conn.connect()).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "disposed",
+      });
     });
 
     it("connect() alone does not complete the handshake", async () => {
@@ -714,7 +726,10 @@ describe("ClaudeAxonConnection", () => {
       });
       (conn as unknown as { transport: MockTransport }).transport = transport;
 
-      await expect(conn.initialize()).rejects.toThrow("Not connected. Call connect()");
+      await expect(conn.initialize()).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "not_connected",
+      });
     });
   });
 

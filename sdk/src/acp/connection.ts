@@ -31,6 +31,7 @@ import type {
 } from "@runloop/api-client/resources/axons";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import { resolveReplayTarget } from "../shared/connect-guards.js";
+import { ConnectionStateError } from "../shared/errors/connection-state-error.js";
 import { InitializationError } from "../shared/errors/initialization-error.js";
 import { runDisconnectHook } from "../shared/lifecycle.js";
 import { ListenerSet } from "../shared/listener-set.js";
@@ -97,7 +98,7 @@ export class ACPAxonConnection {
    */
   get protocol(): ClientSideConnection {
     if (!this._protocol) {
-      throw new Error("Not connected. Call connect() first.");
+      throw new ConnectionStateError("not_connected", "Not connected. Call connect() first.");
     }
     return this._protocol;
   }
@@ -175,18 +176,22 @@ export class ACPAxonConnection {
    * without invoking handlers. Unresolved permission requests are
    * dispatched to handlers after replay completes.
    *
-   * @throws If this instance has already been disconnected.
-   * @throws If already connected.
+   * @throws {ConnectionStateError} If this instance has already been disconnected (`code: "disposed"`).
+   * @throws {ConnectionStateError} If already connected (`code: "already_connected"`).
    * @throws If both `replay` and `afterSequence` are set.
    */
   async connect(): Promise<void> {
     if (this.disconnected) {
-      throw new Error(
+      throw new ConnectionStateError(
+        "disposed",
         "This ACPAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
       );
     }
     if (this.connected) {
-      throw new Error("Already connected. Call disconnect() before reconnecting.");
+      throw new ConnectionStateError(
+        "already_connected",
+        "Already connected. Call disconnect() before reconnecting.",
+      );
     }
 
     const replayTargetSequence = await resolveReplayTarget(this.axon, this.options, this.log);
@@ -216,10 +221,13 @@ export class ACPAxonConnection {
 
   private ensureConnected(): void {
     if (this.disconnected) {
-      throw new Error("Connection is disconnected. Create a new instance.");
+      throw new ConnectionStateError(
+        "disposed",
+        "Connection is disconnected. Create a new instance.",
+      );
     }
     if (!this.connected) {
-      throw new Error("Not connected. Call connect() first.");
+      throw new ConnectionStateError("not_connected", "Not connected. Call connect() first.");
     }
   }
 
