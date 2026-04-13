@@ -774,17 +774,18 @@ describe("ClaudeAxonConnection", () => {
     });
 
     it("connect() throws terminated after a fatal broker SystemError", async () => {
-      const conn = await createConnectedClient(transport);
-      transport._throw(
-        new SystemError("agent failed: agent binary 'bad_binary' not found on PATH", {
-          event_type: "broker.error",
-        }),
-      );
+      const onError = vi.fn();
+      const conn = await createConnectedClient(transport, { onError });
+      const fatal = new SystemError("agent failed: agent binary 'bad_binary' not found on PATH", {
+        event_type: "broker.error",
+      });
+      transport._throw(fatal);
       await new Promise((r) => setTimeout(r, 80));
       await expect(conn.connect()).rejects.toMatchObject({
         name: "ConnectionStateError",
         code: "terminated",
       });
+      expect(onError).toHaveBeenCalledWith(fatal);
     });
   });
 
