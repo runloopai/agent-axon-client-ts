@@ -1,0 +1,17 @@
+# Agent Axon Client — Use Case Examples
+
+> Runnable recipes for @runloop/agent-axon-client
+> See agent-examples/AGENTS.md for how to add new use cases.
+
+## Use Cases
+
+- agent-examples/src/use-cases/single-prompt.ts — Send one prompt, receive text response (acp + claude)
+
+## Compatibility Matrix
+
+- agent-examples/compatibility.md — Generated matrix showing pass/fail/skip per agent and use case
+
+## SDK Reference
+
+- sdk/AGENTS.md — SDK quick reference for AI agents
+- sdk/README.md — Full SDK documentation

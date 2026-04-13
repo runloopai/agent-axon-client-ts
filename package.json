@@ -12,7 +12,8 @@
   "license": "MIT",
   "workspaces": [
     "sdk",
-    "examples/*"
+    "examples/*",
+    "agent-examples"
   ],
   "scripts": {
     "typecheck": "bun run --filter '@runloop/agent-axon-client' typecheck",
@@ -22,7 +23,8 @@
     "check": "bun run --filter '@runloop/agent-axon-client' check",
     "check:fix": "bun run --filter '@runloop/agent-axon-client' check:fix",
     "clean": "rm -rf sdk/dist",
-    "prepare": "husky"
+    "prepare": "husky",
+    "compat": "bun run --filter 'agent-examples' compat"
   },
   "devDependencies": {
     "husky": "^9.1.7"
