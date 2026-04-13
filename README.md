@@ -1,9 +1,9 @@
 # @runloop/agent-axon-client
 
-[CI](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml)
-[npm](https://www.npmjs.com/package/@runloop/agent-axon-client)
-[codecov](https://codecov.io/gh/runloopai/agent-axon-client-ts)
-[License: MIT](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@runloop/agent-axon-client)](https://www.npmjs.com/package/@runloop/agent-axon-client)
+[![codecov](https://codecov.io/gh/runloopai/agent-axon-client-ts/branch/main/graph/badge.svg)](https://codecov.io/gh/runloopai/agent-axon-client-ts)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **Alpha — subject to change.** This SDK is in early development. APIs, interfaces, and behavior may change without notice between versions.
 
@@ -186,6 +186,96 @@ for await (const msg of conn.receiveResponse()) {
 
 await conn.disconnect();
 ```
+
+### Timeline events
+
+Both modules provide a unified timeline event stream — the recommended way to build chat UIs that need a single chronological view of protocol messages, system events (turn start/end), and custom events.
+
+Every timeline event has `{ kind, data, axonEvent }` where `kind` is a discriminant (`"acp_protocol"` / `"claude_protocol"`, `"system"`, or `"unknown"`), `data` is the typed payload, and `axonEvent` is the raw Axon event with full metadata.
+
+**ACP — handling protocol events:**
+
+```typescript
+import { SYSTEM_EVENT_TYPES } from "@runloop/agent-axon-client/shared";
+import {
+  isAgentMessageChunk,
+  isToolCall,
+  isToolCallProgress,
+} from "@runloop/agent-axon-client/acp";
+
+agent.onTimelineEvent((event) => {
+  switch (event.kind) {
+    case "acp_protocol":
+      if (event.eventType === "session/update") {
+        const update = event.data.update;
+        if (isAgentMessageChunk(update)) {
+          process.stdout.write(update.text);
+        } else if (isToolCall(update)) {
+          console.log(`Tool: ${update.name} (${update.status})`);
+        } else if (isToolCallProgress(update)) {
+          console.log(`Tool output: ${update.content}`);
+        }
+      }
+      break;
+    case "unknown":
+      console.log(
+        `Unrecognized event: ${event.axonEvent.event_type}`,
+        event.axonEvent.payload,
+      );
+      break;
+  }
+});
+```
+
+**Claude:**
+
+```typescript
+conn.onTimelineEvent((event) => {
+  switch (event.kind) {
+    case "claude_protocol":
+      if (event.eventType === "assistant") {
+        process.stdout.write(event.data.content);
+      } else if (event.eventType === "result") {
+        console.log("Result:", event.data.content);
+      }
+      break;
+    case "unknown":
+      break;
+  }
+});
+```
+
+**Custom events** — use `publish()` to push your own events to the channel. They arrive as `kind: "unknown"` timeline events:
+
+```typescript
+import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
+
+// Publish a custom event
+await conn.publish({
+  event_type: "build_status",
+  origin: "EXTERNAL_EVENT",
+  source: "ci-pipeline",
+  payload: JSON.stringify({ step: "compile", progress: 75 }),
+});
+
+// Consume it on the other side
+conn.onTimelineEvent((event) => {
+  if (event.kind === "unknown" && event.axonEvent.event_type === "build_status") {
+    const status = tryParseTimelinePayload<{ step: string; progress: number }>(event);
+    if (status) console.log(`${status.step}: ${status.progress}%`);
+  }
+});
+```
+
+Both modules also support pull-based consumption via an async generator:
+
+```typescript
+for await (const event of agent.receiveTimelineEvents()) {
+  console.log(event.kind, event.data);
+}
+```
+
+See the [SDK documentation](sdk/README.md#custom-events-via-publish-and-tryparsetimelinepayload) for more on custom events, and the [full timeline API reference](sdk/README.md#timeline-events) for replay behavior and `afterSequence`.
 
 See the [SDK documentation](sdk/README.md) for the full API reference.
 
