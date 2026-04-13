@@ -32,10 +32,6 @@ interface TimelineSummary {
   kindClass: string;
 }
 
-function hasEventType(event: TimelineEvent): event is TimelineEvent & { eventType: string } {
-  return "eventType" in event;
-}
-
 function summarizeACPProtocol(event: ACPProtocolTimelineEvent): TimelineSummary {
   const isUser = event.axonEvent.origin === "USER_EVENT";
 
@@ -257,7 +253,7 @@ export function TimelineEventItem({
               <span className="axon-detail-meta-key">kind</span>
               <span className="axon-detail-meta-val">{custom ? "agent_started" : event.kind}</span>
             </div>
-            {hasEventType(event) && (
+            {(event.kind === "acp_protocol" || event.kind === "claude_protocol") && (
               <div className="axon-detail-meta-item">
                 <span className="axon-detail-meta-key">eventType</span>
                 <span className="axon-detail-meta-val">{event.eventType}</span>
