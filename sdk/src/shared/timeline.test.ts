@@ -13,9 +13,18 @@ describe("tryParseTimelinePayload", () => {
     expect(tryParseTimelinePayload({ axonEvent: ev })).toEqual({ key: "value" });
   });
 
-  it("returns null for invalid JSON", () => {
-    const ev = makeAxonEvent({ payload: "not json" });
+  it("returns null for invalid JSON and logs a warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ev = makeAxonEvent({
+      payload: "not json",
+      event_type: "custom.bad",
+      sequence: 99,
+    });
     expect(tryParseTimelinePayload({ axonEvent: ev })).toBeNull();
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(String(warnSpy.mock.calls[0]?.[0])).toContain("custom.bad");
+    expect(String(warnSpy.mock.calls[0]?.[0])).toContain("sequence=99");
+    warnSpy.mockRestore();
   });
 
   it("returns null for undefined payload", () => {

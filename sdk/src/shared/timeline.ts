@@ -53,6 +53,8 @@ interface BrokerErrorPayload {
 /**
  * Attempts to parse the JSON payload from an Axon event.
  * Returns `null` if the payload is missing or not valid JSON.
+ * Invalid JSON string payloads are logged with {@link console.warn} (includes
+ * `event_type` and `sequence` from the Axon event for correlation).
  *
  * @category Timeline
  */
@@ -61,9 +63,14 @@ export function tryParseTimelinePayload<T = unknown>(event: {
 }): T | null {
   const raw = event.axonEvent.payload;
   if (typeof raw !== "string") return (raw as T) ?? null;
+  const { axonEvent } = event;
   try {
     return JSON.parse(raw) as T;
-  } catch {
+  } catch (err) {
+    console.warn(
+      `[tryParseTimelinePayload] Failed to parse JSON payload for event_type="${axonEvent.event_type}" sequence=${String(axonEvent.sequence)}:`,
+      err,
+    );
     return null;
   }
 }

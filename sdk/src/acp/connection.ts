@@ -222,8 +222,11 @@ export class ACPAxonConnection {
   // ---------------------------------------------------------------------------
 
   /**
-   * Establishes the connection and negotiates protocol capabilities.
-   * Must be called after {@link connect} and before any other agent method.
+   * Runs the **ACP `initialize` protocol step** (capability negotiation with the agent).
+   *
+   * This is **required once** after {@link connect} on first startup of the agent session:
+   * the transport is already open after `connect()`, but the ACP wire protocol expects
+   * `initialize` before `newSession`, `prompt`, or other agent methods.
    *
    * @param params - Protocol version, client info, and capability negotiation fields.
    * @returns The agent's supported capabilities and protocol version.
