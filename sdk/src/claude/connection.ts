@@ -25,23 +25,17 @@ import type {
   LogFn,
   TimelineEventListener,
 } from "../shared/types.js";
-import {
-  AxonTransport,
-  MESSAGE_TYPE_TO_EVENT_TYPE,
-  type Transport,
-} from "./transport.js";
-import type {
-  ClaudeProtocolTimelineEvent,
-  ClaudeTimelineEvent,
-  WireData,
-} from "./types.js";
+import { AxonTransport, MESSAGE_TYPE_TO_EVENT_TYPE, type Transport } from "./transport.js";
+import type { ClaudeProtocolTimelineEvent, ClaudeTimelineEvent, WireData } from "./types.js";
 
 /** The inner request payload — discriminated by `subtype`. */
 export type ControlRequestInner = SDKControlRequest["request"];
 
 /** Extract a specific control request subtype. */
-export type ControlRequestOfSubtype<S extends ControlRequestInner["subtype"]> =
-  Extract<ControlRequestInner, { subtype: S }>;
+export type ControlRequestOfSubtype<S extends ControlRequestInner["subtype"]> = Extract<
+  ControlRequestInner,
+  { subtype: S }
+>;
 
 /**
  * Handler for an incoming control request from the CLI.
@@ -261,18 +255,13 @@ export class ClaudeAxonConnection {
 
   /** User-registered handlers for incoming control requests, keyed by subtype. */
   // biome-ignore lint/suspicious/noExplicitAny: handlers are typed at registration via onControlRequest()
-  private controlRequestHandlers = new Map<
-    string,
-    ControlRequestHandler<any>
-  >();
+  private controlRequestHandlers = new Map<string, ControlRequestHandler<any>>();
 
   /** Registered raw Axon event listeners. */
   private axonEventListeners: ListenerSet<AxonEventListener>;
 
   /** Registered timeline event listeners. */
-  private timelineEventListeners: ListenerSet<
-    TimelineEventListener<ClaudeTimelineEvent>
-  >;
+  private timelineEventListeners: ListenerSet<TimelineEventListener<ClaudeTimelineEvent>>;
 
   private log: LogFn;
 
@@ -286,25 +275,18 @@ export class ClaudeAxonConnection {
    * @param options - Optional configuration for verbose logging, system prompt,
    *   model selection, error handling, and lifecycle hooks.
    */
-  constructor(
-    axon: Axon,
-    devbox: Devbox,
-    options?: ClaudeAxonConnectionOptions,
-  ) {
+  constructor(axon: Axon, devbox: Devbox, options?: ClaudeAxonConnectionOptions) {
     this.axonId = axon.id;
     this.devboxId = devbox.id;
     this.axon = axon;
     this.options = options ?? {};
-    this.handleError =
-      options?.onError ?? makeDefaultOnError("ClaudeAxonConnection");
+    this.handleError = options?.onError ?? makeDefaultOnError("ClaudeAxonConnection");
     this.disconnectFn = options?.onDisconnect;
     this.log = makeLogger("claude-sdk", options?.verbose ?? false);
-    this.axonEventListeners = new ListenerSet<AxonEventListener>(
+    this.axonEventListeners = new ListenerSet<AxonEventListener>(this.handleError);
+    this.timelineEventListeners = new ListenerSet<TimelineEventListener<ClaudeTimelineEvent>>(
       this.handleError,
     );
-    this.timelineEventListeners = new ListenerSet<
-      TimelineEventListener<ClaudeTimelineEvent>
-    >(this.handleError);
   }
 
   // -----------------------------------------------------------------------
@@ -342,11 +324,7 @@ export class ClaudeAxonConnection {
     this.suppressTransportAutoReconnect = false;
     this.readLoopDone = false;
 
-    const replayTargetSequence = await resolveReplayTarget(
-      this.axon,
-      this.options,
-      this.log,
-    );
+    const replayTargetSequence = await resolveReplayTarget(this.axon, this.options, this.log);
 
     if (!this.transport) {
       this.transport = new AxonTransport(this.axon, {
@@ -512,9 +490,7 @@ export class ClaudeAxonConnection {
    * @param listener - Callback invoked with each {@link ClaudeTimelineEvent}.
    * @returns An unsubscribe function that removes the listener.
    */
-  onTimelineEvent(
-    listener: TimelineEventListener<ClaudeTimelineEvent>,
-  ): () => void {
+  onTimelineEvent(listener: TimelineEventListener<ClaudeTimelineEvent>): () => void {
     return this.timelineEventListeners.add(listener);
   }
 
@@ -531,11 +507,7 @@ export class ClaudeAxonConnection {
    *
    * @returns An async generator of {@link ClaudeTimelineEvent}.
    */
-  async *receiveTimelineEvents(): AsyncGenerator<
-    ClaudeTimelineEvent,
-    void,
-    undefined
-  > {
+  async *receiveTimelineEvents(): AsyncGenerator<ClaudeTimelineEvent, void, undefined> {
     yield* timelineEventGenerator<ClaudeTimelineEvent>(
       (listener) => this.onTimelineEvent(listener),
       this.timelineAbortController.signal,
@@ -664,18 +636,13 @@ export class ClaudeAxonConnection {
         typeof message.request !== "object" ||
         message.request === null
       ) {
-        this.log(
-          "routeMessage",
-          "malformed control_request — missing request_id or request",
-        );
+        this.log("routeMessage", "malformed control_request — missing request_id or request");
         return;
       }
-      this.handleIncomingControlRequest(message as SDKControlRequest).catch(
-        (err) => {
-          this.log("control", `handler error: ${err}`);
-          this.handleError(err);
-        },
-      );
+      this.handleIncomingControlRequest(message as SDKControlRequest).catch((err) => {
+        this.log("control", `handler error: ${err}`);
+        this.handleError(err);
+      });
       return;
     }
 
@@ -698,8 +665,7 @@ export class ClaudeAxonConnection {
       this.messageQueue.push(sdkMessage);
       if (
         !this.messageQueueWarned &&
-        this.messageQueue.length >=
-          ClaudeAxonConnection.MESSAGE_QUEUE_HIGH_WATER_MARK
+        this.messageQueue.length >= ClaudeAxonConnection.MESSAGE_QUEUE_HIGH_WATER_MARK
       ) {
         this.messageQueueWarned = true;
         this.handleError(
@@ -747,10 +713,7 @@ export class ClaudeAxonConnection {
    * @returns The `response` field from the successful `control_response`.
    * @throws On timeout, error-subtype responses, or transport failures.
    */
-  private async sendControlRequest(
-    request: WireData,
-    timeoutMs = 60_000,
-  ): Promise<WireData> {
+  private async sendControlRequest(request: WireData, timeoutMs = 60_000): Promise<WireData> {
     this.requestCounter++;
     const requestId = nextRequestId(this.requestCounter);
     const controlRequest = {
@@ -781,10 +744,7 @@ export class ClaudeAxonConnection {
 
     const transport = this.transport;
     if (!transport) {
-      throw new ConnectionStateError(
-        "not_connected",
-        "Not connected. Call connect() first.",
-      );
+      throw new ConnectionStateError("not_connected", "Not connected. Call connect() first.");
     }
     await transport.write(JSON.stringify(controlRequest));
     return promise;
@@ -840,9 +800,7 @@ export class ClaudeAxonConnection {
    *
    * @param message - The incoming `SDKControlRequest` from the CLI.
    */
-  private async handleIncomingControlRequest(
-    message: SDKControlRequest,
-  ): Promise<void> {
+  private async handleIncomingControlRequest(message: SDKControlRequest): Promise<void> {
     if (this.closed) return;
     const requestId = message.request_id;
     const request = message.request;
@@ -944,10 +902,7 @@ export class ClaudeAxonConnection {
     }
     const transport = this.transport;
     if (!transport) {
-      throw new ConnectionStateError(
-        "not_connected",
-        "Not connected. Call connect() first.",
-      );
+      throw new ConnectionStateError("not_connected", "Not connected. Call connect() first.");
     }
     const message: SDKUserMessage =
       typeof prompt === "string"
@@ -1144,19 +1099,18 @@ export function isClaudeProtocolEventType(eventType: string): boolean {
  *
  * @category Timeline
  */
-export const classifyClaudeAxonEvent =
-  createClassifier<ClaudeProtocolTimelineEvent>({
-    label: "classifyClaudeAxonEvent",
-    isProtocolEventType: isClaudeProtocolEventType,
-    toProtocolEvent: (data, ev) => {
-      if (data && typeof data === "object" && "type" in data) {
-        return {
-          kind: "claude_protocol",
-          eventType: ev.event_type,
-          data,
-          axonEvent: ev,
-        } as ClaudeProtocolTimelineEvent;
-      }
-      return null;
-    },
-  });
+export const classifyClaudeAxonEvent = createClassifier<ClaudeProtocolTimelineEvent>({
+  label: "classifyClaudeAxonEvent",
+  isProtocolEventType: isClaudeProtocolEventType,
+  toProtocolEvent: (data, ev) => {
+    if (data && typeof data === "object" && "type" in data) {
+      return {
+        kind: "claude_protocol",
+        eventType: ev.event_type,
+        data,
+        axonEvent: ev,
+      } as ClaudeProtocolTimelineEvent;
+    }
+    return null;
+  },
+});

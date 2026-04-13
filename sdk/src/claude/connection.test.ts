@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  type Mock,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { makeFullAxonEvent } from "../__test-utils__/mock-axon.js";
 import { SystemError } from "../shared/errors/system-error.js";
 import {
@@ -108,9 +100,7 @@ function createMockTransport(): MockTransport {
 function createMockAxon() {
   return {
     id: "test-axon",
-    publish: vi
-      .fn()
-      .mockResolvedValue({ sequence: 1, timestamp_ms: Date.now() }),
+    publish: vi.fn().mockResolvedValue({ sequence: 1, timestamp_ms: Date.now() }),
   };
 }
 
@@ -129,18 +119,14 @@ async function createConnectedClient(
   },
 ) {
   const axon = createMockAxon();
-  const conn = new ClaudeAxonConnection(
-    axon as never,
-    { id: "dbx-test" } as never,
-    {
-      onDisconnect: options?.onDisconnect,
-      model: options?.model,
-      onError: options?.onError,
-      systemPrompt: options?.systemPrompt,
-      appendSystemPrompt: options?.appendSystemPrompt,
-      replay: false,
-    },
-  );
+  const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+    onDisconnect: options?.onDisconnect,
+    model: options?.model,
+    onError: options?.onError,
+    systemPrompt: options?.systemPrompt,
+    appendSystemPrompt: options?.appendSystemPrompt,
+    replay: false,
+  });
 
   // Replace internal transport with mock before connect() creates a real one.
   // We cast to access the private field, then call connect() which will detect
@@ -151,38 +137,30 @@ async function createConnectedClient(
   // The initialize() method sends an initialize control_request and waits for
   // control_response. We intercept the write and respond.
   const _originalWrite = transport.write;
-  (transport.write as ReturnType<typeof vi.fn>).mockImplementation(
-    async (data: string) => {
-      transport._written.push(data);
-      const parsed = JSON.parse(data);
-      if (
-        parsed.type === "control_request" &&
-        parsed.request?.subtype === "initialize"
-      ) {
-        transport._push({
-          type: "control_response",
-          response: {
-            subtype: "success",
-            request_id: parsed.request_id,
-            response: { initialized: true },
-          },
-        });
-      }
-      if (
-        parsed.type === "control_request" &&
-        parsed.request?.subtype === "set_model"
-      ) {
-        transport._push({
-          type: "control_response",
-          response: {
-            subtype: "success",
-            request_id: parsed.request_id,
-            response: {},
-          },
-        });
-      }
-    },
-  );
+  (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+    transport._written.push(data);
+    const parsed = JSON.parse(data);
+    if (parsed.type === "control_request" && parsed.request?.subtype === "initialize") {
+      transport._push({
+        type: "control_response",
+        response: {
+          subtype: "success",
+          request_id: parsed.request_id,
+          response: { initialized: true },
+        },
+      });
+    }
+    if (parsed.type === "control_request" && parsed.request?.subtype === "set_model") {
+      transport._push({
+        type: "control_response",
+        response: {
+          subtype: "success",
+          request_id: parsed.request_id,
+          response: {},
+        },
+      });
+    }
+  });
 
   await conn.connect();
   await conn.initialize();
@@ -213,9 +191,7 @@ describe("ClaudeAxonConnection", () => {
       expect(transport.connect).toHaveBeenCalledOnce();
       const initCall = transport._written.find((w) => {
         const p = JSON.parse(w);
-        return (
-          p.type === "control_request" && p.request?.subtype === "initialize"
-        );
+        return p.type === "control_request" && p.request?.subtype === "initialize";
       });
       expect(initCall).toBeDefined();
     });
@@ -225,14 +201,10 @@ describe("ClaudeAxonConnection", () => {
 
       const modelCall = transport._written.find((w) => {
         const p = JSON.parse(w);
-        return (
-          p.type === "control_request" && p.request?.subtype === "set_model"
-        );
+        return p.type === "control_request" && p.request?.subtype === "set_model";
       });
       expect(modelCall).toBeDefined();
-      expect(JSON.parse(modelCall as string).request.model).toBe(
-        "claude-sonnet-4-5",
-      );
+      expect(JSON.parse(modelCall as string).request.model).toBe("claude-sonnet-4-5");
     });
 
     it("throws if initialize() is called after disconnect without connect()", async () => {
@@ -301,9 +273,7 @@ describe("ClaudeAxonConnection", () => {
 
       const result = await conn.publish(params);
 
-      const axon = (
-        conn as unknown as { axon: ReturnType<typeof createMockAxon> }
-      ).axon;
+      const axon = (conn as unknown as { axon: ReturnType<typeof createMockAxon> }).axon;
       expect(axon.publish).toHaveBeenCalledOnce();
       expect(axon.publish).toHaveBeenCalledWith(params);
       expect(result).toEqual(expect.objectContaining({ sequence: 1 }));
@@ -404,27 +374,22 @@ describe("ClaudeAxonConnection", () => {
       const conn = await createConnectedClient(transport);
 
       // Override write to capture and respond to control requests
-      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(
-        async (data: string) => {
-          transport._written.push(data);
-          const parsed = JSON.parse(data);
-          if (
-            parsed.type === "control_request" &&
-            parsed.request?.subtype === "interrupt"
-          ) {
-            setTimeout(() => {
-              transport._push({
-                type: "control_response",
-                response: {
-                  subtype: "success",
-                  request_id: parsed.request_id,
-                  response: { interrupted: true },
-                },
-              });
-            }, 5);
-          }
-        },
-      );
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+        const parsed = JSON.parse(data);
+        if (parsed.type === "control_request" && parsed.request?.subtype === "interrupt") {
+          setTimeout(() => {
+            transport._push({
+              type: "control_response",
+              response: {
+                subtype: "success",
+                request_id: parsed.request_id,
+                response: { interrupted: true },
+              },
+            });
+          }, 5);
+        }
+      });
 
       await conn.interrupt();
       // If we get here without timeout, the control response resolved correctly
@@ -433,31 +398,24 @@ describe("ClaudeAxonConnection", () => {
     it("rejects control responses with error subtype", async () => {
       const conn = await createConnectedClient(transport);
 
-      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(
-        async (data: string) => {
-          transport._written.push(data);
-          const parsed = JSON.parse(data);
-          if (
-            parsed.type === "control_request" &&
-            parsed.request?.subtype === "set_model"
-          ) {
-            setTimeout(() => {
-              transport._push({
-                type: "control_response",
-                response: {
-                  subtype: "error",
-                  request_id: parsed.request_id,
-                  error: "Model not available",
-                },
-              });
-            }, 5);
-          }
-        },
-      );
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+        const parsed = JSON.parse(data);
+        if (parsed.type === "control_request" && parsed.request?.subtype === "set_model") {
+          setTimeout(() => {
+            transport._push({
+              type: "control_response",
+              response: {
+                subtype: "error",
+                request_id: parsed.request_id,
+                error: "Model not available",
+              },
+            });
+          }, 5);
+        }
+      });
 
-      await expect(conn.setModel("invalid-model")).rejects.toThrow(
-        "Model not available",
-      );
+      await expect(conn.setModel("invalid-model")).rejects.toThrow("Model not available");
     });
 
     it("handles incoming can_use_tool control requests with allow behavior", async () => {
@@ -477,10 +435,7 @@ describe("ClaudeAxonConnection", () => {
       await vi.waitFor(() => {
         const resp = transport._written.find((w) => {
           const p = JSON.parse(w);
-          return (
-            p.type === "control_response" &&
-            p.response?.request_id === "req_001"
-          );
+          return p.type === "control_response" && p.response?.request_id === "req_001";
         });
         expect(resp).toBeDefined();
         const parsed = JSON.parse(resp as string);
@@ -501,15 +456,10 @@ describe("ClaudeAxonConnection", () => {
       await vi.waitFor(() => {
         const resp = transport._written.find((w) => {
           const p = JSON.parse(w);
-          return (
-            p.type === "control_response" &&
-            p.response?.request_id === "req_002"
-          );
+          return p.type === "control_response" && p.response?.request_id === "req_002";
         });
         expect(resp).toBeDefined();
-        expect(JSON.parse(resp as string).response.response.continue).toBe(
-          true,
-        );
+        expect(JSON.parse(resp as string).response.response.continue).toBe(true);
       });
     });
 
@@ -525,15 +475,10 @@ describe("ClaudeAxonConnection", () => {
       await vi.waitFor(() => {
         const resp = transport._written.find((w) => {
           const p = JSON.parse(w);
-          return (
-            p.type === "control_response" &&
-            p.response?.request_id === "req_003"
-          );
+          return p.type === "control_response" && p.response?.request_id === "req_003";
         });
         expect(resp).toBeDefined();
-        expect(JSON.parse(resp as string).response.response.error).toContain(
-          "not supported",
-        );
+        expect(JSON.parse(resp as string).response.response.error).toContain("not supported");
       });
     });
   });
@@ -556,11 +501,9 @@ describe("ClaudeAxonConnection", () => {
       const conn = await createConnectedClient(transport);
 
       // Don't respond to the control request
-      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(
-        async (data: string) => {
-          transport._written.push(data);
-        },
-      );
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+      });
 
       const interruptPromise = conn.interrupt();
 
@@ -754,22 +697,20 @@ describe("ClaudeAxonConnection", () => {
     it("sends a set_permission_mode control request", async () => {
       const conn = await createConnectedClient(transport);
 
-      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(
-        async (data: string) => {
-          transport._written.push(data);
-          const parsed = JSON.parse(data);
-          if (parsed.request?.subtype === "set_permission_mode") {
-            transport._push({
-              type: "control_response",
-              response: {
-                subtype: "success",
-                request_id: parsed.request_id,
-                response: {},
-              },
-            });
-          }
-        },
-      );
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+        const parsed = JSON.parse(data);
+        if (parsed.request?.subtype === "set_permission_mode") {
+          transport._push({
+            type: "control_response",
+            response: {
+              subtype: "success",
+              request_id: parsed.request_id,
+              response: {},
+            },
+          });
+        }
+      });
 
       await conn.setPermissionMode("acceptEdits" as never);
 
@@ -808,13 +749,9 @@ describe("ClaudeAxonConnection", () => {
 
     it("connect() alone does not complete the handshake", async () => {
       const axon = createMockAxon();
-      const conn = new ClaudeAxonConnection(
-        axon as never,
-        { id: "dbx-test" } as never,
-        {
-          replay: false,
-        },
-      );
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        replay: false,
+      });
       (conn as unknown as { transport: MockTransport }).transport = transport;
 
       await conn.connect();
@@ -825,13 +762,9 @@ describe("ClaudeAxonConnection", () => {
 
     it("initialize() throws when connect() has not been called", async () => {
       const axon = createMockAxon();
-      const conn = new ClaudeAxonConnection(
-        axon as never,
-        { id: "dbx-test" } as never,
-        {
-          replay: false,
-        },
-      );
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        replay: false,
+      });
       (conn as unknown as { transport: MockTransport }).transport = transport;
 
       await expect(conn.initialize()).rejects.toMatchObject({
@@ -843,12 +776,9 @@ describe("ClaudeAxonConnection", () => {
     it("connect() throws terminated after a fatal broker SystemError", async () => {
       const conn = await createConnectedClient(transport);
       transport._throw(
-        new SystemError(
-          "agent failed: agent binary 'bad_binary' not found on PATH",
-          {
-            event_type: "broker.error",
-          },
-        ),
+        new SystemError("agent failed: agent binary 'bad_binary' not found on PATH", {
+          event_type: "broker.error",
+        }),
       );
       await new Promise((r) => setTimeout(r, 80));
       await expect(conn.connect()).rejects.toMatchObject({
@@ -890,10 +820,7 @@ describe("ClaudeAxonConnection", () => {
       await vi.waitFor(() => {
         const resp = transport._written.find((w) => {
           const p = JSON.parse(w);
-          return (
-            p.type === "control_response" &&
-            p.response?.request_id === "req_custom"
-          );
+          return p.type === "control_response" && p.response?.request_id === "req_custom";
         });
         expect(resp).toBeDefined();
         const parsed = JSON.parse(resp as string);
@@ -953,10 +880,7 @@ describe("ClaudeAxonConnection", () => {
       await vi.waitFor(() => {
         const resp = transport._written.find((w) => {
           const p = JSON.parse(w);
-          return (
-            p.type === "control_response" &&
-            p.response?.request_id === "req_err"
-          );
+          return p.type === "control_response" && p.response?.request_id === "req_err";
         });
         expect(resp).toBeDefined();
         const parsed = JSON.parse(resp as string);
@@ -969,17 +893,14 @@ describe("ClaudeAxonConnection", () => {
       const onError = vi.fn();
       const conn = await createConnectedClient(transport);
       // Re-create with onError so handleError routes there
-      (conn as unknown as { handleError: (e: unknown) => void }).handleError =
-        onError;
+      (conn as unknown as { handleError: (e: unknown) => void }).handleError = onError;
 
       conn.onControlRequest("can_use_tool", async () => {
         throw new Error("handler boom");
       });
 
       // Make write fail so the error response can't be sent
-      (transport.write as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error("write failed"),
-      );
+      (transport.write as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("write failed"));
 
       transport._push({
         type: "control_request",
@@ -1000,44 +921,33 @@ describe("ClaudeAxonConnection", () => {
   describe("systemPrompt / appendSystemPrompt", () => {
     it("includes systemPrompt in the initialize control request", async () => {
       const axon = createMockAxon();
-      const conn = new ClaudeAxonConnection(
-        axon as never,
-        { id: "dbx-test" } as never,
-        {
-          systemPrompt: "You are a helpful bot.",
-          replay: false,
-        },
-      );
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        systemPrompt: "You are a helpful bot.",
+        replay: false,
+      });
       (conn as unknown as { transport: MockTransport }).transport = transport;
 
-      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(
-        async (data: string) => {
-          transport._written.push(data);
-          const parsed = JSON.parse(data);
-          if (
-            parsed.type === "control_request" &&
-            parsed.request?.subtype === "initialize"
-          ) {
-            transport._push({
-              type: "control_response",
-              response: {
-                subtype: "success",
-                request_id: parsed.request_id,
-                response: { initialized: true },
-              },
-            });
-          }
-        },
-      );
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+        const parsed = JSON.parse(data);
+        if (parsed.type === "control_request" && parsed.request?.subtype === "initialize") {
+          transport._push({
+            type: "control_response",
+            response: {
+              subtype: "success",
+              request_id: parsed.request_id,
+              response: { initialized: true },
+            },
+          });
+        }
+      });
 
       await conn.connect();
       await conn.initialize();
 
       const initCall = transport._written.find((w) => {
         const p = JSON.parse(w);
-        return (
-          p.type === "control_request" && p.request?.subtype === "initialize"
-        );
+        return p.type === "control_request" && p.request?.subtype === "initialize";
       });
       expect(initCall).toBeDefined();
       const parsed = JSON.parse(initCall as string);
@@ -1046,44 +956,33 @@ describe("ClaudeAxonConnection", () => {
 
     it("includes appendSystemPrompt in the initialize control request", async () => {
       const axon = createMockAxon();
-      const conn = new ClaudeAxonConnection(
-        axon as never,
-        { id: "dbx-test" } as never,
-        {
-          appendSystemPrompt: "Always respond in JSON.",
-          replay: false,
-        },
-      );
+      const conn = new ClaudeAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        appendSystemPrompt: "Always respond in JSON.",
+        replay: false,
+      });
       (conn as unknown as { transport: MockTransport }).transport = transport;
 
-      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(
-        async (data: string) => {
-          transport._written.push(data);
-          const parsed = JSON.parse(data);
-          if (
-            parsed.type === "control_request" &&
-            parsed.request?.subtype === "initialize"
-          ) {
-            transport._push({
-              type: "control_response",
-              response: {
-                subtype: "success",
-                request_id: parsed.request_id,
-                response: { initialized: true },
-              },
-            });
-          }
-        },
-      );
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+        const parsed = JSON.parse(data);
+        if (parsed.type === "control_request" && parsed.request?.subtype === "initialize") {
+          transport._push({
+            type: "control_response",
+            response: {
+              subtype: "success",
+              request_id: parsed.request_id,
+              response: { initialized: true },
+            },
+          });
+        }
+      });
 
       await conn.connect();
       await conn.initialize();
 
       const initCall = transport._written.find((w) => {
         const p = JSON.parse(w);
-        return (
-          p.type === "control_request" && p.request?.subtype === "initialize"
-        );
+        return p.type === "control_request" && p.request?.subtype === "initialize";
       });
       expect(initCall).toBeDefined();
       const parsed = JSON.parse(initCall as string);
@@ -1096,25 +995,20 @@ describe("ClaudeAxonConnection", () => {
       const conn = await createConnectedClient(transport);
 
       // Override write to never respond to the control request
-      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(
-        async (data: string) => {
-          transport._written.push(data);
-        },
-      );
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+      });
 
       // Use the internal sendControlRequest with a very short timeout
       const sendControlRequest = (
         conn as unknown as {
-          sendControlRequest: (
-            req: Record<string, unknown>,
-            timeout?: number,
-          ) => Promise<unknown>;
+          sendControlRequest: (req: Record<string, unknown>, timeout?: number) => Promise<unknown>;
         }
       ).sendControlRequest.bind(conn);
 
-      await expect(
-        sendControlRequest({ subtype: "test_timeout" }, 50),
-      ).rejects.toThrow("Control request timeout");
+      await expect(sendControlRequest({ subtype: "test_timeout" }, 50)).rejects.toThrow(
+        "Control request timeout",
+      );
     });
   });
 
@@ -1123,11 +1017,9 @@ describe("ClaudeAxonConnection", () => {
       const conn = await createConnectedClient(transport);
 
       // Override write to not respond to control requests
-      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(
-        async (data: string) => {
-          transport._written.push(data);
-        },
-      );
+      (transport.write as ReturnType<typeof vi.fn>).mockImplementation(async (data: string) => {
+        transport._written.push(data);
+      });
 
       const interruptPromise = conn.interrupt();
 
@@ -1174,9 +1066,7 @@ describe("ClaudeAxonConnection", () => {
 
       const initCalls = transport._written.filter((w) => {
         const p = JSON.parse(w);
-        return (
-          p.type === "control_request" && p.request?.subtype === "initialize"
-        );
+        return p.type === "control_request" && p.request?.subtype === "initialize";
       });
       expect(initCalls.length).toBe(1);
     });
@@ -1233,20 +1123,15 @@ describe("ClaudeAxonConnection", () => {
       await createConnectedClient(transport);
 
       transport._throw(
-        new SystemError(
-          "agent failed: agent binary 'bad_binary' not found on PATH",
-          {
-            event_type: "broker.error",
-          },
-        ),
+        new SystemError("agent failed: agent binary 'bad_binary' not found on PATH", {
+          event_type: "broker.error",
+        }),
       );
 
       await new Promise((r) => setTimeout(r, 50));
 
       expect(transport.reconnect).not.toHaveBeenCalled();
-      expect(warnSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining("reconnecting"),
-      );
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("reconnecting"));
     });
 
     it("does not reconnect on fatal broker errors (generic agent failed)", async () => {
@@ -1272,9 +1157,7 @@ describe("ClaudeAxonConnection", () => {
 
       const initCall = transport._written.find((w) => {
         const p = JSON.parse(w);
-        return (
-          p.type === "control_request" && p.request?.subtype === "initialize"
-        );
+        return p.type === "control_request" && p.request?.subtype === "initialize";
       });
       expect(initCall).toBeDefined();
       const parsed = JSON.parse(initCall as string);
@@ -1288,9 +1171,7 @@ describe("ClaudeAxonConnection", () => {
 
       const initCall = transport._written.find((w) => {
         const p = JSON.parse(w);
-        return (
-          p.type === "control_request" && p.request?.subtype === "initialize"
-        );
+        return p.type === "control_request" && p.request?.subtype === "initialize";
       });
       expect(initCall).toBeDefined();
       const parsed = JSON.parse(initCall as string);
@@ -1305,9 +1186,7 @@ describe("ClaudeAxonConnection", () => {
 
       const initCall = transport._written.find((w) => {
         const p = JSON.parse(w);
-        return (
-          p.type === "control_request" && p.request?.subtype === "initialize"
-        );
+        return p.type === "control_request" && p.request?.subtype === "initialize";
       });
       expect(initCall).toBeDefined();
       const parsed = JSON.parse(initCall as string);
@@ -1320,9 +1199,7 @@ describe("ClaudeAxonConnection", () => {
 
       const initCall = transport._written.find((w) => {
         const p = JSON.parse(w);
-        return (
-          p.type === "control_request" && p.request?.subtype === "initialize"
-        );
+        return p.type === "control_request" && p.request?.subtype === "initialize";
       });
       expect(initCall).toBeDefined();
       const parsed = JSON.parse(initCall as string);
@@ -1586,9 +1463,7 @@ describe("ClaudeAxonConnection", () => {
 
       expect(events).toHaveLength(1);
       expect(events[0].kind).toBe("unknown");
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[classifyClaudeAxonEvent]"),
-      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("[classifyClaudeAxonEvent]"));
 
       warnSpy.mockRestore();
     });
@@ -1694,9 +1569,7 @@ describe("isClaudeProtocolEventType", () => {
 // ---------------------------------------------------------------------------
 
 describe("classifyClaudeAxonEvent", () => {
-  const makeAxonEvent = (
-    overrides: Partial<Parameters<typeof makeFullAxonEvent>[0]> = {},
-  ) =>
+  const makeAxonEvent = (overrides: Partial<Parameters<typeof makeFullAxonEvent>[0]> = {}) =>
     makeFullAxonEvent({
       event_type: "assistant",
       origin: "AGENT_EVENT",
