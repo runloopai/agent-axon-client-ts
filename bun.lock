@@ -13,7 +13,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.17.0",
+        "@runloop/api-client": "^1.18.1",
         "diff": "^8.0.4",
         "express": "^5.2.1",
         "react": "^19.2.4",
@@ -40,7 +40,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.17.0",
+        "@runloop/api-client": "^1.18.1",
       },
     },
     "examples/acp-hello-world": {
@@ -48,7 +48,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.17.0",
+        "@runloop/api-client": "^1.18.1",
       },
     },
     "examples/claude-app": {
@@ -57,7 +57,7 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.17.0",
+        "@runloop/api-client": "^1.18.1",
         "diff": "^8.0.4",
         "express": "^5.1.0",
         "react": "^19.2.0",
@@ -85,7 +85,7 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.17.0",
+        "@runloop/api-client": "^1.18.1",
       },
     },
     "examples/claude-hello-world": {
@@ -94,7 +94,7 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.17.0",
+        "@runloop/api-client": "^1.18.1",
       },
     },
     "examples/combined-app": {
@@ -103,7 +103,7 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.17.0",
+        "@runloop/api-client": "^1.18.1",
         "diff": "^8.0.4",
         "express": "^5.2.1",
         "react": "^19.2.4",
@@ -1038,23 +1038,9 @@
 
     "@runloop/api-client/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
-    "@runloop/example-acp-app/@runloop/api-client": ["@runloop/api-client@1.17.0", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7", "tar": "^7.5.2", "uuidv7": "^1.0.2", "zod": "^3.24.1" } }, "sha512-lu7/iBkU1eOAvsA6YwYQC2LnxLwON4jq9Uw2/WVILpvRrxfL3wcWKPRNxINVr03KV43wyGwtvdl5zIw3ci4+vw=="],
-
     "@runloop/example-acp-app/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
 
-    "@runloop/example-acp-cli/@runloop/api-client": ["@runloop/api-client@1.17.0", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7", "tar": "^7.5.2", "uuidv7": "^1.0.2", "zod": "^3.24.1" } }, "sha512-lu7/iBkU1eOAvsA6YwYQC2LnxLwON4jq9Uw2/WVILpvRrxfL3wcWKPRNxINVr03KV43wyGwtvdl5zIw3ci4+vw=="],
-
-    "@runloop/example-acp-hello-world/@runloop/api-client": ["@runloop/api-client@1.17.0", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7", "tar": "^7.5.2", "uuidv7": "^1.0.2", "zod": "^3.24.1" } }, "sha512-lu7/iBkU1eOAvsA6YwYQC2LnxLwON4jq9Uw2/WVILpvRrxfL3wcWKPRNxINVr03KV43wyGwtvdl5zIw3ci4+vw=="],
-
-    "@runloop/example-claude-app/@runloop/api-client": ["@runloop/api-client@1.17.0", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7", "tar": "^7.5.2", "uuidv7": "^1.0.2", "zod": "^3.24.1" } }, "sha512-lu7/iBkU1eOAvsA6YwYQC2LnxLwON4jq9Uw2/WVILpvRrxfL3wcWKPRNxINVr03KV43wyGwtvdl5zIw3ci4+vw=="],
-
     "@runloop/example-claude-app/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
-
-    "@runloop/example-claude-cli/@runloop/api-client": ["@runloop/api-client@1.17.0", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7", "tar": "^7.5.2", "uuidv7": "^1.0.2", "zod": "^3.24.1" } }, "sha512-lu7/iBkU1eOAvsA6YwYQC2LnxLwON4jq9Uw2/WVILpvRrxfL3wcWKPRNxINVr03KV43wyGwtvdl5zIw3ci4+vw=="],
-
-    "@runloop/example-claude-hello-world/@runloop/api-client": ["@runloop/api-client@1.17.0", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7", "tar": "^7.5.2", "uuidv7": "^1.0.2", "zod": "^3.24.1" } }, "sha512-lu7/iBkU1eOAvsA6YwYQC2LnxLwON4jq9Uw2/WVILpvRrxfL3wcWKPRNxINVr03KV43wyGwtvdl5zIw3ci4+vw=="],
-
-    "@runloop/example-combined-app/@runloop/api-client": ["@runloop/api-client@1.17.0", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7", "tar": "^7.5.2", "uuidv7": "^1.0.2", "zod": "^3.24.1" } }, "sha512-lu7/iBkU1eOAvsA6YwYQC2LnxLwON4jq9Uw2/WVILpvRrxfL3wcWKPRNxINVr03KV43wyGwtvdl5zIw3ci4+vw=="],
 
     "@runloop/example-combined-app/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
 
@@ -1081,20 +1067,6 @@
     "rolldown/@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-rc.12", "", {}, "sha512-HHMwmarRKvoFsJorqYlFeFRzXZqCt2ETQlEDOb9aqssrnVBB1/+xgTGtuTrIk5vzLNX1MjMtTf7W9z3tsSbrxw=="],
 
     "vitest/vite": ["vite@6.4.1", "", { "dependencies": { "esbuild": "^0.25.0", "fdir": "^6.4.4", "picomatch": "^4.0.2", "postcss": "^8.5.3", "rollup": "^4.34.9", "tinyglobby": "^0.2.13" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "peerDependencies": { "@types/node": "^18.0.0 || ^20.0.0 || >=22.0.0", "jiti": ">=1.21.0", "less": "*", "lightningcss": "^1.21.0", "sass": "*", "sass-embedded": "*", "stylus": "*", "sugarss": "*", "terser": "^5.16.0", "tsx": "^4.8.1", "yaml": "^2.4.2" }, "optionalPeers": ["@types/node", "jiti", "less", "lightningcss", "sass", "sass-embedded", "stylus", "sugarss", "terser", "tsx", "yaml"], "bin": { "vite": "bin/vite.js" } }, "sha512-+Oxm7q9hDoLMyJOYfUYBuHQo+dkAloi33apOPP56pzj+vsdJDzr+j1NISE5pyaAuKL4A3UD34qd0lx5+kfKp2g=="],
-
-    "@runloop/example-acp-app/@runloop/api-client/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
-
-    "@runloop/example-acp-cli/@runloop/api-client/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
-
-    "@runloop/example-acp-hello-world/@runloop/api-client/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
-
-    "@runloop/example-claude-app/@runloop/api-client/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
-
-    "@runloop/example-claude-cli/@runloop/api-client/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
-
-    "@runloop/example-claude-hello-world/@runloop/api-client/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
-
-    "@runloop/example-combined-app/@runloop/api-client/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@types/body-parser/@types/node/undici-types": ["undici-types@7.18.2", "", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
 
