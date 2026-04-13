@@ -111,6 +111,7 @@ await agent.prompt({
   prompt: [{ type: "text", text: "Say hello world" }],
 });
 
+console.log("\n");
 // Wait a couple seconds for the status updates to come back, turn complete according to the sdk is when the agent is done, the updates follow after
 await new Promise((resolve) => setTimeout(resolve, 2000));
 
