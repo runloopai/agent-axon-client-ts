@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.3.0...agent-axon-client-v0.4.0) (2026-04-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sdk:** unified timeline event stream, replay support, and multi-agent combined-app ([#65](https://github.com/runloopai/agent-axon-client-ts/issues/65))
+
+### Features
+
+* **examples:** add combined-app demo with Claude + ACP support ([#59](https://github.com/runloopai/agent-axon-client-ts/issues/59)) ([05ed899](https://github.com/runloopai/agent-axon-client-ts/commit/05ed8991c67ed831464453f4c88fe6e3dceabce6))
+* **sdk:** unified timeline event stream, replay support, and multi-agent combined-app ([#65](https://github.com/runloopai/agent-axon-client-ts/issues/65)) ([9ac33ba](https://github.com/runloopai/agent-axon-client-ts/commit/9ac33baf638dc50b80c71a4e831e5455191c413b))
+
 ## [0.3.0](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.2.0...agent-axon-client-v0.3.0) (2026-04-07)
 
 
