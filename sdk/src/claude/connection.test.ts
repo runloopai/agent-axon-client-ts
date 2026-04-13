@@ -207,13 +207,13 @@ describe("ClaudeAxonConnection", () => {
       expect(JSON.parse(modelCall as string).request.model).toBe("claude-sonnet-4-5");
     });
 
-    it("throws if called on an already-disconnected instance", async () => {
+    it("throws if initialize() is called after disconnect without connect()", async () => {
       const conn = await createConnectedClient(transport);
       await conn.disconnect();
 
       await expect(conn.initialize()).rejects.toMatchObject({
         name: "ConnectionStateError",
-        code: "disposed",
+        code: "not_connected",
       });
     });
   });
@@ -634,7 +634,7 @@ describe("ClaudeAxonConnection", () => {
       spy.mockRestore();
     });
 
-    it("disconnect() clears all Axon event listeners", async () => {
+    it("disconnect() preserves Axon event listener registrations", async () => {
       const conn = await createConnectedClient(transport);
 
       const listener = vi.fn();
@@ -644,9 +644,10 @@ describe("ClaudeAxonConnection", () => {
 
       const listeners = (conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } })
         .axonEventListeners;
-      listeners.emit({ event_type: "test", payload: "{}", origin: "AGENT_EVENT" });
+      const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
+      listeners.emit(fakeEvent);
 
-      expect(listener).not.toHaveBeenCalled();
+      expect(listener).toHaveBeenCalledWith(fakeEvent);
     });
   });
 
@@ -697,13 +698,11 @@ describe("ClaudeAxonConnection", () => {
       });
     });
 
-    it("connect() throws on a disconnected instance", async () => {
+    it("connect() succeeds after disconnect on the same instance", async () => {
       const conn = await createConnectedClient(transport);
       await conn.disconnect();
-      await expect(conn.connect()).rejects.toMatchObject({
-        name: "ConnectionStateError",
-        code: "disposed",
-      });
+      (conn as unknown as { transport: MockTransport }).transport = transport;
+      await expect(conn.connect()).resolves.toBeUndefined();
     });
 
     it("connect() alone does not complete the handshake", async () => {
@@ -729,6 +728,20 @@ describe("ClaudeAxonConnection", () => {
       await expect(conn.initialize()).rejects.toMatchObject({
         name: "ConnectionStateError",
         code: "not_connected",
+      });
+    });
+
+    it("connect() throws terminated after a fatal broker SystemError", async () => {
+      const conn = await createConnectedClient(transport);
+      transport._throw(
+        new SystemError("agent failed: agent binary 'bad_binary' not found on PATH", {
+          event_type: "broker.error",
+        }),
+      );
+      await new Promise((r) => setTimeout(r, 80));
+      await expect(conn.connect()).rejects.toMatchObject({
+        name: "ConnectionStateError",
+        code: "terminated",
       });
     });
   });
@@ -1330,20 +1343,24 @@ describe("ClaudeAxonConnection", () => {
       expect(events).toHaveLength(1);
     });
 
-    it("disconnect() clears timeline listeners", async () => {
+    it("disconnect() preserves timeline listener registrations", async () => {
       const conn = await createConnectedClient(transport);
 
-      const events: ClaudeTimelineEvent[] = [];
-      conn.onTimelineEvent((ev) => events.push(ev));
+      const listener = vi.fn();
+      conn.onTimelineEvent(listener);
 
       await conn.disconnect();
 
-      emitAxonEvent(conn, {
-        event_type: "assistant",
-        payload: JSON.stringify({ type: "assistant", content: "Hi" }),
-        origin: "AGENT_EVENT",
-      });
-      expect(events).toHaveLength(0);
+      const timelineListeners = (
+        conn as unknown as { timelineEventListeners: { emit: (ev: ClaudeTimelineEvent) => void } }
+      ).timelineEventListeners;
+      const fake: ClaudeTimelineEvent = {
+        kind: "unknown",
+        data: null,
+        axonEvent: { event_type: "assistant", payload: "{}", origin: "AGENT_EVENT" } as never,
+      };
+      timelineListeners.emit(fake);
+      expect(listener).toHaveBeenCalledWith(fake);
     });
 
     it("classifies SYSTEM_EVENT broker.error as system", async () => {

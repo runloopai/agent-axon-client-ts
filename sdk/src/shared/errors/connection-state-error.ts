@@ -4,14 +4,14 @@
  * @category Errors
  */
 export type ConnectionStateErrorCode =
-  | "disposed"
   | "already_connected"
+  | "already_initialized"
   | "not_connected"
-  | "already_initialized";
+  | "terminated";
 
 /**
  * Error thrown when an Axon connection is used in an invalid lifecycle state
- * (e.g. `connect()` after `disconnect()`, or calling agent methods before `connect()`).
+ * (e.g. calling agent methods before `connect()`, or after a fatal broker error).
  *
  * Inspect {@link ConnectionStateError.code} to branch without matching message text.
  *

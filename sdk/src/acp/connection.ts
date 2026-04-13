@@ -105,7 +105,6 @@ export class ACPAxonConnection {
 
   /** Controller whose signal is passed to the Axon stream; aborting it tears down the SSE subscription. */
   private abortController: AbortController;
-  private disconnected = false;
   private connected = false;
 
   /** The Axon channel reference, kept for connect(). */
@@ -176,17 +175,10 @@ export class ACPAxonConnection {
    * without invoking handlers. Unresolved permission requests are
    * dispatched to handlers after replay completes.
    *
-   * @throws {ConnectionStateError} If this instance has already been disconnected (`code: "disposed"`).
    * @throws {ConnectionStateError} If already connected (`code: "already_connected"`).
    * @throws If both `replay` and `afterSequence` are set.
    */
   async connect(): Promise<void> {
-    if (this.disconnected) {
-      throw new ConnectionStateError(
-        "disposed",
-        "This ACPAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
-      );
-    }
     if (this.connected) {
       throw new ConnectionStateError(
         "already_connected",
@@ -220,12 +212,6 @@ export class ACPAxonConnection {
   }
 
   private ensureConnected(): void {
-    if (this.disconnected) {
-      throw new ConnectionStateError(
-        "disposed",
-        "Connection is disconnected. Create a new instance.",
-      );
-    }
     if (!this.connected) {
       throw new ConnectionStateError("not_connected", "Not connected. Call connect() first.");
     }
@@ -479,28 +465,33 @@ export class ACPAxonConnection {
   /**
    * Aborts the underlying SSE stream without clearing registered listeners.
    *
-   * Unlike {@link disconnect}, listeners remain registered. Note that after
-   * calling this method, the connection cannot be reused — create a new
-   * `ACPAxonConnection` instance to reconnect.
+   * Unlike {@link disconnect}, this does not run {@link ACPAxonConnectionOptions.onDisconnect}
+   * and does not reset {@link connect} state. Prefer {@link disconnect} followed by
+   * {@link connect} for a full teardown and reconnect on the same instance.
    */
   abortStream(): void {
     this.abortController.abort();
   }
 
   /**
-   * Aborts the Axon stream, clears all registered listeners, and runs the
-   * `onDisconnect` callback (e.g. devbox teardown) if one was provided.
+   * Aborts the Axon stream, resets protocol state so {@link connect} can be
+   * called again, and runs the `onDisconnect` callback (e.g. devbox teardown)
+   * if one was provided.
+   *
+   * User-registered listeners ({@link onSessionUpdate}, {@link onAxonEvent},
+   * {@link onTimelineEvent}) are **preserved** across disconnect/reconnect.
    *
    * @returns Resolves once the `onDisconnect` callback (if any) completes.
    */
   async disconnect(): Promise<void> {
-    if (this.disconnected) return;
-    this.disconnected = true;
+    if (!this.connected && !this._protocol) {
+      return;
+    }
     this.log("disconnect", "disconnecting");
     this.abortStream();
-    this.sessionUpdateListeners.clear();
-    this.axonEventListeners.clear();
-    this.timelineEventListeners.clear();
+    this.connected = false;
+    this._protocol = null;
+    this.abortController = new AbortController();
     await runDisconnectHook(this.disconnectFn, this.log, this.handleError);
   }
 

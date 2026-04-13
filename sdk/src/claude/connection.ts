@@ -182,15 +182,16 @@ export class ClaudeAxonConnection {
   }
 
   /**
-   * Whether the connection has been disconnected.
-   * Returns `true` after {@link disconnect} has been called.
+   * Whether the connection is not live after having been connected at least once.
+   * Returns `false` before the first successful {@link connect}, and `true` after
+   * a disconnect/teardown until {@link connect} runs again.
    */
   get isDisconnected(): boolean {
-    return this.closed;
+    return this.hasEverConnected && !this.readLoopRunning;
   }
 
   /** Low-level transport that reads/writes messages over the Axon channel. */
-  private transport!: Transport;
+  private transport: Transport | undefined;
 
   /** The Axon channel reference, kept for replay sequence query. */
   private axon: Axon;
@@ -228,8 +229,25 @@ export class ClaudeAxonConnection {
   /** In-flight control requests awaiting a response from the CLI. */
   private pendingControlRequests = new Map<string, PendingControlRequest>();
 
-  /** Whether {@link disconnect} has been called. */
+  /**
+   * When true, inbound routing and the read loop should stop. Cleared after a
+   * graceful {@link disconnect} completes so the same instance can {@link connect} again.
+   */
   private closed = false;
+
+  /** Set when a {@link SystemError} is observed; the instance cannot reconnect. */
+  private fatal = false;
+
+  /** Set after the first successful {@link connect}; used by {@link isDisconnected}. */
+  private hasEverConnected = false;
+
+  /**
+   * When true, the read loop must not run transport-level SSE auto-recovery
+   * (used during {@link disconnect} so a late read-loop tick cannot reconnect
+   * after `closed` is cleared for same-instance reconnect).
+   */
+  private suppressTransportAutoReconnect = false;
+
   private streamAborted = false;
 
   /** Aborted when the connection closes or the read loop ends, to terminate timeline generators. */
@@ -285,15 +303,15 @@ export class ClaudeAxonConnection {
    * without invoking handlers. Unresolved control requests are
    * dispatched to handlers after replay completes.
    *
-   * @throws {ConnectionStateError} If this instance has already been disconnected (`code: "disposed"`).
+   * @throws {ConnectionStateError} If the connection is not reusable after a fatal broker error (`code: "terminated"`).
    * @throws {ConnectionStateError} If the transport is already connected (`code: "already_connected"`).
    * @throws If both `replay` and `afterSequence` are set.
    */
   async connect(): Promise<void> {
-    if (this.closed) {
+    if (this.fatal) {
       throw new ConnectionStateError(
-        "disposed",
-        "This ClaudeAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
+        "terminated",
+        "This connection hit a fatal broker error and cannot be reused. Create a new instance.",
       );
     }
     if (this.readLoopRunning) {
@@ -302,6 +320,9 @@ export class ClaudeAxonConnection {
         "Already connected. Call disconnect() before reconnecting.",
       );
     }
+
+    this.suppressTransportAutoReconnect = false;
+    this.readLoopDone = false;
 
     const replayTargetSequence = await resolveReplayTarget(this.axon, this.options, this.log);
 
@@ -319,6 +340,7 @@ export class ClaudeAxonConnection {
 
     await this.transport.connect();
     this.startReadLoop();
+    this.hasEverConnected = true;
   }
 
   /**
@@ -327,15 +349,15 @@ export class ClaudeAxonConnection {
    *
    * You must call {@link connect} before calling this method.
    *
-   * @throws {ConnectionStateError} If this instance has already been disconnected (`code: "disposed"`).
+   * @throws {ConnectionStateError} If the connection is not reusable after a fatal broker error (`code: "terminated"`).
    * @throws {ConnectionStateError} If {@link connect} has not been called yet (`code: "not_connected"`).
    * @throws {ConnectionStateError} If the handshake has already completed (`code: "already_initialized"`).
    */
   async initialize(): Promise<void> {
-    if (this.closed) {
+    if (this.fatal) {
       throw new ConnectionStateError(
-        "disposed",
-        "This ClaudeAxonConnection has already been disconnected and cannot be reused. Create a new instance.",
+        "terminated",
+        "This connection hit a fatal broker error and cannot be reused. Create a new instance.",
       );
     }
     if (!this.readLoopRunning) {
@@ -368,20 +390,43 @@ export class ClaudeAxonConnection {
    * `ClaudeAxonConnection` instance to reconnect.
    */
   abortStream(): void {
+    if (!this.transport) {
+      return;
+    }
     this.streamAborted = true;
     this.transport.abortStream();
   }
 
   /**
-   * Closes the transport, fails all pending control requests, clears
-   * listeners, and runs the `onDisconnect` callback if one was provided.
+   * Closes the transport, fails all pending control requests, and runs the
+   * `onDisconnect` callback if one was provided.
    *
-   * Idempotent — subsequent calls are no-ops.
+   * User-registered listeners ({@link onAxonEvent}, {@link onTimelineEvent},
+   * {@link onControlRequest}) are **preserved** so they keep working after
+   * another {@link connect}.
+   *
+   * Idempotent — subsequent calls are no-ops until the next {@link connect}.
    *
    * @returns Resolves once all teardown (including `onDisconnect`) completes.
    */
   async disconnect(): Promise<void> {
-    if (this.closed) return;
+    if (this.fatal) {
+      if (this.transport) {
+        try {
+          await this.transport.close();
+        } catch {
+          // best-effort
+        }
+        this.transport = undefined;
+      }
+      return;
+    }
+
+    if (!this.transport && !this.readLoopRunning) {
+      return;
+    }
+
+    this.suppressTransportAutoReconnect = true;
     this.closed = true;
     this.timelineAbortController.abort();
 
@@ -399,12 +444,17 @@ export class ClaudeAxonConnection {
       pending.reject(new Error("Client disconnected"));
     }
     this.pendingControlRequests.clear();
-    this.axonEventListeners.clear();
-    this.timelineEventListeners.clear();
-    this.controlRequestHandlers.clear();
 
-    await this.transport.close();
+    if (this.transport) {
+      await this.transport.close();
+      this.transport = undefined;
+    }
+    this.readLoopRunning = false;
     await runDisconnectHook(this.disconnectFn, this.log, this.handleError);
+
+    this.timelineAbortController = new AbortController();
+    this.closed = false;
+    this.readLoopDone = false;
   }
 
   // -----------------------------------------------------------------------
@@ -477,11 +527,17 @@ export class ClaudeAxonConnection {
     this.readLoopRunning = true;
 
     (async () => {
+      const transport = this.transport;
+      if (!transport) {
+        this.readLoopRunning = false;
+        return;
+      }
+
       let reconnected = false;
 
       const consumeStream = async (): Promise<"ended" | "error"> => {
         try {
-          for await (const message of this.transport.readMessages()) {
+          for await (const message of transport.readMessages()) {
             if (this.closed) return "ended";
             this.routeMessage(message);
           }
@@ -490,6 +546,7 @@ export class ClaudeAxonConnection {
           this.log("readLoop", `error: ${err}`);
           this.handleError(err);
           if (err instanceof SystemError) {
+            this.fatal = true;
             this.closed = true;
           }
           for (const [, pending] of this.pendingControlRequests) {
@@ -502,12 +559,17 @@ export class ClaudeAxonConnection {
 
       const outcome = await consumeStream();
 
-      if (!this.closed && !this.streamAborted && !reconnected) {
+      if (
+        !this.closed &&
+        !this.suppressTransportAutoReconnect &&
+        !this.streamAborted &&
+        !reconnected
+      ) {
         const label = outcome === "error" ? "error" : "ended unexpectedly";
         this.log("readLoop", `SSE stream ${label}, reconnecting...`);
         reconnected = true;
         try {
-          await this.transport.reconnect();
+          await transport.reconnect();
           this.log("readLoop", "reconnected successfully");
           await consumeStream();
         } catch (reconnectErr) {
@@ -678,7 +740,11 @@ export class ClaudeAxonConnection {
       });
     });
 
-    await this.transport.write(JSON.stringify(controlRequest));
+    const transport = this.transport;
+    if (!transport) {
+      throw new ConnectionStateError("not_connected", "Not connected. Call connect() first.");
+    }
+    await transport.write(JSON.stringify(controlRequest));
     return promise;
   }
 
@@ -783,7 +849,7 @@ export class ClaudeAxonConnection {
       }
 
       if (!this.closed) {
-        await this.transport.write(JSON.stringify(controlResponse));
+        await this.transport?.write(JSON.stringify(controlResponse));
       }
     } catch (err) {
       if (this.closed) return;
@@ -795,7 +861,7 @@ export class ClaudeAxonConnection {
           error: String(err),
         },
       };
-      await this.transport.write(JSON.stringify(errorResponse));
+      await this.transport?.write(JSON.stringify(errorResponse));
     }
   }
 
@@ -812,7 +878,7 @@ export class ClaudeAxonConnection {
    *
    * @param prompt - A string message or a fully formed `SDKUserMessage`.
    *
-   * @throws {ConnectionStateError} If disconnected (`code: "disposed"`) or not connected (`code: "not_connected"`).
+   * @throws {ConnectionStateError} If not connected (`code: "not_connected"`) or after a fatal error (`code: "terminated"`).
    *
    * @example
    * ```ts
@@ -820,10 +886,10 @@ export class ClaudeAxonConnection {
    * ```
    */
   async send(prompt: string | SDKUserMessage): Promise<void> {
-    if (this.closed) {
+    if (this.fatal) {
       throw new ConnectionStateError(
-        "disposed",
-        "Connection is disconnected. Cannot send messages.",
+        "terminated",
+        "This connection hit a fatal broker error and cannot be reused. Create a new instance.",
       );
     }
     if (!this.readLoopRunning) {
@@ -831,6 +897,10 @@ export class ClaudeAxonConnection {
         "not_connected",
         "Connection is not connected. Call connect() or initialize() first.",
       );
+    }
+    const transport = this.transport;
+    if (!transport) {
+      throw new ConnectionStateError("not_connected", "Not connected. Call connect() first.");
     }
     const message: SDKUserMessage =
       typeof prompt === "string"
@@ -840,7 +910,7 @@ export class ClaudeAxonConnection {
             parent_tool_use_id: null,
           }
         : prompt;
-    await this.transport.write(JSON.stringify(message));
+    await transport.write(JSON.stringify(message));
   }
 
   /**

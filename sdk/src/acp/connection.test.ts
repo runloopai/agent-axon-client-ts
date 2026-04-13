@@ -422,7 +422,7 @@ describe("ACPAxonConnection", () => {
   });
 
   describe("lifecycle", () => {
-    it("disconnect() clears all listeners", async () => {
+    it("disconnect() preserves listener registrations for reconnect", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
 
@@ -431,23 +431,17 @@ describe("ACPAxonConnection", () => {
       });
       await conn.connect();
 
-      const sessionListener = vi.fn();
       const rawListener = vi.fn();
-      conn.onSessionUpdate(sessionListener);
       conn.onAxonEvent(rawListener);
 
-      conn.disconnect();
+      await conn.disconnect();
 
-      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
-      ctrl.end();
-
-      return new Promise<void>((resolve) => {
-        setTimeout(() => {
-          expect(sessionListener).not.toHaveBeenCalled();
-          expect(rawListener).not.toHaveBeenCalled();
-          resolve();
-        }, 50);
-      });
+      const axonListeners = (
+        conn as unknown as { axonEventListeners: { emit: (ev: unknown) => void } }
+      ).axonEventListeners;
+      const fakeEvent = { event_type: "test", payload: "{}", origin: "AGENT_EVENT" };
+      axonListeners.emit(fakeEvent as never);
+      expect(rawListener).toHaveBeenCalledWith(fakeEvent);
     });
 
     it("disconnect() runs the onDisconnect callback", async () => {
@@ -493,6 +487,29 @@ describe("ACPAxonConnection", () => {
       await conn.disconnect();
 
       expect(onDisconnect).toHaveBeenCalledOnce();
+    });
+
+    it("connect() then initialize() works after disconnect()", async () => {
+      const ctrl = createControllableStream();
+      const { axon } = createMockAxon(ctrl);
+
+      const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never, {
+        replay: false,
+      });
+      await conn.connect();
+      await conn.disconnect();
+      await conn.connect();
+
+      const mockResult = { protocolVersion: PROTOCOL_VERSION, serverInfo: { name: "test" } };
+      conn.protocol.initialize = vi.fn().mockResolvedValue(mockResult);
+
+      const result = await conn.initialize({
+        protocolVersion: PROTOCOL_VERSION,
+        clientInfo: { name: "reconnect", version: "1.0" },
+      });
+
+      expect(conn.protocol.initialize).toHaveBeenCalledOnce();
+      expect(result).toBe(mockResult);
     });
   });
 
@@ -817,27 +834,27 @@ describe("ACPAxonConnection", () => {
 
       await expect(conn.initialize({} as never)).rejects.toMatchObject({
         name: "ConnectionStateError",
-        code: "disposed",
+        code: "not_connected",
       });
-      const expectDisposedSync = (fn: () => unknown) => {
+      const expectNotConnectedSync = (fn: () => unknown) => {
         try {
           fn();
           expect.fail("expected ConnectionStateError");
         } catch (e) {
           expect(e).toBeInstanceOf(ConnectionStateError);
-          expect((e as ConnectionStateError).code).toBe("disposed");
+          expect((e as ConnectionStateError).code).toBe("not_connected");
         }
       };
-      expectDisposedSync(() => conn.newSession({} as never));
-      expectDisposedSync(() => conn.loadSession({} as never));
-      expectDisposedSync(() => conn.listSessions({} as never));
-      expectDisposedSync(() => conn.prompt({} as never));
-      expectDisposedSync(() => conn.cancel({} as never));
-      expectDisposedSync(() => conn.authenticate({} as never));
-      expectDisposedSync(() => conn.setSessionMode({} as never));
-      expectDisposedSync(() => conn.setSessionConfigOption({} as never));
-      expectDisposedSync(() => conn.extMethod("x", {}));
-      expectDisposedSync(() => conn.extNotification("x", {}));
+      expectNotConnectedSync(() => conn.newSession({} as never));
+      expectNotConnectedSync(() => conn.loadSession({} as never));
+      expectNotConnectedSync(() => conn.listSessions({} as never));
+      expectNotConnectedSync(() => conn.prompt({} as never));
+      expectNotConnectedSync(() => conn.cancel({} as never));
+      expectNotConnectedSync(() => conn.authenticate({} as never));
+      expectNotConnectedSync(() => conn.setSessionMode({} as never));
+      expectNotConnectedSync(() => conn.setSessionConfigOption({} as never));
+      expectNotConnectedSync(() => conn.extMethod("x", {}));
+      expectNotConnectedSync(() => conn.extNotification("x", {}));
     });
   });
 
@@ -1024,7 +1041,7 @@ describe("ACPAxonConnection", () => {
       conn.disconnect();
     });
 
-    it("disconnect() clears timeline listeners", async () => {
+    it("disconnect() preserves timeline listener registrations", async () => {
       const ctrl = createControllableStream();
       const { axon } = createMockAxon(ctrl);
       const conn = new ACPAxonConnection(axon as never, { id: "dbx-test" } as never, {
@@ -1032,16 +1049,21 @@ describe("ACPAxonConnection", () => {
       });
       await conn.connect();
 
-      const events: ACPTimelineEvent[] = [];
-      conn.onTimelineEvent((ev) => events.push(ev));
+      const listener = vi.fn();
+      conn.onTimelineEvent(listener);
 
-      conn.disconnect();
+      await conn.disconnect();
 
-      ctrl.push(makeAgentEvent("session/update", makeSessionNotification(makeUsageUpdate())));
-      ctrl.end();
-
-      await new Promise((r) => setTimeout(r, 50));
-      expect(events).toHaveLength(0);
+      const timelineListeners = (
+        conn as unknown as { timelineEventListeners: { emit: (ev: ACPTimelineEvent) => void } }
+      ).timelineEventListeners;
+      const fake: ACPTimelineEvent = {
+        kind: "unknown",
+        data: null,
+        axonEvent: { event_type: "x", payload: "{}", origin: "AGENT_EVENT" } as never,
+      };
+      timelineListeners.emit(fake);
+      expect(listener).toHaveBeenCalledWith(fake);
     });
 
     it("sets data to SessionNotification shape for session/update", async () => {
