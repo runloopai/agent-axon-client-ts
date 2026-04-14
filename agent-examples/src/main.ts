@@ -139,8 +139,12 @@ function printResults(results: RunResult[]): void {
   console.log("RESULTS");
   console.log("=".repeat(80));
 
-  const maxAgent = Math.max(...results.map((r) => r.agent.length), 10);
-  const maxUseCase = Math.max(...results.map((r) => r.useCase.length), 10);
+  const maxAgent = results.length > 0
+    ? Math.max(...results.map((r) => r.agent.length), 10)
+    : 10;
+  const maxUseCase = results.length > 0
+    ? Math.max(...results.map((r) => r.useCase.length), 10)
+    : 10;
 
   console.log(
     `${"Agent".padEnd(maxAgent)} | ${"Use Case".padEnd(maxUseCase)} | Protocol | Status | Duration | Notes`,
@@ -397,7 +401,18 @@ async function main(): Promise<void> {
   }
 
   const parallel = parseInt(args.parallel ?? "5", 10);
-  const timeout = parseInt(args.timeout ?? "30000", 10);
+  if (Number.isNaN(parallel) || parallel < 1) {
+    console.error(`Invalid --parallel value: ${args.parallel}`);
+    console.error("Must be a number >= 1");
+    process.exit(1);
+  }
+
+  const timeout = parseInt(args.timeout!, 10);
+  if (Number.isNaN(timeout) || timeout < 1) {
+    console.error(`Invalid --timeout value: ${args.timeout}`);
+    console.error("Must be a number >= 1");
+    process.exit(1);
+  }
 
   if (args.validate) {
     console.log("Validating generated output...\n");

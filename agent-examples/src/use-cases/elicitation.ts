@@ -37,7 +37,6 @@ export default {
     const state = {
       chunks: [] as string[],
       elicitationCount: 0,
-      elicitationError: null as Error | null,
     };
 
     const client: Client = {
@@ -71,7 +70,12 @@ export default {
       ): Promise<Record<string, unknown>> {
         if (method === CLIENT_METHODS.session_elicitation) {
           state.elicitationCount++;
-          const request = params as unknown as ElicitationRequest;
+
+          // Runtime shape check before casting
+          if (typeof params !== "object" || params === null || !("mode" in params)) {
+            throw new Error(`Invalid elicitation request: missing 'mode' field`);
+          }
+          const request = params as ElicitationRequest;
 
           // Auto-respond to elicitation with accept + sample content
           const response: ElicitationResponse = {
@@ -80,7 +84,7 @@ export default {
               content: request.mode === "form" ? { answer: "test-response" } : null,
             },
           };
-          return response as unknown as Record<string, unknown>;
+          return response as Record<string, unknown>;
         }
         throw new Error(`Unhandled extMethod: ${method}`);
       },
@@ -106,36 +110,38 @@ export default {
     if (ctx.acp) {
       ctx.log("Running ACP path with custom Client...");
 
+      // Access client state for validation (wired through scaffold from createClient's __state).
+      // When using a custom createClient, session updates are handled by the custom client's
+      // sessionUpdate method (which populates state.chunks), not via onSessionUpdate listeners.
+      const clientState = ctx.clientState as {
+        chunks: string[];
+        elicitationCount: number;
+      } | null;
+
+      if (!clientState) {
+        throw new Error("Client state not available - createClient may not have been wired correctly");
+      }
+
       ctx.log(`Sending prompt: "${PROMPT}"`);
       await ctx.acp.prompt({
         sessionId: ctx.sessionId!,
         prompt: [{ type: "text", text: PROMPT }],
       });
 
-      // Access the client state for validation
-      // Note: The client is created by createClient above and wired through scaffold
-      // We can't directly access it here, so we validate via session updates
-      // by collecting chunks through a separate listener
-      const chunks: string[] = [];
-      const unsub = ctx.acp.onSessionUpdate((_sessionId, update) => {
-        if (isAgentMessageChunk(update)) {
-          if (update.content.type === "text" && update.content.text) {
-            chunks.push(update.content.text);
-          }
-        }
-      });
-
-      // Wait briefly to allow any additional updates
+      // Wait briefly to allow any additional updates after prompt resolves
       await new Promise((resolve) => setTimeout(resolve, 500));
-      unsub();
 
-      ctx.log(`Received ${chunks.length} text chunks`);
+      ctx.log(`Client state: ${clientState.elicitationCount} elicitation(s), ${clientState.chunks.length} chunk(s)`);
 
-      // Validation: agent responded (elicitation may or may not have triggered)
-      // The flow is considered successful if:
-      // 1. No errors were thrown during execution
-      // 2. The agent either responded with text OR triggered elicitation
-      ctx.log("Pass: ACP elicitation flow completed without error");
+      // Validation: agent responded with text OR triggered elicitation
+      const hasText = clientState.chunks.filter((c) => c.trim().length > 0).length > 0;
+      const hasElicitation = clientState.elicitationCount > 0;
+
+      if (!hasText && !hasElicitation) {
+        throw new Error("Agent did not respond with text and did not trigger elicitation");
+      }
+
+      ctx.log("Pass: ACP elicitation flow completed");
     } else if (ctx.claude) {
       ctx.log("Running Claude path with onControlRequest...");
 

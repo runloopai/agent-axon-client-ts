@@ -14,7 +14,7 @@ Workflow:
 2. Follow its pointers to the relevant file in `agent-examples/src/use-cases/`.
 3. Check `agent-examples/compatibility.md` if you need to verify protocol/agent support.
 
-The use-case list in `llms.txt` is auto-generated from `agent-examples/templates/llms.txt.template` and stays in sync with the latest SDK API.
+The use-case list in `llms.txt` is auto-generated from `agent-examples/templates/llms.txt.template`. Regenerate it by running `bun run compat` (without filters).
 
 ## Repository layout
 
@@ -75,6 +75,12 @@ bun run build      # TypeScript compilation
 bun run test       # Vitest suite
 ```
 
+After editing any file under `agent-examples/`, also run:
+
+```bash
+bun run --filter 'agent-examples' typecheck  # Type-check agent-examples
+```
+
 If any step fails, fix the issue and re-run from that step.
 
 If `bun run check` fails, run `bun run check:fix` to auto-fix most lint and format issues, then re-run `bun run check` to confirm. Common Biome issues:
@@ -93,7 +99,7 @@ PR titles **must** follow Conventional Commits:
 
 | Types  | `feat` · `fix` · `docs` · `style` · `refactor` · `perf` · `test` · `build` · `ci` · `chore` · `revert` |
 |--------|---|
-| Scopes | `sdk` · `acp` · `claude` · `examples` · `deps` · `project` |
+| Scopes | `sdk` · `acp` · `claude` · `examples` · `agent-examples` · `deps` · `project` |
 
 PR body must use this template:
 

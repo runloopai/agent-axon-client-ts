@@ -62,8 +62,21 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
   };
 
   if (mergedAgent.protocol === "acp") {
+    // Wrap createClient to capture the returned client's __state for validation
+    let capturedClientState: Record<string, unknown> | null = null;
+    const wrappedCreateClient = useCase.createClient
+      ? (agent: Parameters<NonNullable<typeof useCase.createClient>>[0]) => {
+          const client = useCase.createClient!(agent);
+          const maybeStateful = client as { __state?: Record<string, unknown> };
+          if (maybeStateful.__state) {
+            capturedClientState = maybeStateful.__state;
+          }
+          return client;
+        }
+      : undefined;
+
     const conn = new ACPAxonConnection(axon, devbox, {
-      createClient: useCase.createClient,
+      createClient: wrappedCreateClient,
     });
 
     log("Connecting (ACP)...");
@@ -85,6 +98,7 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
       acp: conn,
       claude: null,
       sessionId: session.sessionId,
+      clientState: capturedClientState,
       log,
       skip: (reason: string) => {
         throw new SkipError(reason);
@@ -107,6 +121,7 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
       acp: null,
       claude: conn,
       sessionId: null,
+      clientState: null,
       log,
       skip: (reason: string) => {
         throw new SkipError(reason);

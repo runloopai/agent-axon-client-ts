@@ -36,5 +36,5 @@ This file is for generating code that uses `@runloop/agent-axon-client` and rela
 
 - sdk/AGENTS.md — SDK quick reference for AI agents
 - sdk/README.md — Full SDK documentation
-- docs.runloop.ai — General Runloop documentation
-- github.com/runloopai/api-client-ts — Runloop TypeScript SDK client, including recipes for Agent Gateway, MCP Gateway, and Network Policy
+- https://docs.runloop.ai — General Runloop documentation
+- https://github.com/runloopai/api-client-ts — Runloop TypeScript SDK client, including recipes for Agent Gateway, MCP Gateway, and Network Policy
