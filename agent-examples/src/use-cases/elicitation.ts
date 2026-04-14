@@ -2,21 +2,21 @@ import {
   type Client,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
-  type SessionNotification,
   type ElicitationRequest,
   type ElicitationResponse,
   CLIENT_METHODS,
-  isAgentMessageChunk,
 } from "@runloop/agent-axon-client/acp";
 import type { SDKControlResponse } from "@runloop/agent-axon-client/claude";
 import type { UseCase } from "../types.js";
+import { extractAgentText } from "../acp-helpers.js";
 
 const PROMPT = "Ask me a question before proceeding with any task.";
 
 /**
  * Elicitation use case: demonstrates handling agent-initiated user input requests.
  *
- * - ACP: Uses createClient to provide a custom Client that handles session/elicitation.
+ * - ACP: Uses createClient to provide a custom Client that handles elicitation RPC,
+ *   while message validation uses typed ACPTimelineEvent consumption.
  * - Claude: Uses onControlRequest to intercept can_use_tool (e.g., AskUserQuestion).
  *
  * This example shows how to wire up interactive agent flows in both protocols.
@@ -32,10 +32,11 @@ export default {
     elicitation: { form: {} },
   },
 
-  // ACP: Custom Client factory that handles elicitation requests
+  // ACP: Custom Client factory that handles elicitation RPC requests.
+  // Note: session updates are consumed via onTimelineEvent in run() instead of
+  // wiring chunk collection through the Client's sessionUpdate callback.
   createClient(_agent) {
     const state = {
-      chunks: [] as string[],
       elicitationCount: 0,
     };
 
@@ -43,7 +44,6 @@ export default {
       async requestPermission(
         params: RequestPermissionRequest,
       ): Promise<RequestPermissionResponse> {
-        // Auto-approve permissions (same as SDK default)
         const option =
           params.options.find((o) => o.kind === "allow_always") ??
           params.options.find((o) => o.kind === "allow_once") ??
@@ -55,15 +55,6 @@ export default {
         };
       },
 
-      async sessionUpdate(params: SessionNotification): Promise<void> {
-        const update = params.update;
-        if (isAgentMessageChunk(update)) {
-          if (update.content.type === "text" && update.content.text) {
-            state.chunks.push(update.content.text);
-          }
-        }
-      },
-
       async extMethod(
         method: string,
         params: Record<string, unknown>,
@@ -71,13 +62,11 @@ export default {
         if (method === CLIENT_METHODS.session_elicitation) {
           state.elicitationCount++;
 
-          // Runtime shape check before casting
           if (typeof params !== "object" || params === null || !("mode" in params)) {
             throw new Error(`Invalid elicitation request: missing 'mode' field`);
           }
           const request = params as ElicitationRequest;
 
-          // Auto-respond to elicitation with accept + sample content
           const response: ElicitationResponse = {
             action: {
               action: "accept",
@@ -94,33 +83,36 @@ export default {
         _params: Record<string, unknown>,
       ): Promise<void> {
         if (method === CLIENT_METHODS.session_elicitation_complete) {
-          // Elicitation flow completed by agent
           return;
         }
-        // Ignore other notifications
       },
+
+      // Required by the Client interface; message consumption happens via
+      // onTimelineEvent in run() so this is a no-op.
+      async sessionUpdate(): Promise<void> {},
     };
 
-    // Attach state for validation in run()
     (client as unknown as { __state: typeof state }).__state = state;
     return client;
   },
 
   async run(ctx) {
     if (ctx.acp) {
-      ctx.log("Running ACP path with custom Client...");
+      ctx.log("Running ACP path with custom Client + timeline events...");
 
-      // Access client state for validation (wired through scaffold from createClient's __state).
-      // When using a custom createClient, session updates are handled by the custom client's
-      // sessionUpdate method (which populates state.chunks), not via onSessionUpdate listeners.
-      const clientState = ctx.clientState as {
-        chunks: string[];
-        elicitationCount: number;
-      } | null;
+      // Elicitation count is still tracked via the custom Client's extMethod handler
+      const clientState = ctx.clientState as { elicitationCount: number } | null;
 
       if (!clientState) {
         throw new Error("Client state not available - createClient may not have been wired correctly");
       }
+
+      // Collect text chunks via typed ACPTimelineEvent stream
+      const chunks: string[] = [];
+      const unsub = ctx.acp.onTimelineEvent((event) => {
+        const text = extractAgentText(event);
+        if (text) chunks.push(text);
+      });
 
       ctx.log(`Sending prompt: "${PROMPT}"`);
       await ctx.acp.prompt({
@@ -130,11 +122,11 @@ export default {
 
       // Wait briefly to allow any additional updates after prompt resolves
       await new Promise((resolve) => setTimeout(resolve, 500));
+      unsub();
 
-      ctx.log(`Client state: ${clientState.elicitationCount} elicitation(s), ${clientState.chunks.length} chunk(s)`);
+      ctx.log(`Timeline chunks: ${chunks.length}, elicitations: ${clientState.elicitationCount}`);
 
-      // Validation: agent responded with text OR triggered elicitation
-      const hasText = clientState.chunks.filter((c) => c.trim().length > 0).length > 0;
+      const hasText = chunks.filter((c) => c.trim().length > 0).length > 0;
       const hasElicitation = clientState.elicitationCount > 0;
 
       if (!hasText && !hasElicitation) {
