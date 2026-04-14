@@ -3,10 +3,10 @@ import {
   type ElicitationRequest,
   type ElicitationResponse,
   CLIENT_METHODS,
+  isAgentTextChunk,
 } from "@runloop/agent-axon-client/acp";
 import type { SDKControlResponse } from "@runloop/agent-axon-client/claude";
 import type { UseCase } from "../types.js";
-import { extractAgentText } from "../acp-helpers.js";
 
 const PROMPT = "Ask me a question before proceeding with any task.";
 
@@ -60,9 +60,10 @@ export default {
       if (!st) throw new Error("Client state unavailable");
 
       const chunks: string[] = [];
-      const unsub = ctx.acp.onTimelineEvent((e) => {
-        const t = extractAgentText(e);
-        if (t) chunks.push(t);
+      const unsub = ctx.acp.onSessionUpdate((_sessionId, update) => {
+        if (isAgentTextChunk(update)) {
+          chunks.push(update.content.text);
+        }
       });
 
       await ctx.acp.prompt({ sessionId: ctx.sessionId!, prompt: [{ type: "text", text: PROMPT }] });

@@ -1,4 +1,5 @@
 import type { SessionUpdate } from "@agentclientprotocol/sdk";
+import type { TextContentBlock } from "./content-block-guards.js";
 
 /** Streamed chunk of a user-originated message.
  * @category Session Updates */
@@ -187,4 +188,70 @@ export function isSessionInfoUpdate(u: SessionUpdate): u is SessionInfoSessionUp
  */
 export function isUsageUpdate(u: SessionUpdate): u is UsageSessionUpdate {
   return u.sessionUpdate === "usage_update";
+}
+
+// ---------------------------------------------------------------------------
+// Compound guards (session update + content type)
+// ---------------------------------------------------------------------------
+
+/**
+ * An agent message chunk containing text content.
+ * After narrowing with {@link isAgentTextChunk}, `update.content.text` is
+ * directly typed as `string`.
+ * @category Session Updates
+ */
+export type AgentTextChunkUpdate = AgentMessageChunkUpdate & { content: TextContentBlock };
+
+/**
+ * An agent thought chunk containing text content.
+ * After narrowing with {@link isThoughtTextChunk}, `update.content.text` is
+ * directly typed as `string`.
+ * @category Session Updates
+ */
+export type ThoughtTextChunkUpdate = AgentThoughtChunkUpdate & { content: TextContentBlock };
+
+/**
+ * Compound type guard for agent message chunks with text content.
+ *
+ * Combines `isAgentMessageChunk` and `content.type === "text"` into a single
+ * guard. After narrowing, `update.content.text` is typed as `string`.
+ *
+ * @example
+ * ```typescript
+ * conn.onSessionUpdate((sessionId, update) => {
+ *   if (isAgentTextChunk(update)) {
+ *     console.log(update.content.text); // string, no further checks needed
+ *   }
+ * });
+ * ```
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is an {@link AgentTextChunkUpdate}.
+ * @category Session Updates
+ */
+export function isAgentTextChunk(u: SessionUpdate): u is AgentTextChunkUpdate {
+  return u.sessionUpdate === "agent_message_chunk" && u.content.type === "text";
+}
+
+/**
+ * Compound type guard for agent thought chunks with text content.
+ *
+ * Combines `isAgentThoughtChunk` and `content.type === "text"` into a single
+ * guard. After narrowing, `update.content.text` is typed as `string`.
+ *
+ * @example
+ * ```typescript
+ * conn.onSessionUpdate((sessionId, update) => {
+ *   if (isThoughtTextChunk(update)) {
+ *     console.log("Thinking:", update.content.text);
+ *   }
+ * });
+ * ```
+ *
+ * @param u - The session update to test.
+ * @returns `true` if `u` is a {@link ThoughtTextChunkUpdate}.
+ * @category Session Updates
+ */
+export function isThoughtTextChunk(u: SessionUpdate): u is ThoughtTextChunkUpdate {
+  return u.sessionUpdate === "agent_thought_chunk" && u.content.type === "text";
 }

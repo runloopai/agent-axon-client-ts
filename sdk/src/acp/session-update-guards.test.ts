@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   isAgentMessageChunk,
+  isAgentTextChunk,
   isAgentThoughtChunk,
   isAvailableCommandsUpdate,
   isConfigOptionUpdate,
   isCurrentModeUpdate,
   isPlan,
   isSessionInfoUpdate,
+  isThoughtTextChunk,
   isToolCall,
   isToolCallProgress,
   isUsageUpdate,
@@ -44,4 +46,62 @@ describe("session-update-guards", () => {
       });
     });
   }
+
+  describe("isAgentTextChunk (compound guard)", () => {
+    it("returns true for agent_message_chunk with text content", () => {
+      const update = {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "hello" },
+      };
+      // biome-ignore lint/suspicious/noExplicitAny: test stub
+      expect(isAgentTextChunk(update as any)).toBe(true);
+    });
+
+    it("returns false for agent_message_chunk with non-text content", () => {
+      const update = {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "image", data: "abc" },
+      };
+      // biome-ignore lint/suspicious/noExplicitAny: test stub
+      expect(isAgentTextChunk(update as any)).toBe(false);
+    });
+
+    it("returns false for other session update types", () => {
+      const update = {
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: "thinking" },
+      };
+      // biome-ignore lint/suspicious/noExplicitAny: test stub
+      expect(isAgentTextChunk(update as any)).toBe(false);
+    });
+  });
+
+  describe("isThoughtTextChunk (compound guard)", () => {
+    it("returns true for agent_thought_chunk with text content", () => {
+      const update = {
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: "thinking..." },
+      };
+      // biome-ignore lint/suspicious/noExplicitAny: test stub
+      expect(isThoughtTextChunk(update as any)).toBe(true);
+    });
+
+    it("returns false for agent_thought_chunk with non-text content", () => {
+      const update = {
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "image", data: "abc" },
+      };
+      // biome-ignore lint/suspicious/noExplicitAny: test stub
+      expect(isThoughtTextChunk(update as any)).toBe(false);
+    });
+
+    it("returns false for other session update types", () => {
+      const update = {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "hello" },
+      };
+      // biome-ignore lint/suspicious/noExplicitAny: test stub
+      expect(isThoughtTextChunk(update as any)).toBe(false);
+    });
+  });
 });

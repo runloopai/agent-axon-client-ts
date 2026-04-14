@@ -1,5 +1,5 @@
+import { isAgentTextChunk } from "@runloop/agent-axon-client/acp";
 import type { UseCase } from "../types.js";
-import { extractAgentText } from "../acp-helpers.js";
 
 const PROMPT = "Say hello world";
 
@@ -15,9 +15,10 @@ export default {
       ctx.log("Running ACP path...");
 
       const chunks: string[] = [];
-      const unsub = ctx.acp.onTimelineEvent((event) => {
-        const text = extractAgentText(event);
-        if (text) chunks.push(text);
+      const unsub = ctx.acp.onSessionUpdate((_sessionId, update) => {
+        if (isAgentTextChunk(update)) {
+          chunks.push(update.content.text);
+        }
       });
 
       ctx.log(`Sending prompt: "${PROMPT}"`);

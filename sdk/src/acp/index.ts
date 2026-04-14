@@ -80,13 +80,29 @@ export {
 export { axonStream } from "./axon-stream.js";
 export { ACPAxonConnection, classifyACPAxonEvent, isACPProtocolEventType } from "./connection.js";
 export type {
+  AudioContentBlock,
+  EmbeddedResourceContentBlock,
+  ImageContentBlock,
+  ResourceLinkContentBlock,
+  TextContentBlock,
+} from "./content-block-guards.js";
+export {
+  isAudioContent,
+  isEmbeddedResourceContent,
+  isImageContent,
+  isResourceLinkContent,
+  isTextContent,
+} from "./content-block-guards.js";
+export type {
   AgentMessageChunkUpdate,
+  AgentTextChunkUpdate,
   AgentThoughtChunkUpdate,
   AvailableCommandsSessionUpdate,
   ConfigOptionSessionUpdate,
   CurrentModeSessionUpdate,
   PlanSessionUpdate,
   SessionInfoSessionUpdate,
+  ThoughtTextChunkUpdate,
   ToolCallProgressSessionUpdate,
   ToolCallSessionUpdate,
   UsageSessionUpdate,
@@ -94,12 +110,14 @@ export type {
 } from "./session-update-guards.js";
 export {
   isAgentMessageChunk,
+  isAgentTextChunk,
   isAgentThoughtChunk,
   isAvailableCommandsUpdate,
   isConfigOptionUpdate,
   isCurrentModeUpdate,
   isPlan,
   isSessionInfoUpdate,
+  isThoughtTextChunk,
   isToolCall,
   isToolCallProgress,
   isUsageUpdate,
