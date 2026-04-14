@@ -1,7 +1,5 @@
 import {
   type Client,
-  type RequestPermissionRequest,
-  type RequestPermissionResponse,
   type ElicitationRequest,
   type ElicitationResponse,
   CLIENT_METHODS,
@@ -12,164 +10,93 @@ import { extractAgentText } from "../acp-helpers.js";
 
 const PROMPT = "Ask me a question before proceeding with any task.";
 
-/** Elicitation: handle agent-initiated user input requests. */
+/** Waits up to `ms` for `predicate` to return true, polling every 100ms. */
+const waitFor = async (predicate: () => boolean, ms: number) => {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline && !predicate()) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+};
+
 export default {
   name: "elicitation",
   description: "Handle agent-initiated user input requests",
   protocols: ["acp", "claude"],
   timeoutMs: 10_000,
 
-  // Advertise elicitation capability
-  clientCapabilities: {
-    elicitation: { form: {} },
-  },
+  // Advertise elicitation capability during ACP initialize
+  clientCapabilities: { elicitation: { form: {} } },
 
-  // Custom Client that handles elicitation RPC (sessionUpdate is a no-op; we use onTimelineEvent)
+  // ACP Client implementation for elicitation RPC
   createClient(_agent) {
-    const state = {
-      elicitationCount: 0,
-    };
+    const state = { elicitationCount: 0, completedCount: 0 };
 
     const client: Client = {
-      async requestPermission(
-        params: RequestPermissionRequest,
-      ): Promise<RequestPermissionResponse> {
-        const option =
-          params.options.find((o) => o.kind === "allow_always") ??
-          params.options.find((o) => o.kind === "allow_once") ??
-          params.options[0];
-        return {
-          outcome: option
-            ? { outcome: "selected", optionId: option.optionId }
-            : { outcome: "cancelled" },
+      async requestPermission(p) {
+        const opt = p.options.find((o: { kind: string }) => o.kind === "allow_always") ?? p.options[0];
+        return { outcome: opt ? { outcome: "selected", optionId: opt.optionId } : { outcome: "cancelled" } };
+      },
+      async extMethod(method, params) {
+        if (method !== CLIENT_METHODS.session_elicitation) throw new Error(`Unhandled: ${method}`);
+        state.elicitationCount++;
+        const req = params as ElicitationRequest;
+        const res: ElicitationResponse = {
+          action: { action: "accept", content: req.mode === "form" ? { answer: "test" } : null },
         };
+        return res as Record<string, unknown>;
       },
-
-      async extMethod(
-        method: string,
-        params: Record<string, unknown>,
-      ): Promise<Record<string, unknown>> {
-        if (method === CLIENT_METHODS.session_elicitation) {
-          state.elicitationCount++;
-
-          if (typeof params !== "object" || params === null || !("mode" in params)) {
-            throw new Error(`Invalid elicitation request: missing 'mode' field`);
-          }
-          const request = params as ElicitationRequest;
-
-          const response: ElicitationResponse = {
-            action: {
-              action: "accept",
-              content: request.mode === "form" ? { answer: "test-response" } : null,
-            },
-          };
-          return response as Record<string, unknown>;
-        }
-        throw new Error(`Unhandled extMethod: ${method}`);
+      async extNotification(method) {
+        if (method === CLIENT_METHODS.session_elicitation_complete) state.completedCount++;
       },
-
-      async extNotification(
-        method: string,
-        _params: Record<string, unknown>,
-      ): Promise<void> {
-        if (method === CLIENT_METHODS.session_elicitation_complete) {
-          return;
-        }
-      },
-
-      async sessionUpdate(): Promise<void> {},
+      async sessionUpdate() {},
     };
-
     (client as unknown as { __state: typeof state }).__state = state;
     return client;
   },
 
   async run(ctx) {
     if (ctx.acp) {
-      ctx.log("Running ACP path with custom Client + timeline events...");
-
-      const clientState = ctx.clientState as { elicitationCount: number } | null;
-
-      if (!clientState) {
-        throw new Error("Client state not available - createClient may not have been wired correctly");
-      }
+      const st = ctx.clientState as { elicitationCount: number; completedCount: number };
+      if (!st) throw new Error("Client state unavailable");
 
       const chunks: string[] = [];
-      const unsub = ctx.acp.onTimelineEvent((event) => {
-        const text = extractAgentText(event);
-        if (text) chunks.push(text);
+      const unsub = ctx.acp.onTimelineEvent((e) => {
+        const t = extractAgentText(e);
+        if (t) chunks.push(t);
       });
 
-      ctx.log(`Sending prompt: "${PROMPT}"`);
-      await ctx.acp.prompt({
-        sessionId: ctx.sessionId!,
-        prompt: [{ type: "text", text: PROMPT }],
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await ctx.acp.prompt({ sessionId: ctx.sessionId!, prompt: [{ type: "text", text: PROMPT }] });
+      await waitFor(() => st.elicitationCount > 0 && st.completedCount > 0, 3_000);
       unsub();
 
-      ctx.log(`Timeline chunks: ${chunks.length}, elicitations: ${clientState.elicitationCount}`);
-
-      const hasText = chunks.filter((c) => c.trim().length > 0).length > 0;
-      const hasElicitation = clientState.elicitationCount > 0;
-
-      if (!hasText && !hasElicitation) {
-        throw new Error("Agent did not respond with text and did not trigger elicitation");
-      }
-
-      ctx.log("Pass: ACP elicitation flow completed");
+      if (!st.elicitationCount) throw new Error("Agent did not trigger elicitation");
+      if (!st.completedCount) throw new Error("Elicitation started but did not complete");
+      if (!chunks.some((c) => c.trim())) throw new Error("No text after elicitation");
+      ctx.log("Pass: ACP elicitation");
     } else if (ctx.claude) {
-      ctx.log("Running Claude path with onControlRequest...");
-
-      let controlRequestCount = 0;
-
-      ctx.claude.onControlRequest("can_use_tool", async (message) => {
-        controlRequestCount++;
-        ctx.log(`Received control request: ${message.request.tool_name}`);
-
-        const response: SDKControlResponse = {
+      ctx.claude.onControlRequest("can_use_tool", async (msg) => {
+        const res: SDKControlResponse = {
           type: "control_response",
-          response: {
-            subtype: "success",
-            request_id: message.request_id,
-            response: { behavior: "allow" },
-          },
+          response: { subtype: "success", request_id: msg.request_id, response: { behavior: "allow" } },
         };
-        return response;
+        return res;
       });
 
-      ctx.log(`Sending prompt: "${PROMPT}"`);
       await ctx.claude.send(PROMPT);
-
-      let resultReceived = false;
-      let hasAssistantText = false;
-
-      for await (const msg of ctx.claude.receiveAgentResponse()) {
-        if (msg.type === "result") {
-          if (msg.is_error) {
-            throw new Error(`Result was an error: ${msg.subtype}`);
-          }
-          resultReceived = true;
+      let gotResult = false, gotText = false;
+      for await (const m of ctx.claude.receiveAgentResponse()) {
+        if (m.type === "result") {
+          if (m.is_error) throw new Error(`Error result: ${m.subtype}`);
+          gotResult = true;
         }
-        if (msg.type === "assistant") {
-          const hasText = msg.message.content.some(
-            (block) => block.type === "text" && block.text.trim().length > 0,
-          );
-          if (hasText) hasAssistantText = true;
+        if (m.type === "assistant" && m.message.content.some((b) => b.type === "text" && b.text.trim())) {
+          gotText = true;
         }
       }
-
-      if (!resultReceived) {
-        throw new Error("No result message received");
-      }
-
-      ctx.log(`Control requests handled: ${controlRequestCount}`);
-      ctx.log(`Assistant responded with text: ${hasAssistantText}`);
-
-      ctx.log("Pass: Claude elicitation flow completed without error");
+      if (!gotResult) throw new Error("No result received");
+      ctx.log(`Pass: Claude elicitation (text=${gotText})`);
     } else {
-      ctx.skip("No connection available");
+      ctx.skip("No connection");
     }
   },
 } satisfies UseCase;
