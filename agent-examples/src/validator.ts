@@ -1,4 +1,14 @@
 /**
+ * Waits up to `ms` for `predicate` to return true, polling every 100ms.
+ */
+export async function waitFor(predicate: () => boolean, ms: number): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline && !predicate()) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+/**
  * Wraps a promise with a timeout.
  * On timeout the original promise keeps running; pass an AbortSignal to cancel it.
  */

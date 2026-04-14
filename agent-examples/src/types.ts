@@ -87,9 +87,6 @@ export interface RunContext {
   /** ACP session ID, or null for Claude (implicit session). */
   sessionId: string | null;
 
-  /** State from the custom Client (set via `__state` by scaffold). */
-  clientState: Record<string, unknown> | null;
-
   /** Log a message (appears in run output). */
   log: (msg: string) => void;
 

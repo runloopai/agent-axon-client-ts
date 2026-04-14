@@ -4,19 +4,14 @@ import {
   type ElicitationResponse,
   CLIENT_METHODS,
   isAgentTextChunk,
+  isElicitationCompleteEvent,
+  isElicitationRequestEvent,
 } from "@runloop/agent-axon-client/acp";
 import { isClaudeAssistantTextEvent, isClaudeResultEvent } from "@runloop/agent-axon-client/claude";
 import type { UseCase } from "../types.js";
+import { waitFor } from "../validator.js";
 
 const PROMPT = "Ask me a question before proceeding with any task.";
-
-/** Waits up to `ms` for `predicate` to return true, polling every 100ms. */
-const waitFor = async (predicate: () => boolean, ms: number) => {
-  const deadline = Date.now() + ms;
-  while (Date.now() < deadline && !predicate()) {
-    await new Promise((r) => setTimeout(r, 100));
-  }
-};
 
 export default {
   name: "elicitation",
@@ -24,13 +19,9 @@ export default {
   protocols: ["acp", "claude"],
   timeoutMs: 10_000,
 
-  // Advertise elicitation capability during ACP initialize
   clientCapabilities: { elicitation: { form: {} } },
 
-  // ACP Client implementation for elicitation RPC
   createClient(_agent) {
-    const state = { elicitationCount: 0, completedCount: 0 };
-
     const client: Client = {
       async requestPermission(p) {
         const opt = p.options.find((o: { kind: string }) => o.kind === "allow_always") ?? p.options[0];
@@ -38,40 +29,46 @@ export default {
       },
       async extMethod(method, params) {
         if (method !== CLIENT_METHODS.session_elicitation) throw new Error(`Unhandled: ${method}`);
-        state.elicitationCount++;
         const req = params as ElicitationRequest;
         const res: ElicitationResponse = {
           action: { action: "accept", content: req.mode === "form" ? { answer: "test" } : null },
         };
         return res as Record<string, unknown>;
       },
-      async extNotification(method) {
-        if (method === CLIENT_METHODS.session_elicitation_complete) state.completedCount++;
-      },
+      async extNotification() {},
       async sessionUpdate() {},
     };
-    (client as unknown as { __state: typeof state }).__state = state;
     return client;
   },
 
   async run(ctx) {
     if (ctx.acp) {
-      const st = ctx.clientState as { elicitationCount: number; completedCount: number };
-      if (!st) throw new Error("Client state unavailable");
+      let elicitationCount = 0;
+      let completedCount = 0;
 
       const chunks: string[] = [];
-      const unsub = ctx.acp.onSessionUpdate((_sessionId, update) => {
+      const unsub = ctx.acp.onTimelineEvent((event) => {
+        if (isElicitationRequestEvent(event)) {
+          elicitationCount++;
+        }
+        if (isElicitationCompleteEvent(event)) {
+          completedCount++;
+        }
+      });
+
+      const unsubSession = ctx.acp.onSessionUpdate((_sessionId, update) => {
         if (isAgentTextChunk(update)) {
           chunks.push(update.content.text);
         }
       });
 
       await ctx.acp.prompt({ sessionId: ctx.sessionId!, prompt: [{ type: "text", text: PROMPT }] });
-      await waitFor(() => st.elicitationCount > 0 && st.completedCount > 0, 3_000);
+      await waitFor(() => elicitationCount > 0 && completedCount > 0, 3_000);
       unsub();
+      unsubSession();
 
-      if (!st.elicitationCount) throw new Error("Agent did not trigger elicitation");
-      if (!st.completedCount) throw new Error("Elicitation started but did not complete");
+      if (!elicitationCount) throw new Error("Agent did not trigger elicitation");
+      if (!completedCount) throw new Error("Elicitation started but did not complete");
       if (!chunks.some((c) => c.trim())) throw new Error("No text after elicitation");
       ctx.log("Pass: ACP elicitation");
     } else if (ctx.claude) {
