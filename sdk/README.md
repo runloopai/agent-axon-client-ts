@@ -84,6 +84,22 @@ conn.onSessionUpdate((sessionId, update) => {
   }
 });
 
+// Timeline events provide a unified, classified stream of all Axon activity —
+// protocol messages, system events (turn start/end), and custom events.
+// This is the recommended approach for building chat UIs. See "Timeline Events" below.
+conn.onTimelineEvent((event) => {
+  switch (event.kind) {
+    case "acp_protocol":
+      // Typed ACP payload — narrow further with event.eventType
+      break;
+    case "system":
+      // event.data: { type: "turn.started" | "turn.completed", turnId, ... }
+      break;
+    case "unknown":
+      break;
+  }
+});
+
 // Start a session and send a prompt (prompt() resolves when the turn ends,
 // but onSessionUpdate may still receive trailing content — see Known Limitations)
 const session = await conn.newSession({ cwd: "/home/user", mcpServers: [] });
@@ -98,7 +114,7 @@ await conn.disconnect();
 ### Claude Code Agent
 
 ```typescript
-import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection, tryParseTimelinePayload } from "@runloop/agent-axon-client/claude";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -120,11 +136,37 @@ const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5"
 await conn.connect();
 await conn.initialize();
 
+// Timeline events classify every Axon event into a typed union — the recommended
+// way to build chat UIs. See "Timeline Events" below for the full API.
+conn.onTimelineEvent((event) => {
+  switch (event.kind) {
+    case "claude_protocol":
+      // event.data is SDKMessage (assistant, result, system, etc.)
+      console.log(event.data.type, event.data);
+      break;
+    case "unknown":
+      // Custom events arrive here — match on event_type and parse the payload
+      if (event.axonEvent.event_type === "build_status") {
+        const status = tryParseTimelinePayload<{ step: string; progress: number }>(event);
+        if (status) console.log(`${status.step}: ${status.progress}%`);
+      }
+      break;
+  }
+});
+
 // Send a prompt and iterate over response messages until a "result" message arrives
 await conn.send("What files are in this directory?");
 for await (const msg of conn.receiveAgentResponse()) {
   console.log(msg.type, msg);
 }
+
+// Publish a custom event — it will appear as kind: "unknown" in the timeline
+await conn.publish({
+  event_type: "build_status",
+  origin: "EXTERNAL_EVENT",
+  source: "ci-pipeline",
+  payload: JSON.stringify({ step: "compile", progress: 100 }),
+});
 
 await conn.disconnect();
 ```
@@ -436,6 +478,7 @@ Every timeline event has three fields:
 
 ```typescript
 import type { ACPTimelineEvent } from "@runloop/agent-axon-client/acp";
+import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
 
 conn.onTimelineEvent((event: ACPTimelineEvent) => {
   switch (event.kind) {
@@ -447,7 +490,11 @@ conn.onTimelineEvent((event: ACPTimelineEvent) => {
       // event.data is SystemEvent: { type: "turn.started", turnId } | { type: "turn.completed", turnId, stopReason? } | { type: "broker.error", message }
       break;
     case "unknown":
-      // event.data is null — inspect event.axonEvent for raw data
+      // event.data is null — use axonEvent to identify and parse the event yourself
+      if (event.axonEvent.event_type === "my_custom_event") {
+        const payload = tryParseTimelinePayload<{ progress: number }>(event);
+        if (payload) console.log(`Progress: ${payload.progress}%`);
+      }
       break;
   }
 });
@@ -457,6 +504,7 @@ conn.onTimelineEvent((event: ACPTimelineEvent) => {
 
 ```typescript
 import type { ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
+import { tryParseTimelinePayload } from "@runloop/agent-axon-client/claude";
 
 conn.onTimelineEvent((event: ClaudeTimelineEvent) => {
   switch (event.kind) {
@@ -467,7 +515,9 @@ conn.onTimelineEvent((event: ClaudeTimelineEvent) => {
       // event.data is SystemEvent
       break;
     case "unknown":
-      // event.data is null
+      // event.data is null — check event.axonEvent.event_type and parse the payload
+      const payload = tryParseTimelinePayload<{ progress: number }>(event);
+      if (payload) console.log(payload.progress);
       break;
   }
 });
@@ -483,20 +533,41 @@ for await (const event of conn.receiveTimelineEvents()) {
 }
 ```
 
-### `tryParseTimelinePayload` helper
+### Custom events via `publish()` and `tryParseTimelinePayload`
 
-For unknown events, use `tryParseTimelinePayload` to safely parse the raw JSON payload:
+Both `ACPAxonConnection` and `ClaudeAxonConnection` expose a `publish()` method for pushing custom events to the Axon channel. These arrive in the timeline as `kind: "unknown"` events that you can match on `event_type` and parse with `tryParseTimelinePayload`.
+
+**Publishing a custom event:**
+
+```typescript
+await conn.publish({
+  event_type: "build_status",
+  origin: "EXTERNAL_EVENT",
+  source: "ci-pipeline",
+  payload: JSON.stringify({ step: "compile", progress: 75, logs: ["..."] }),
+});
+```
+
+**Consuming it on the other side:**
 
 ```typescript
 import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
 
+interface BuildStatus {
+  step: string;
+  progress: number;
+  logs: string[];
+}
+
 conn.onTimelineEvent((event) => {
-  if (event.kind === "unknown") {
-    const payload = tryParseTimelinePayload<{ myField: string }>(event);
-    if (payload) console.log(payload.myField);
+  if (event.kind === "unknown" && event.axonEvent.event_type === "build_status") {
+    const status = tryParseTimelinePayload<BuildStatus>(event);
+    if (status) console.log(`${status.step}: ${status.progress}%`);
   }
 });
 ```
+
+`tryParseTimelinePayload` safely JSON-parses `axonEvent.payload` into your expected type, returning `null` if parsing fails or the payload is empty.
 
 ### Event replay, `replay`, and `afterSequence`
 
