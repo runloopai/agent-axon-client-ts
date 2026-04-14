@@ -5,7 +5,7 @@ import {
   CLIENT_METHODS,
   isAgentTextChunk,
 } from "@runloop/agent-axon-client/acp";
-import type { SDKControlResponse } from "@runloop/agent-axon-client/claude";
+import { isClaudeAssistantTextEvent, isClaudeResultEvent } from "@runloop/agent-axon-client/claude";
 import type { UseCase } from "../types.js";
 
 const PROMPT = "Ask me a question before proceeding with any task.";
@@ -75,25 +75,30 @@ export default {
       if (!chunks.some((c) => c.trim())) throw new Error("No text after elicitation");
       ctx.log("Pass: ACP elicitation");
     } else if (ctx.claude) {
-      ctx.claude.onControlRequest("can_use_tool", async (msg) => {
-        const res: SDKControlResponse = {
-          type: "control_response",
-          response: { subtype: "success", request_id: msg.request_id, response: { behavior: "allow" } },
-        };
-        return res;
+      ctx.claude.onControlRequest("can_use_tool", async (msg) => ({
+        type: "control_response",
+        response: { subtype: "success", request_id: msg.request_id, response: { behavior: "allow" } },
+      }));
+
+      let gotResult = false;
+      let gotText = false;
+      let resultError: string | undefined;
+
+      const unsub = ctx.claude.onTimelineEvent((event) => {
+        if (isClaudeResultEvent(event)) {
+          if (event.data.is_error) resultError = event.data.subtype;
+          gotResult = true;
+        }
+        if (isClaudeAssistantTextEvent(event)) {
+          gotText = true;
+        }
       });
 
       await ctx.claude.send(PROMPT);
-      let gotResult = false, gotText = false;
-      for await (const m of ctx.claude.receiveAgentResponse()) {
-        if (m.type === "result") {
-          if (m.is_error) throw new Error(`Error result: ${m.subtype}`);
-          gotResult = true;
-        }
-        if (m.type === "assistant" && m.message.content.some((b) => b.type === "text" && b.text.trim())) {
-          gotText = true;
-        }
-      }
+      await waitFor(() => gotResult, 8_000);
+      unsub();
+
+      if (resultError) throw new Error(`Error result: ${resultError}`);
       if (!gotResult) throw new Error("No result received");
       ctx.log(`Pass: Claude elicitation (text=${gotText})`);
     } else {

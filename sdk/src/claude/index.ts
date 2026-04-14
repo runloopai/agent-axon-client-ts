@@ -90,6 +90,26 @@ export {
   type ControlRequestInner,
   type ControlRequestOfSubtype,
 } from "./connection.js";
+export type {
+  BrokerErrorTimelineEvent,
+  TurnCompletedTimelineEvent,
+  TurnStartedTimelineEvent,
+} from "./timeline-event-guards.js";
+export {
+  isBrokerErrorEvent,
+  isClaudeAssistantEvent,
+  isClaudeAssistantTextEvent,
+  isClaudeControlRequestEvent,
+  isClaudeControlResponseEvent,
+  isClaudeProtocolEvent,
+  isClaudeQueryEvent,
+  isClaudeResultEvent,
+  isClaudeSystemInitEvent,
+  isSystemTimelineEvent,
+  isTurnCompletedEvent,
+  isTurnStartedEvent,
+  isUnknownTimelineEvent,
+} from "./timeline-event-guards.js";
 export {
   AxonTransport,
   type AxonTransportOptions,

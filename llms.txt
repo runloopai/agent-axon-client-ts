@@ -30,6 +30,7 @@ This file is for generating code that uses `@runloop/agent-axon-client` and rela
 - Prefer Agent Gateway for secret injection and credential management in devboxes.
 - Prefer MCP Gateway for MCP endpoint and credential management.
 - Prefer Network Policy to restrict devbox internet access.
+- Prefer using SDKs and using type guards instead of interacting with Axons directly.
 - Do not assume every protocol works with every agent; check the compatibility matrix first.
 
 ## SDK Reference

@@ -1,4 +1,5 @@
 import { isAgentTextChunk } from "@runloop/agent-axon-client/acp";
+import { isClaudeAssistantTextEvent, isClaudeResultEvent } from "@runloop/agent-axon-client/claude";
 import type { UseCase } from "../types.js";
 
 const PROMPT = "Say hello world";
@@ -38,33 +39,30 @@ export default {
     } else if (ctx.claude) {
       ctx.log("Running Claude path...");
 
+      let hasAssistantText = false;
+      let resultError: string | undefined;
+      let onResult: () => void;
+      const resultReceived = new Promise<void>((resolve) => {
+        onResult = resolve;
+      });
+
+      const unsub = ctx.claude.onTimelineEvent((event) => {
+        if (isClaudeAssistantTextEvent(event)) {
+          hasAssistantText = true;
+        }
+        if (isClaudeResultEvent(event)) {
+          if (event.data.is_error) resultError = `Result was an error: ${event.data.subtype}`;
+          onResult();
+        }
+      });
+
       ctx.log(`Sending prompt: "${PROMPT}"`);
       await ctx.claude.send(PROMPT);
+      await resultReceived;
+      unsub();
 
-      let resultReceived = false;
-      let hasAssistantText = false;
-
-      for await (const msg of ctx.claude.receiveAgentResponse()) {
-        if (msg.type === "result") {
-          if (msg.is_error) {
-            throw new Error(`Result was an error: ${msg.subtype}`);
-          }
-          resultReceived = true;
-        }
-        if (msg.type === "assistant") {
-          const hasText = msg.message.content.some(
-            (block) => block.type === "text" && block.text.trim().length > 0,
-          );
-          if (hasText) hasAssistantText = true;
-        }
-      }
-
-      if (!resultReceived) {
-        throw new Error("No result message received");
-      }
-      if (!hasAssistantText) {
-        throw new Error("Assistant did not respond with any text");
-      }
+      if (resultError) throw new Error(resultError);
+      if (!hasAssistantText) throw new Error("Assistant did not respond with any text");
 
       ctx.log("Pass: Agent responded with text");
     } else {
