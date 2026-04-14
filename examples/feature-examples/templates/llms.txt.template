@@ -10,6 +10,10 @@ npm install @runloop/agent-axon-client @runloop/api-client
 npm install @anthropic-ai/claude-agent-sdk
 ```
 
+## Connecting
+
+Refer to ../scaffold.ts for setup and advice on best practices.
+
 ## Use Cases
 
 {{useCasesList}}
