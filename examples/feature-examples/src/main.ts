@@ -81,6 +81,7 @@ async function runOne(
 ): Promise<RunResult> {
   const start = Date.now();
   let ctx: RunContext | null = null;
+  const expectedFailReason = useCase.expectedFailures?.[agent.protocol];
 
   try {
     const { ctx: setupCtx } = await setup(agent, useCase);
@@ -92,6 +93,16 @@ async function runOne(
     );
     await withTimeout(useCase.run(ctx), timeout, `${useCase.name} execution`);
 
+    if (expectedFailReason) {
+      return {
+        agent: agent.name,
+        useCase: useCase.name,
+        protocol: agent.protocol,
+        status: "xpass",
+        reason: "Expected to fail but passed",
+        durationMs: Date.now() - start,
+      };
+    }
     return {
       agent: agent.name,
       useCase: useCase.name,
@@ -107,6 +118,17 @@ async function runOne(
         protocol: agent.protocol,
         status: "skip",
         reason: err.reason,
+        durationMs: Date.now() - start,
+      };
+    }
+    if (expectedFailReason) {
+      return {
+        agent: agent.name,
+        useCase: useCase.name,
+        protocol: agent.protocol,
+        status: "xfail",
+        error: err instanceof Error ? err.message : String(err),
+        xfailReason: expectedFailReason,
         durationMs: Date.now() - start,
       };
     }
@@ -163,9 +185,14 @@ function printResults(results: RunResult[]): void {
   const passed = results.filter((r) => r.status === "pass").length;
   const failed = results.filter((r) => r.status === "fail").length;
   const skipped = results.filter((r) => r.status === "skip").length;
+  const xfailed = results.filter((r) => r.status === "xfail").length;
+  const xpassed = results.filter((r) => r.status === "xpass").length;
 
   console.log("-".repeat(80));
-  console.log(`Total: ${results.length} | Passed: ${passed} | Failed: ${failed} | Skipped: ${skipped}`);
+  let summary = `Total: ${results.length} | Passed: ${passed} | Failed: ${failed} | Skipped: ${skipped}`;
+  if (xfailed > 0) summary += ` | XFail: ${xfailed}`;
+  if (xpassed > 0) summary += ` | XPass: ${xpassed}`;
+  console.log(summary);
 }
 
 async function loadTemplate(name: string): Promise<string> {
@@ -190,14 +217,16 @@ function assertNoUnresolvedPlaceholders(output: string, templateName: string): v
  * Aggregate multiple agent results for a single protocol into one status.
  * Rules (in priority order):
  *   1. If any result is "fail", the protocol status is "fail".
- *   2. If any result is "pass", the protocol status is "pass".
- *   3. If any result is "skip", the protocol status is "skip".
- *   4. Otherwise (no results), status is "pending".
+ *   2. If any result is "pass" or "xpass", the protocol status is "pass".
+ *   3. If any result is "xfail", the protocol status is "xfail".
+ *   4. If any result is "skip", the protocol status is "skip".
+ *   5. Otherwise (no results), status is "pending".
  */
 function aggregateProtocolStatus(results: RunResult[]): RunResult["status"] | "pending" {
   if (results.length === 0) return "pending";
   if (results.some((r) => r.status === "fail")) return "fail";
-  if (results.some((r) => r.status === "pass")) return "pass";
+  if (results.some((r) => r.status === "pass" || r.status === "xpass")) return "pass";
+  if (results.some((r) => r.status === "xfail")) return "xfail";
   if (results.some((r) => r.status === "skip")) return "skip";
   return "pending";
 }
@@ -262,7 +291,10 @@ function buildRunDetailsRows(results: RunResult[]): string {
   let rows = "";
   for (const r of results) {
     const duration = `${(r.durationMs / 1000).toFixed(1)}s`;
-    const notes = r.error ?? r.reason ?? "";
+    let notes = r.error ?? r.reason ?? "";
+    if (r.status === "xfail" && r.xfailReason) {
+      notes = `[xfail: ${r.xfailReason}] ${notes}`;
+    }
     rows += `| ${r.agent} | ${r.useCase} | ${r.status} | ${duration} | ${notes} |\n`;
   }
   return rows.trimEnd();

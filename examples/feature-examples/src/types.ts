@@ -64,6 +64,13 @@ export interface UseCase {
   clientCapabilities?: Record<string, unknown>;
 
   /**
+   * Protocols expected to fail (with reason).
+   * E.g., `{ acp: "Protocol has not added full support yet" }`.
+   * Results will show as "xfail" instead of "fail" and won't cause exit code 1.
+   */
+  expectedFailures?: Partial<Record<"acp" | "claude", string>>;
+
+  /**
    * The test body. Receives a fully initialized RunContext.
    * Throw to indicate failure. Return cleanly to indicate pass.
    * Call ctx.skip(reason) to skip.
@@ -114,13 +121,16 @@ export interface RunResult {
   protocol: "acp" | "claude";
 
   /** Outcome. */
-  status: "pass" | "fail" | "skip";
+  status: "pass" | "fail" | "skip" | "xfail" | "xpass";
 
-  /** Error message if status is "fail". */
+  /** Error message if status is "fail" or "xfail". */
   error?: string;
 
-  /** Skip reason if status is "skip". */
+  /** Skip reason if status is "skip", or note if status is "xpass". */
   reason?: string;
+
+  /** Why this failure was expected (only set when status is "xfail"). */
+  xfailReason?: string;
 
   /** Time taken in milliseconds. */
   durationMs: number;
