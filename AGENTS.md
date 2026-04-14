@@ -1,106 +1,51 @@
-# AGENTS.md — agent-axon-client-ts monorepo
+# AGENTS.md — agent-axon-client-ts
 
-> **Audience:** This file is intended for AI agents that are developing or maintaining code *in this repository*. It is not end-user documentation — it provides the conventions, tooling, and constraints an agent needs to work effectively in this monorepo.
+Repo guide for AI agents. SDK API docs: [`sdk/AGENTS.md`](sdk/AGENTS.md).
 
-For detailed SDK API docs see [`sdk/AGENTS.md`](sdk/AGENTS.md).
+## Layout
 
-## Recipes for common SDK use cases
+- `sdk/` — `@runloop/agent-axon-client` (published package)
+- `examples/feature-examples/` — runnable SDK recipes
+- `examples/` — demo apps (hello-world, CLI, full-stack)
 
-The `agent-examples/` directory contains runnable recipes that demonstrate how to use `@runloop/agent-axon-client` for common scenarios. **Start with [`llms.txt`](llms.txt)** — it is the generated index of all available use cases, compatibility constraints, and implementation guidance. Use it to find the right recipe before writing new integration code from scratch.
+## Recipes workflow
 
-## Repository layout
+1. Read [`llms.txt`](llms.txt) for the use-case index.
+2. Open matching file in `examples/feature-examples/src/use-cases/`.
+3. Check `examples/feature-examples/compatibility.md` for protocol/agent support.
 
-```
-sdk/                      → @runloop/agent-axon-client (published npm package)
-agent-examples/           → Runnable recipes for common SDK use cases (see above)
-examples/
-  acp-hello-world/        → Minimal ACP single-prompt script
-  acp-cli/                → Interactive ACP REPL
-  acp-app/                → Full-stack ACP demo (Express + React)
-  claude-hello-world/     → Minimal Claude single-prompt script
-  claude-cli/             → Interactive Claude REPL
-  claude-app/             → Full-stack Claude demo (Express + React)
-  combined-app/           → Full-stack combined demo (Claude + ACP, Express + React)
-```
+Regenerate generated docs: `bun run feature-compat` (no filters).
 
-## Monorepo tooling
-
-- **Package manager:** Bun (workspaces in root `package.json`)
-- **Linter/formatter:** Biome (`biome.json`, scoped to `sdk/src/**`)
-- **Tests:** Vitest (`sdk/vitest.config.ts`), run with `bun run test`
-- **Build:** TypeScript `tsc` (`sdk/tsconfig.json`), run with `bun run build`
-- **Git hooks:** Husky + lint-staged (pre-commit runs Biome on staged SDK files)
-- **Releases:** Release Please + npm publish via GitHub Actions
-- **CI:** GitHub Actions — lint, build, typecheck, test with coverage (Node 22 + 24 matrix)
-
-## Common commands
+## Commands
 
 ```bash
-bun install          # install all workspace dependencies
-bun run build        # build the SDK
-bun run test         # run SDK tests
-bun run check        # lint + format check (SDK)
-bun run check:fix    # lint + format auto-fix (SDK)
-bun run typecheck    # type-check src + tests (no emit)
+bun install        # install deps
+bun run build      # build SDK
+bun run test       # run tests
+bun run check      # lint + format
+bun run check:fix  # auto-fix lint/format
+bun run typecheck  # type-check (no emit)
 ```
 
-## Git safety
+## Constraints
 
-- **Never use `git stash pop`** (or `git stash apply`) during debugging or any automated workflow. Other agents may be running concurrently on the same worktree, and popping the stash can overwrite their in-progress changes or introduce merge conflicts that silently corrupt files.
+- Node >= 22, ESM-only
+- `@runloop/api-client` required peer; `@anthropic-ai/claude-agent-sdk` optional (Claude module)
+- Never `git stash pop` or `git stash apply` (concurrent agent safety)
 
-## Key constraints
+## Before commit/push
 
-- Node >= 22 required
-- ESM-only (`"type": "module"` everywhere)
-- `@runloop/api-client` is a required peer dependency of the SDK
-- `@anthropic-ai/claude-agent-sdk` is an optional peer dep (Claude module only)
-- Conventional commits enforced on PR titles
+After `sdk/src/` edits run in order: `check` → `typecheck` → `build` → `test`.
 
-## Pre-push checks
-
-After editing any file under `sdk/src/`, and before committing, pushing, or declaring a task complete, run all four in order:
+After `examples/feature-examples/` edits also run:
 
 ```bash
-bun run check      # Biome lint + format
-bun run typecheck  # Type-check src + tests (no emit)
-bun run build      # TypeScript compilation
-bun run test       # Vitest suite
+bun run --filter 'feature-examples' typecheck
 ```
 
-After editing any file under `agent-examples/`, also run:
+## PR titles
 
-```bash
-bun run --filter 'agent-examples' typecheck  # Type-check agent-examples
-```
-
-If any step fails, fix the issue and re-run from that step.
-
-If `bun run check` fails, run `bun run check:fix` to auto-fix most lint and format issues, then re-run `bun run check` to confirm. Common Biome issues:
-
-- **Import sorting** — third-party imports first, then relative paths alphabetically.
-- **Type-only imports** — use `import { type Foo } from "bar"` when `Foo` is only used as a type.
-- **Formatting** — `check:fix` handles this automatically.
-
-## Pull request conventions
-
-PR titles **must** follow Conventional Commits:
-
-```
-<type>(<scope>): <description>
-```
-
-| Types  | `feat` · `fix` · `docs` · `style` · `refactor` · `perf` · `test` · `build` · `ci` · `chore` · `revert` |
-|--------|---|
-| Scopes | `sdk` · `acp` · `claude` · `examples` · `agent-examples` · `deps` · `project` |
-
-PR body must use this template:
-
-```markdown
-## What
-<1-3 bullet points describing the changes>
-
-## Why
-<Motivation and context>
+Conventional Commits: `<type>(<scope>): <description>`
 
 ## Checklist
 - [ ] PR title follows `<type>(<scope>): <description>` format
@@ -110,4 +55,4 @@ PR body must use this template:
 - [ ] SDK documentation updated (if applicable)
 ```
 
-Check off items that have been verified before submitting.
+Scopes: `sdk` · `acp` · `claude` · `examples` · `deps` · `project`

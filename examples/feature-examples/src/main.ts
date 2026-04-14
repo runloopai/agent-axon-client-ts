@@ -12,9 +12,9 @@ import { setup, disconnect, cleanup } from "./scaffold.js";
 import { withTimeout } from "./validator.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(__dirname, "../..");
-const AGENT_EXAMPLES_DIR = resolve(__dirname, "..");
-const TEMPLATES_DIR = resolve(AGENT_EXAMPLES_DIR, "templates");
+const REPO_ROOT = resolve(__dirname, "../../..");
+const FEATURE_EXAMPLES_DIR = resolve(__dirname, "..");
+const TEMPLATES_DIR = resolve(FEATURE_EXAMPLES_DIR, "templates");
 const SDK_PACKAGE_JSON = resolve(REPO_ROOT, "sdk/package.json");
 
 async function getSdkVersion(): Promise<string> {
@@ -51,7 +51,7 @@ class Semaphore {
 
 function printHelp(): void {
   console.log(`
-Usage: bun run compat [options]
+Usage: bun run feature-compat [options]
 
 Options:
   --agent <name>       Run only for this agent (default: all)
@@ -63,10 +63,10 @@ Options:
   --help               Show help
 
 Examples:
-  bun run compat                           # Run all use cases with all agents
-  bun run compat --agent opencode          # Run all use cases with opencode only
-  bun run compat --use-case single-prompt  # Run single-prompt with all agents
-  bun run compat --validate                # Validate generated output
+  bun run feature-compat                           # Run all use cases with all agents
+  bun run feature-compat --agent opencode          # Run all use cases with opencode only
+  bun run feature-compat --use-case single-prompt  # Run single-prompt with all agents
+  bun run feature-compat --validate                # Validate generated output
 `);
 }
 
@@ -287,11 +287,14 @@ async function generateCompatibilityMd(
   return output;
 }
 
+const GITHUB_REPO_BASE = "https://github.com/runloopai/agent-axon-client-ts/blob/main";
+
 function buildUseCasesList(useCases: UseCase[]): string {
   let list = "";
   for (const uc of useCases) {
     const protocols = uc.protocols.join(" + ");
-    list += `- agent-examples/src/use-cases/${uc.name}.ts — ${uc.description} (${protocols})\n`;
+    const url = `${GITHUB_REPO_BASE}/examples/feature-examples/src/use-cases/${uc.name}.ts`;
+    list += `- [${uc.name}](${url}) — ${uc.description} (${protocols})\n`;
   }
   return list.trimEnd();
 }
@@ -320,7 +323,7 @@ async function validateOutput(
 ): Promise<ValidationError[]> {
   const errors: ValidationError[] = [];
 
-  const compatPath = resolve(AGENT_EXAMPLES_DIR, "compatibility.md");
+  const compatPath = resolve(FEATURE_EXAMPLES_DIR, "compatibility.md");
   const llmsPath = resolve(REPO_ROOT, "llms.txt");
 
   if (!existsSync(compatPath)) {
@@ -361,11 +364,11 @@ async function validateOutput(
     const content = await readFile(llmsPath, "utf-8");
 
     for (const uc of useCases) {
-      const expectedLine = `agent-examples/src/use-cases/${uc.name}.ts`;
-      if (!content.includes(expectedLine)) {
+      const expectedUrl = `${GITHUB_REPO_BASE}/examples/feature-examples/src/use-cases/${uc.name}.ts`;
+      if (!content.includes(expectedUrl)) {
         errors.push({
           file: "llms.txt",
-          issue: `Use case "${uc.name}" not in generated list (expected: ${expectedLine})`,
+          issue: `Use case "${uc.name}" not in generated list (expected URL: ${expectedUrl})`,
         });
       }
     }
@@ -498,7 +501,7 @@ async function main(): Promise<void> {
   } else {
     console.log("\nGenerating compatibility.md...");
     const compatMd = await generateCompatibilityMd(results, USE_CASES, AGENTS);
-    await writeFile(resolve(AGENT_EXAMPLES_DIR, "compatibility.md"), compatMd);
+    await writeFile(resolve(FEATURE_EXAMPLES_DIR, "compatibility.md"), compatMd);
 
     console.log("Generating llms.txt...");
     const llmsTxt = await generateLlmsTxt(USE_CASES);

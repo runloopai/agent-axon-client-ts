@@ -1,10 +1,10 @@
 {
-  "name": "agent-examples",
+  "name": "feature-examples",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "compat": "bun run src/main.ts",
+    "feature-compat": "bun run src/main.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

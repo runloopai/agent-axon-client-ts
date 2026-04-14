@@ -12,8 +12,7 @@ npm install @anthropic-ai/claude-agent-sdk
 
 ## Use Cases
 
-- [elicitation](https://github.com/runloopai/agent-axon-client-ts/blob/main/examples/feature-examples/src/use-cases/elicitation.ts) — Handle agent-initiated user input requests (acp + claude)
-- [single-prompt](https://github.com/runloopai/agent-axon-client-ts/blob/main/examples/feature-examples/src/use-cases/single-prompt.ts) — Send one prompt, receive text response (acp + claude)
+{{useCasesList}}
 
 ## Compatibility
 

@@ -114,7 +114,7 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
     log("Initializing (ACP)...");
     await conn.initialize({
       protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "agent-examples", version: "0.1.0" },
+      clientInfo: { name: "feature-examples", version: "0.1.0" },
       ...(useCase.clientCapabilities ? { clientCapabilities: useCase.clientCapabilities } : {}),
     });
 
