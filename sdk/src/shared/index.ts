@@ -30,6 +30,18 @@ export {
   tryParseSystemEvent,
   tryParseTimelinePayload,
 } from "./timeline.js";
+export type {
+  BrokerErrorTimelineEvent,
+  TurnCompletedTimelineEvent,
+  TurnStartedTimelineEvent,
+} from "./timeline-event-guards.js";
+export {
+  isBrokerErrorEvent,
+  isSystemTimelineEvent,
+  isTurnCompletedEvent,
+  isTurnStartedEvent,
+  isUnknownTimelineEvent,
+} from "./timeline-event-guards.js";
 export { timelineEventGenerator } from "./timeline-generator.js";
 /** @category Types */
 /** @category Timeline */

@@ -23,88 +23,31 @@
  * @module
  */
 
-import { SYSTEM_EVENT_TYPES } from "../shared/timeline.js";
-import type { SystemTimelineEvent, UnknownTimelineEvent } from "../shared/types.js";
+import { AGENT_METHODS, CLIENT_METHODS } from "@agentclientprotocol/sdk";
 import type {
   ACPInitializeTimelineEvent,
   ACPNewSessionTimelineEvent,
+  ACPOtherProtocolTimelineEvent,
   ACPPromptTimelineEvent,
   ACPProtocolTimelineEvent,
   ACPSessionUpdateTimelineEvent,
   ACPTimelineEvent,
 } from "./types.js";
 
-// ---------------------------------------------------------------------------
-// System event guards
-// ---------------------------------------------------------------------------
-
-/**
- * Type guard for system timeline events (turn lifecycle, broker errors).
- *
- * @param event - The timeline event to test.
- * @returns `true` if `event` is a {@link SystemTimelineEvent}.
- * @category Timeline
- */
-export function isSystemTimelineEvent(event: ACPTimelineEvent): event is SystemTimelineEvent {
-  return event.kind === "system";
-}
-
-/**
- * Narrowed type for a `turn.started` system event.
- * @category Timeline
- */
-export type TurnStartedTimelineEvent = SystemTimelineEvent & {
-  data: { type: "turn.started"; turnId: string };
-};
-
-/**
- * Type guard for `turn.started` system events.
- *
- * @param event - The timeline event to test.
- * @returns `true` if `event` is a turn-started system event.
- * @category Timeline
- */
-export function isTurnStartedEvent(event: ACPTimelineEvent): event is TurnStartedTimelineEvent {
-  return event.kind === "system" && event.data.type === SYSTEM_EVENT_TYPES.TURN_STARTED;
-}
-
-/**
- * Narrowed type for a `turn.completed` system event.
- * @category Timeline
- */
-export type TurnCompletedTimelineEvent = SystemTimelineEvent & {
-  data: { type: "turn.completed"; turnId: string; stopReason?: string };
-};
-
-/**
- * Type guard for `turn.completed` system events.
- *
- * @param event - The timeline event to test.
- * @returns `true` if `event` is a turn-completed system event.
- * @category Timeline
- */
-export function isTurnCompletedEvent(event: ACPTimelineEvent): event is TurnCompletedTimelineEvent {
-  return event.kind === "system" && event.data.type === SYSTEM_EVENT_TYPES.TURN_COMPLETED;
-}
-
-/**
- * Narrowed type for a `broker.error` system event.
- * @category Timeline
- */
-export type BrokerErrorTimelineEvent = SystemTimelineEvent & {
-  data: { type: "broker.error"; message: string };
-};
-
-/**
- * Type guard for `broker.error` system events.
- *
- * @param event - The timeline event to test.
- * @returns `true` if `event` is a broker error system event.
- * @category Timeline
- */
-export function isBrokerErrorEvent(event: ACPTimelineEvent): event is BrokerErrorTimelineEvent {
-  return event.kind === "system" && event.data.type === SYSTEM_EVENT_TYPES.BROKER_ERROR;
-}
+// Re-export shared system/unknown guards and types for convenience.
+// Consumers can import from either `@runloop/agent-axon-client/acp` or `/shared`.
+export type {
+  BrokerErrorTimelineEvent,
+  TurnCompletedTimelineEvent,
+  TurnStartedTimelineEvent,
+} from "../shared/timeline-event-guards.js";
+export {
+  isBrokerErrorEvent,
+  isSystemTimelineEvent,
+  isTurnCompletedEvent,
+  isTurnStartedEvent,
+  isUnknownTimelineEvent,
+} from "../shared/timeline-event-guards.js";
 
 // ---------------------------------------------------------------------------
 // ACP protocol event guards
@@ -134,7 +77,7 @@ export function isACPProtocolEvent(event: ACPTimelineEvent): event is ACPProtoco
 export function isSessionUpdateEvent(
   event: ACPTimelineEvent,
 ): event is ACPSessionUpdateTimelineEvent {
-  return event.kind === "acp_protocol" && event.eventType === "session/update";
+  return event.kind === "acp_protocol" && event.eventType === CLIENT_METHODS.session_update;
 }
 
 /**
@@ -150,7 +93,7 @@ export function isSessionUpdateEvent(
  * @category Timeline
  */
 export function isInitializeEvent(event: ACPTimelineEvent): event is ACPInitializeTimelineEvent {
-  return event.kind === "acp_protocol" && event.eventType === "initialize";
+  return event.kind === "acp_protocol" && event.eventType === AGENT_METHODS.initialize;
 }
 
 /**
@@ -164,7 +107,7 @@ export function isInitializeEvent(event: ACPTimelineEvent): event is ACPInitiali
  * @category Timeline
  */
 export function isPromptEvent(event: ACPTimelineEvent): event is ACPPromptTimelineEvent {
-  return event.kind === "acp_protocol" && event.eventType === "session/prompt";
+  return event.kind === "acp_protocol" && event.eventType === AGENT_METHODS.session_prompt;
 }
 
 /**
@@ -178,23 +121,86 @@ export function isPromptEvent(event: ACPTimelineEvent): event is ACPPromptTimeli
  * @category Timeline
  */
 export function isNewSessionEvent(event: ACPTimelineEvent): event is ACPNewSessionTimelineEvent {
-  return event.kind === "acp_protocol" && event.eventType === "session/new";
+  return event.kind === "acp_protocol" && event.eventType === AGENT_METHODS.session_new;
 }
 
 // ---------------------------------------------------------------------------
-// Unknown event guard
+// Elicitation timeline event types and guards
 // ---------------------------------------------------------------------------
 
 /**
- * Type guard for unrecognized timeline events.
+ * A timeline event for `session/elicitation` (agent requesting user input).
  *
- * These are events the SDK did not classify as system or protocol events.
- * Inspect `event.axonEvent` for raw event details.
+ * Check `axonEvent.origin` to determine direction:
+ * - `AGENT_EVENT` = agent sent the request
+ * - `USER_EVENT` = client sent the response
  *
- * @param event - The timeline event to test.
- * @returns `true` if `event` is an {@link UnknownTimelineEvent}.
  * @category Timeline
  */
-export function isUnknownTimelineEvent(event: ACPTimelineEvent): event is UnknownTimelineEvent {
-  return event.kind === "unknown";
+export type ElicitationTimelineEvent = ACPOtherProtocolTimelineEvent & {
+  eventType: typeof CLIENT_METHODS.session_elicitation;
+};
+
+/**
+ * A timeline event for `session/elicitation/complete` notification.
+ *
+ * @category Timeline
+ */
+export type ElicitationCompleteTimelineEvent = ACPOtherProtocolTimelineEvent & {
+  eventType: typeof CLIENT_METHODS.session_elicitation_complete;
+};
+
+/**
+ * Type guard for `session/elicitation` timeline events (request from agent).
+ *
+ * This matches when the agent asks the client for user input. The request
+ * arrives as an `AGENT_EVENT`.
+ *
+ * @param event - The timeline event to test.
+ * @returns `true` if `event` is an elicitation request from the agent.
+ * @category Timeline
+ */
+export function isElicitationRequestEvent(
+  event: ACPTimelineEvent,
+): event is ElicitationTimelineEvent {
+  return (
+    event.kind === "acp_protocol" &&
+    event.eventType === CLIENT_METHODS.session_elicitation &&
+    event.axonEvent.origin === "AGENT_EVENT"
+  );
+}
+
+/**
+ * Type guard for `session/elicitation` timeline events (response from client).
+ *
+ * This matches when the client responds to an elicitation request. The response
+ * arrives as a `USER_EVENT`.
+ *
+ * @param event - The timeline event to test.
+ * @returns `true` if `event` is an elicitation response from the client.
+ * @category Timeline
+ */
+export function isElicitationResponseEvent(
+  event: ACPTimelineEvent,
+): event is ElicitationTimelineEvent {
+  return (
+    event.kind === "acp_protocol" &&
+    event.eventType === CLIENT_METHODS.session_elicitation &&
+    event.axonEvent.origin === "USER_EVENT"
+  );
+}
+
+/**
+ * Type guard for `session/elicitation/complete` timeline events.
+ *
+ * @param event - The timeline event to test.
+ * @returns `true` if `event` is an elicitation complete notification.
+ * @category Timeline
+ */
+export function isElicitationCompleteEvent(
+  event: ACPTimelineEvent,
+): event is ElicitationCompleteTimelineEvent {
+  return (
+    event.kind === "acp_protocol" && event.eventType === CLIENT_METHODS.session_elicitation_complete
+  );
 }

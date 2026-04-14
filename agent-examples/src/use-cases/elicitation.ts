@@ -72,6 +72,8 @@ export default {
       if (!chunks.some((c) => c.trim())) throw new Error("No text after elicitation");
       ctx.log("Pass: ACP elicitation");
     } else if (ctx.claude) {
+      // Claude Code doesn't have ACP-style elicitation. This tests the closest
+      // equivalent: tool-use permission flow (can_use_tool control requests).
       ctx.claude.onControlRequest("can_use_tool", async (msg) => ({
         type: "control_response",
         response: { subtype: "success", request_id: msg.request_id, response: { behavior: "allow" } },

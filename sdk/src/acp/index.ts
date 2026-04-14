@@ -78,15 +78,6 @@ export {
   extractACPUserMessage,
 } from "../shared/user-message.js";
 export { axonStream } from "./axon-stream.js";
-export type {
-  ElicitationCompleteTimelineEvent,
-  ElicitationTimelineEvent,
-} from "./client-event-guards.js";
-export {
-  isElicitationCompleteEvent,
-  isElicitationRequestEvent,
-  isElicitationResponseEvent,
-} from "./client-event-guards.js";
 export { ACPAxonConnection, classifyACPAxonEvent, isACPProtocolEventType } from "./connection.js";
 export type {
   AudioContentBlock,
@@ -134,12 +125,17 @@ export {
 } from "./session-update-guards.js";
 export type {
   BrokerErrorTimelineEvent,
+  ElicitationCompleteTimelineEvent,
+  ElicitationTimelineEvent,
   TurnCompletedTimelineEvent,
   TurnStartedTimelineEvent,
 } from "./timeline-event-guards.js";
 export {
   isACPProtocolEvent,
   isBrokerErrorEvent,
+  isElicitationCompleteEvent,
+  isElicitationRequestEvent,
+  isElicitationResponseEvent,
   isInitializeEvent,
   isNewSessionEvent,
   isPromptEvent,

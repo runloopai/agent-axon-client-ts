@@ -23,8 +23,6 @@
  * @module
  */
 
-import { SYSTEM_EVENT_TYPES } from "../shared/timeline.js";
-import type { SystemTimelineEvent, UnknownTimelineEvent } from "../shared/types.js";
 import type {
   ClaudeAssistantTimelineEvent,
   ClaudeControlRequestTimelineEvent,
@@ -36,79 +34,20 @@ import type {
   ClaudeTimelineEvent,
 } from "./types.js";
 
-// ---------------------------------------------------------------------------
-// System event guards
-// ---------------------------------------------------------------------------
-
-/**
- * Type guard for system timeline events (turn lifecycle, broker errors).
- *
- * @param event - The timeline event to test.
- * @returns `true` if `event` is a {@link SystemTimelineEvent}.
- * @category Timeline
- */
-export function isSystemTimelineEvent(event: ClaudeTimelineEvent): event is SystemTimelineEvent {
-  return event.kind === "system";
-}
-
-/**
- * Narrowed type for a `turn.started` system event.
- * @category Timeline
- */
-export type TurnStartedTimelineEvent = SystemTimelineEvent & {
-  data: { type: "turn.started"; turnId: string };
-};
-
-/**
- * Type guard for `turn.started` system events.
- *
- * @param event - The timeline event to test.
- * @returns `true` if `event` is a turn-started system event.
- * @category Timeline
- */
-export function isTurnStartedEvent(event: ClaudeTimelineEvent): event is TurnStartedTimelineEvent {
-  return event.kind === "system" && event.data.type === SYSTEM_EVENT_TYPES.TURN_STARTED;
-}
-
-/**
- * Narrowed type for a `turn.completed` system event.
- * @category Timeline
- */
-export type TurnCompletedTimelineEvent = SystemTimelineEvent & {
-  data: { type: "turn.completed"; turnId: string; stopReason?: string };
-};
-
-/**
- * Type guard for `turn.completed` system events.
- *
- * @param event - The timeline event to test.
- * @returns `true` if `event` is a turn-completed system event.
- * @category Timeline
- */
-export function isTurnCompletedEvent(
-  event: ClaudeTimelineEvent,
-): event is TurnCompletedTimelineEvent {
-  return event.kind === "system" && event.data.type === SYSTEM_EVENT_TYPES.TURN_COMPLETED;
-}
-
-/**
- * Narrowed type for a `broker.error` system event.
- * @category Timeline
- */
-export type BrokerErrorTimelineEvent = SystemTimelineEvent & {
-  data: { type: "broker.error"; message: string };
-};
-
-/**
- * Type guard for `broker.error` system events.
- *
- * @param event - The timeline event to test.
- * @returns `true` if `event` is a broker error system event.
- * @category Timeline
- */
-export function isBrokerErrorEvent(event: ClaudeTimelineEvent): event is BrokerErrorTimelineEvent {
-  return event.kind === "system" && event.data.type === SYSTEM_EVENT_TYPES.BROKER_ERROR;
-}
+// Re-export shared system/unknown guards and types for convenience.
+// Consumers can import from either `@runloop/agent-axon-client/claude` or `/shared`.
+export type {
+  BrokerErrorTimelineEvent,
+  TurnCompletedTimelineEvent,
+  TurnStartedTimelineEvent,
+} from "../shared/timeline-event-guards.js";
+export {
+  isBrokerErrorEvent,
+  isSystemTimelineEvent,
+  isTurnCompletedEvent,
+  isTurnStartedEvent,
+  isUnknownTimelineEvent,
+} from "../shared/timeline-event-guards.js";
 
 // ---------------------------------------------------------------------------
 // Claude protocol event guards
@@ -253,22 +192,4 @@ export function isClaudeControlResponseEvent(
   event: ClaudeTimelineEvent,
 ): event is ClaudeControlResponseTimelineEvent {
   return event.kind === "claude_protocol" && event.eventType === "control_response";
-}
-
-// ---------------------------------------------------------------------------
-// Unknown event guard
-// ---------------------------------------------------------------------------
-
-/**
- * Type guard for unrecognized timeline events.
- *
- * These are events the SDK did not classify as system or protocol events.
- * Inspect `event.axonEvent` for raw event details.
- *
- * @param event - The timeline event to test.
- * @returns `true` if `event` is an {@link UnknownTimelineEvent}.
- * @category Timeline
- */
-export function isUnknownTimelineEvent(event: ClaudeTimelineEvent): event is UnknownTimelineEvent {
-  return event.kind === "unknown";
 }

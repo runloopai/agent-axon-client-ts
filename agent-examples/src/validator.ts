@@ -1,11 +1,13 @@
 /**
  * Waits up to `ms` for `predicate` to return true, polling every 100ms.
+ * @returns `true` if the predicate was satisfied, `false` if the deadline expired.
  */
-export async function waitFor(predicate: () => boolean, ms: number): Promise<void> {
+export async function waitFor(predicate: () => boolean, ms: number): Promise<boolean> {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline && !predicate()) {
     await new Promise((r) => setTimeout(r, 100));
   }
+  return predicate();
 }
 
 /**

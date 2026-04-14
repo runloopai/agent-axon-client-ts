@@ -14,7 +14,7 @@ Workflow:
 2. Follow its pointers to the relevant file in `agent-examples/src/use-cases/`.
 3. Check `agent-examples/compatibility.md` if you need to verify protocol/agent support.
 
-The use-case list in `llms.txt` is auto-generated from `agent-examples/templates/llms.txt.template`. Regenerate it by running `bun run compat` (without filters).
+The use-case list in `llms.txt` is auto-generated from `agent-examples/templates/llms.txt.template`. The compatibility matrix in `agent-examples/compatibility.md` is generated from `agent-examples/templates/compatibility.md.template`. Regenerate both by running `bun run compat` (without filters).
 
 ## Repository layout
 
