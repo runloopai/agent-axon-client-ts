@@ -1,5 +1,10 @@
 import { useReducer, useRef, useCallback, useEffect } from "react";
-import { extractClaudeUserMessage, isClaudeProtocolEvent } from "@runloop/agent-axon-client/claude";
+import {
+  extractClaudeUserMessage,
+  isClaudeProtocolEvent,
+  isTurnStartedEvent,
+  isTurnCompletedEvent,
+} from "@runloop/agent-axon-client/claude";
 import type { ClaudeTimelineEvent, SDKControlRequest, ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
 import type { WsEvent } from "../../shared/ws-events.js";
 import type {
@@ -583,6 +588,16 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
         content: userMsg.text,
         ...(attachments.length > 0 ? { attachments } : {}),
       } });
+      return;
+    }
+
+    if (isTurnStartedEvent(tlEvent)) {
+      dispatch({ type: "SET", patch: { isAgentTurn: true, isStreaming: false } });
+      return;
+    }
+
+    if (isTurnCompletedEvent(tlEvent)) {
+      dispatch({ type: "SET", patch: { isAgentTurn: false, isStreaming: false } });
       return;
     }
 

@@ -15,8 +15,8 @@ import { createInterface, type Interface } from "readline";
 import {
   ACPAxonConnection,
   PROTOCOL_VERSION,
-  isAgentMessageChunk,
-  isAgentThoughtChunk,
+  isAgentTextChunk,
+  isThoughtTextChunk,
   isToolCall,
   isToolCallProgress,
   isPlan,
@@ -121,12 +121,10 @@ console.log(`Session ready: ${sessionId}\n`);
 // ---------------------------------------------------------------------------
 
 agent.onSessionUpdate((_sid, update) => {
-  if (isAgentMessageChunk(update)) {
-    if (update.content.type === "text") {
-      process.stdout.write(update.content.text);
-    }
-  } else if (isAgentThoughtChunk(update)) {
-    if (VERBOSE && update.content.type === "text") {
+  if (isAgentTextChunk(update)) {
+    process.stdout.write(update.content.text);
+  } else if (isThoughtTextChunk(update)) {
+    if (VERBOSE) {
       const thought = update.content.text;
       console.log(
         `\n[thinking] ${thought.slice(0, 200)}${thought.length > 200 ? "..." : ""}`,

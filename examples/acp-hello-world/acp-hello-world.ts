@@ -13,7 +13,7 @@ import { RunloopSDK } from "@runloop/api-client";
 import {
   ACPAxonConnection,
   PROTOCOL_VERSION,
-  isAgentMessageChunk,
+  isAgentTextChunk,
   isToolCall,
 } from "@runloop/agent-axon-client/acp";
 import { parseArgs } from "util";
@@ -91,10 +91,8 @@ console.log(`Session ready: ${session.sessionId}\n`);
 // ---------------------------------------------------------------------------
 
 agent.onSessionUpdate((_sid, update) => {
-  if (isAgentMessageChunk(update)) {
-    if (update.content.type === "text") {
-      process.stdout.write(update.content.text);
-    }
+  if (isAgentTextChunk(update)) {
+    process.stdout.write(update.content.text);
   } else if (isToolCall(update)) {
     const input = JSON.stringify(update.rawInput ?? {}).slice(0, 120);
     console.log(`\n> ${update.title}(${input})`);

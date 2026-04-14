@@ -1,5 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { extractClaudeUserMessage } from "@runloop/agent-axon-client/claude";
+import {
+  extractClaudeUserMessage,
+  isClaudeProtocolEvent,
+  isTurnStartedEvent,
+  isTurnCompletedEvent,
+} from "@runloop/agent-axon-client/claude";
 import type { AxonEventView, ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
 import type { WsEvent } from "../../server/ws.ts";
 
@@ -721,6 +726,23 @@ export function useClaudeAgent(): UseClaudeAgentReturn {
               content: userMsg.text,
             },
           ]);
+          return;
+        }
+
+        if (isTurnStartedEvent(tlEvent)) {
+          setIsAgentTurn(true);
+          setIsStreaming(false);
+          return;
+        }
+
+        if (isTurnCompletedEvent(tlEvent)) {
+          setIsAgentTurn(false);
+          setIsStreaming(false);
+          return;
+        }
+
+        if (isClaudeProtocolEvent(tlEvent)) {
+          handleSDKMessage(tlEvent.data as Record<string, unknown>);
         }
         return;
       }
