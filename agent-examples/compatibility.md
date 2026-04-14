@@ -1,20 +1,20 @@
 # Agent Axon Client — Compatibility Matrix
 
-Generated: 2026-04-14T17:06:20.439Z
+Generated: 2026-04-14T20:11:14.000Z
 SDK Version: 0.4.0
 
 ## Protocol × Feature
 
 | Use Case | ACP | Claude |
 |----------|-----|--------|
-| elicitation | fail | pass |
+| elicitation | pass | pass |
 | single-prompt | pass | pass |
 
 ## ACP Agent × Feature
 
 | Use Case | opencode |
 |----------|------------|
-| elicitation | fail |
+| elicitation | pass |
 | single-prompt | pass |
 
 ---
@@ -23,7 +23,7 @@ SDK Version: 0.4.0
 
 | Agent | Use Case | Status | Duration | Notes |
 |-------|----------|--------|----------|-------|
-| opencode | elicitation | fail | 9.8s | Agent did not trigger elicitation |
-| opencode | single-prompt | pass | 10.1s |  |
-| claude-code | elicitation | pass | 9.1s |  |
-| claude-code | single-prompt | pass | 8.8s |  |
+| opencode | elicitation | pass | 14.1s |  |
+| opencode | single-prompt | pass | 12.6s |  |
+| claude-code | elicitation | pass | 12.2s |  |
+| claude-code | single-prompt | pass | 11.9s |  |
