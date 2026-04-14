@@ -79,13 +79,6 @@ export {
 } from "../shared/user-message.js";
 export { axonStream } from "./axon-stream.js";
 export { ACPAxonConnection, classifyACPAxonEvent, isACPProtocolEventType } from "./connection.js";
-export type {
-  AudioContentBlock,
-  EmbeddedResourceContentBlock,
-  ImageContentBlock,
-  ResourceLinkContentBlock,
-  TextContentBlock,
-} from "./content-block-guards.js";
 export {
   isAudioContent,
   isEmbeddedResourceContent,

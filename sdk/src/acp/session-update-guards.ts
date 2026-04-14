@@ -1,5 +1,4 @@
-import type { SessionUpdate } from "@agentclientprotocol/sdk";
-import type { TextContentBlock } from "./content-block-guards.js";
+import type { SessionUpdate, TextContent } from "@agentclientprotocol/sdk";
 
 /** Streamed chunk of a user-originated message.
  * @category Session Updates */
@@ -200,7 +199,9 @@ export function isUsageUpdate(u: SessionUpdate): u is UsageSessionUpdate {
  * directly typed as `string`.
  * @category Session Updates
  */
-export type AgentTextChunkUpdate = AgentMessageChunkUpdate & { content: TextContentBlock };
+export type AgentTextChunkUpdate = AgentMessageChunkUpdate & {
+  content: TextContent & { type: "text" };
+};
 
 /**
  * An agent thought chunk containing text content.
@@ -208,7 +209,9 @@ export type AgentTextChunkUpdate = AgentMessageChunkUpdate & { content: TextCont
  * directly typed as `string`.
  * @category Session Updates
  */
-export type ThoughtTextChunkUpdate = AgentThoughtChunkUpdate & { content: TextContentBlock };
+export type ThoughtTextChunkUpdate = AgentThoughtChunkUpdate & {
+  content: TextContent & { type: "text" };
+};
 
 /**
  * Compound type guard for agent message chunks with text content.

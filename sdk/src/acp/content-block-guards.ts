@@ -31,52 +31,14 @@ import type {
   TextContent,
 } from "@agentclientprotocol/sdk";
 
-// ---------------------------------------------------------------------------
-// Narrowed types
-// ---------------------------------------------------------------------------
-
-/**
- * A text content block.
- * @category Content Blocks
- */
-export type TextContentBlock = TextContent & { type: "text" };
-
-/**
- * An image content block.
- * @category Content Blocks
- */
-export type ImageContentBlock = ImageContent & { type: "image" };
-
-/**
- * An audio content block.
- * @category Content Blocks
- */
-export type AudioContentBlock = AudioContent & { type: "audio" };
-
-/**
- * A resource link content block.
- * @category Content Blocks
- */
-export type ResourceLinkContentBlock = ResourceLink & { type: "resource_link" };
-
-/**
- * An embedded resource content block.
- * @category Content Blocks
- */
-export type EmbeddedResourceContentBlock = EmbeddedResource & { type: "resource" };
-
-// ---------------------------------------------------------------------------
-// Type guards
-// ---------------------------------------------------------------------------
-
 /**
  * Type guard for text content blocks.
  *
  * @param block - The content block to test.
- * @returns `true` if `block` is a {@link TextContentBlock}.
+ * @returns `true` if `block` is a text content block.
  * @category Content Blocks
  */
-export function isTextContent(block: ContentBlock): block is TextContentBlock {
+export function isTextContent(block: ContentBlock): block is TextContent & { type: "text" } {
   return block.type === "text";
 }
 
@@ -84,10 +46,10 @@ export function isTextContent(block: ContentBlock): block is TextContentBlock {
  * Type guard for image content blocks.
  *
  * @param block - The content block to test.
- * @returns `true` if `block` is an {@link ImageContentBlock}.
+ * @returns `true` if `block` is an image content block.
  * @category Content Blocks
  */
-export function isImageContent(block: ContentBlock): block is ImageContentBlock {
+export function isImageContent(block: ContentBlock): block is ImageContent & { type: "image" } {
   return block.type === "image";
 }
 
@@ -95,10 +57,10 @@ export function isImageContent(block: ContentBlock): block is ImageContentBlock 
  * Type guard for audio content blocks.
  *
  * @param block - The content block to test.
- * @returns `true` if `block` is an {@link AudioContentBlock}.
+ * @returns `true` if `block` is an audio content block.
  * @category Content Blocks
  */
-export function isAudioContent(block: ContentBlock): block is AudioContentBlock {
+export function isAudioContent(block: ContentBlock): block is AudioContent & { type: "audio" } {
   return block.type === "audio";
 }
 
@@ -106,10 +68,12 @@ export function isAudioContent(block: ContentBlock): block is AudioContentBlock 
  * Type guard for resource link content blocks.
  *
  * @param block - The content block to test.
- * @returns `true` if `block` is a {@link ResourceLinkContentBlock}.
+ * @returns `true` if `block` is a resource link content block.
  * @category Content Blocks
  */
-export function isResourceLinkContent(block: ContentBlock): block is ResourceLinkContentBlock {
+export function isResourceLinkContent(
+  block: ContentBlock,
+): block is ResourceLink & { type: "resource_link" } {
   return block.type === "resource_link";
 }
 
@@ -117,11 +81,11 @@ export function isResourceLinkContent(block: ContentBlock): block is ResourceLin
  * Type guard for embedded resource content blocks.
  *
  * @param block - The content block to test.
- * @returns `true` if `block` is an {@link EmbeddedResourceContentBlock}.
+ * @returns `true` if `block` is an embedded resource content block.
  * @category Content Blocks
  */
 export function isEmbeddedResourceContent(
   block: ContentBlock,
-): block is EmbeddedResourceContentBlock {
+): block is EmbeddedResource & { type: "resource" } {
   return block.type === "resource";
 }
