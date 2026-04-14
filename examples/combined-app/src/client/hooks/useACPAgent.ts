@@ -10,10 +10,18 @@ import {
   isCurrentModeUpdate,
   isConfigOptionUpdate,
   isAvailableCommandsUpdate,
+  isTextContent,
+  isImageContent,
+  isAudioContent,
+  isResourceLinkContent,
+  isEmbeddedResourceContent,
+  isTurnStartedEvent,
+  isTurnCompletedEvent,
+  isSessionUpdateEvent,
+  isInitializeEvent,
+  extractACPUserMessage,
 } from "@runloop/agent-axon-client/acp";
-import type { ToolCallContent, AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, InitializeResponse, SessionNotification } from "@runloop/agent-axon-client/acp";
-import { extractACPUserMessage } from "@runloop/agent-axon-client/acp";
-import { SYSTEM_EVENT_TYPES } from "@runloop/agent-axon-client/shared";
+import type { AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, InitializeResponse } from "@runloop/agent-axon-client/acp";
 import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,
@@ -237,49 +245,49 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
   function handleSessionUpdate(update: SessionUpdate, eventSessionId: string | null) {
     if (isAgentMessageChunk(update)) {
       blocks.finalizeThinking();
-      const { content, messageId = null } = update as { content: Record<string, unknown>; messageId?: string | null };
-      if (content.type === "resource_link") {
+      const { content, messageId = null } = update;
+      if (isResourceLinkContent(content)) {
         blocks.pushBlock({
           type: "resource_link",
           id: nextBlockId("rl"),
-          uri: content.uri as string,
-          name: (content.name as string) ?? null,
-          title: (content.title as string) ?? null,
+          uri: content.uri,
+          name: content.name ?? null,
+          title: content.title ?? null,
         });
         return;
       }
-      if (content.type === "image") {
+      if (isImageContent(content)) {
         blocks.pushBlock({
           type: "image",
           id: nextBlockId("img"),
-          data: content.data as string,
-          mimeType: content.mimeType as string,
-          uri: (content.uri as string) ?? null,
+          data: content.data,
+          mimeType: content.mimeType,
+          uri: null,
         });
         return;
       }
-      if (content.type === "audio") {
+      if (isAudioContent(content)) {
         blocks.pushBlock({
           type: "audio",
           id: nextBlockId("aud"),
-          data: content.data as string,
-          mimeType: content.mimeType as string,
+          data: content.data,
+          mimeType: content.mimeType,
         });
         return;
       }
-      if (content.type === "resource") {
-        const res = content.resource as Record<string, unknown>;
+      if (isEmbeddedResourceContent(content)) {
+        const res = content.resource;
         blocks.pushBlock({
           type: "resource",
           id: nextBlockId("res"),
-          uri: res.uri as string,
-          mimeType: (res.mimeType as string) ?? null,
+          uri: res.uri,
+          mimeType: res.mimeType ?? null,
           text: "text" in res ? res.text as string : undefined,
           blob: "blob" in res ? res.blob as string : undefined,
         });
         return;
       }
-      const text = content.type === "text" ? (content.text as string) : "";
+      const text = isTextContent(content) ? content.text : "";
       const last = blocks.lastBlock();
       if (last?.type === "text") {
         blocks.updateBlocks((prev) => {
@@ -295,8 +303,8 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
     }
 
     if (isAgentThoughtChunk(update)) {
-      const { content } = update as { content: Record<string, unknown> };
-      const text = content.type === "text" ? (content.text as string) : "";
+      const { content } = update;
+      const text = isTextContent(content) ? content.text : "";
       const last = blocks.lastBlock();
       if (last?.type === "thinking" && last.isActive) {
         blocks.updateBlocks((prev) => {
@@ -313,48 +321,40 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
 
     if (isToolCall(update)) {
       blocks.finalizeThinking();
-      const { toolCallId, title, rawInput, rawOutput } = update as Record<string, unknown>;
-      const kind = (update as Record<string, unknown>).kind as string ?? "other";
-      const status = (update as Record<string, unknown>).status as string ?? "pending";
-      const locations = (update as Record<string, unknown>).locations as ToolCallBlock["locations"] ?? [];
-      const contentItems = (update as Record<string, unknown>).content
-        ? parseToolCallContent((update as Record<string, unknown>).content as ToolCallContent[])
-        : [];
+      const { toolCallId, title, rawInput, rawOutput } = update;
+      const kind = update.kind ?? "other";
+      const status = update.status ?? "pending";
+      const locations = update.locations ?? [];
+      const contentItems = update.content ? parseToolCallContent(update.content) : [];
 
       blocks.pushBlock({
         type: "tool_call",
         id: nextBlockId("tc"),
-        toolCallId: toolCallId as string,
-        title: title as string,
-        kind: kind as TurnBlock extends { kind: infer K } ? K : never,
-        status: status as ToolCallBlock["status"],
+        toolCallId,
+        title,
+        kind,
+        status,
         locations,
         content: contentItems,
         rawInput,
         rawOutput,
         startedAt: Date.now(),
         duration: null,
-      } as ToolCallBlock);
+      });
 
       const command = rawInput && typeof rawInput === "object"
         ? ((rawInput as Record<string, unknown>).command as string | undefined)
         : undefined;
       dispatch({ type: "UPDATE_TOOL_ACTIVITY", updater: (prev) => {
         if (prev.some((a) => a.toolCallId === toolCallId)) return prev;
-        return [...prev, { toolCallId: toolCallId as string, kind: kind as string, title: title as string, status: status as string, command, timestamp: Date.now() }];
+        return [...prev, { toolCallId, kind, title, status, command, timestamp: Date.now() }];
       } });
       return;
     }
 
     if (isToolCallProgress(update)) {
-      const { toolCallId, rawInput, rawOutput } = update as Record<string, unknown>;
-      const newStatus = (update as Record<string, unknown>).status as string | undefined;
-      const newTitle = (update as Record<string, unknown>).title as string | undefined;
-      const newKind = (update as Record<string, unknown>).kind as string | undefined;
-      const newLocations = (update as Record<string, unknown>).locations as ToolCallBlock["locations"] | undefined;
-      const newContentItems = (update as Record<string, unknown>).content
-        ? parseToolCallContent((update as Record<string, unknown>).content as ToolCallContent[])
-        : undefined;
+      const { toolCallId, rawInput, rawOutput, status: newStatus, title: newTitle, kind: newKind, locations: newLocations } = update;
+      const newContentItems = update.content ? parseToolCallContent(update.content) : undefined;
 
       blocks.updateBlocks((prev) =>
         prev.map((b) => {
@@ -365,9 +365,9 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
             tc.status !== "completed" && tc.status !== "failed";
           return {
             ...tc,
-            status: (newStatus ?? tc.status) as ToolCallBlock["status"],
+            status: newStatus ?? tc.status,
             title: newTitle ?? tc.title,
-            kind: (newKind ?? tc.kind) as ToolCallBlock["kind"],
+            kind: newKind ?? tc.kind,
             locations: newLocations ?? tc.locations,
             content: newContentItems ?? tc.content,
             rawInput: rawInput ?? tc.rawInput,
@@ -394,7 +394,7 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
     }
 
     if (isPlan(update)) {
-      const { entries } = update as { entries: PlanEntry[] };
+      const { entries } = update;
       dispatch({ type: "SET", patch: { plan: entries } });
       const existingPlan = blocks.blocksRef.current.find((b) => b.type === "plan");
       if (existingPlan) {
@@ -408,24 +408,23 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
     }
 
     if (isCurrentModeUpdate(update)) {
-      dispatch({ type: "SET", patch: { currentMode: (update as { currentModeId: string }).currentModeId } });
+      dispatch({ type: "SET", patch: { currentMode: update.currentModeId } });
     } else if (isConfigOptionUpdate(update)) {
-      dispatch({ type: "SET", patch: { configOptions: (update as { configOptions: unknown }).configOptions as SessionConfigOption[] } });
+      dispatch({ type: "SET", patch: { configOptions: update.configOptions } });
     } else if (isAvailableCommandsUpdate(update)) {
-      dispatch({ type: "SET", patch: { availableCommands: (update as { availableCommands: AvailableCommand[] }).availableCommands } });
+      dispatch({ type: "SET", patch: { availableCommands: update.availableCommands } });
     }
 
     if (isUsageUpdate(update)) {
-      const { size, used, cost = null } = update as { size: number; used: number; cost?: number | null };
-      dispatch({ type: "SET", patch: { usage: { size, used, cost } } });
+      const { size, used, cost } = update;
+      dispatch({ type: "SET", patch: { usage: { size, used, cost: cost?.amount ?? null } } });
     }
 
     if (isSessionInfoUpdate(update)) {
-      const u = update as { title?: string; updatedAt?: string };
-      if (u.title) {
+      if (update.title) {
         dispatch({ type: "UPDATE_SESSIONS", updater: (prev) =>
           prev.map((sess) =>
-            sess.sessionId === eventSessionId ? { ...sess, title: u.title, updatedAt: u.updatedAt } : sess,
+            sess.sessionId === eventSessionId ? { ...sess, title: update.title, updatedAt: update.updatedAt } : sess,
           ),
         });
       }
@@ -460,57 +459,57 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
       return;
     }
 
-    if (tlEvent.kind === "system") {
-      if (tlEvent.data.type === SYSTEM_EVENT_TYPES.TURN_STARTED) {
-        dispatch({ type: "SET", patch: { isAgentTurn: true, isStreaming: false } });
-      } else if (tlEvent.data.type === SYSTEM_EVENT_TYPES.TURN_COMPLETED) {
-        dispatch({ type: "SET", patch: { isAgentTurn: false, isStreaming: false } });
-        lastStopReasonRef.current = tlEvent.data.stopReason;
-      }
+    if (isTurnStartedEvent(tlEvent)) {
+      dispatch({ type: "SET", patch: { isAgentTurn: true, isStreaming: false } });
+      return;
+    }
+    if (isTurnCompletedEvent(tlEvent)) {
+      dispatch({ type: "SET", patch: { isAgentTurn: false, isStreaming: false } });
+      lastStopReasonRef.current = tlEvent.data.stopReason;
       return;
     }
 
-    if (tlEvent.kind === "acp_protocol") {
-      if (tlEvent.eventType === "session/update") {
-        const notification = tlEvent.data as SessionNotification;
-        const eventSessionId = notification.sessionId ?? null;
-        const inner = notification.update;
-        if (inner && typeof inner === "object") {
-          handleSessionUpdate(inner as SessionUpdate, eventSessionId);
-        }
-      } else if (tlEvent.eventType === "initialize" && tlEvent.axonEvent.origin === "AGENT_EVENT") {
-        const payload = tlEvent.data as InitializeResponse;
-        const info = (payload.agentInfo as Record<string, unknown>) ?? null;
-        const caps = (payload.agentCapabilities as AgentCapabilities) ?? null;
-        const protoVer = (payload.protocolVersion as number) ?? null;
-        const authMeta = ((payload as Record<string, unknown>).authMethods as unknown[]) ?? [];
-
-        dispatch({ type: "SET", patch: {
-          agentInfo: info as AgentInfo | null,
-          connectionDetails: { protocolVersion: protoVer, agentCapabilities: caps, clientCapabilities: null, sessionMeta: null },
-          authMethods: authMeta as AuthMethod[],
-        } });
-
-        blocks.pushBlock({
-          type: "system_init",
-          id: nextBlockId("init"),
-          agentName: (info?.name as string) ?? null,
-          agentVersion: (info?.version as string) ?? null,
-          model: null,
-          commands: [],
-          extensions: {
-            protocol: "acp",
-            protocolVersion: protoVer,
-            modes: [],
-            models: [],
-            configOptions: [],
-            agentCapabilities: caps,
-            clientCapabilities: null,
-            authMethods: authMeta,
-          } satisfies ACPInitExtensions,
-          extra: payload as Record<string, unknown>,
-        });
+    if (isSessionUpdateEvent(tlEvent)) {
+      const notification = tlEvent.data;
+      const eventSessionId = notification.sessionId ?? null;
+      const inner = notification.update;
+      if (inner && typeof inner === "object") {
+        handleSessionUpdate(inner, eventSessionId);
       }
+      return;
+    }
+    if (isInitializeEvent(tlEvent) && tlEvent.axonEvent.origin === "AGENT_EVENT") {
+      const payload = tlEvent.data as InitializeResponse;
+      const info = payload.agentInfo ?? null;
+      const caps = payload.agentCapabilities ?? null;
+      const protoVer = payload.protocolVersion ?? null;
+      const authMeta = (payload as Record<string, unknown>).authMethods as unknown[] ?? [];
+
+      dispatch({ type: "SET", patch: {
+        agentInfo: info as AgentInfo | null,
+        connectionDetails: { protocolVersion: protoVer, agentCapabilities: caps, clientCapabilities: null, sessionMeta: null },
+        authMethods: authMeta as AuthMethod[],
+      } });
+
+      blocks.pushBlock({
+        type: "system_init",
+        id: nextBlockId("init"),
+        agentName: info?.name ?? null,
+        agentVersion: info?.version ?? null,
+        model: null,
+        commands: [],
+        extensions: {
+          protocol: "acp",
+          protocolVersion: protoVer,
+          modes: [],
+          models: [],
+          configOptions: [],
+          agentCapabilities: caps,
+          clientCapabilities: null,
+          authMethods: authMeta,
+        } satisfies ACPInitExtensions,
+        extra: payload as Record<string, unknown>,
+      });
       return;
     }
 

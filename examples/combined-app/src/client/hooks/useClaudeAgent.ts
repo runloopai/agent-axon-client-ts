@@ -1,5 +1,5 @@
 import { useReducer, useRef, useCallback, useEffect } from "react";
-import { extractClaudeUserMessage } from "@runloop/agent-axon-client/claude";
+import { extractClaudeUserMessage, isClaudeProtocolEvent } from "@runloop/agent-axon-client/claude";
 import type { ClaudeTimelineEvent, SDKControlRequest, ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
 import type { WsEvent } from "../../shared/ws-events.js";
 import type {
@@ -586,7 +586,7 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
       return;
     }
 
-    if (tlEvent.kind === "claude_protocol") {
+    if (isClaudeProtocolEvent(tlEvent)) {
       handleSDKMessage(tlEvent.data);
       return;
     }
