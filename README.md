@@ -26,7 +26,7 @@ In short: **Runloop** hosts **devboxes** where agents run; a **broker mount** co
 - A [Runloop](https://runloop.ai) API key
   - Sign up for free at [platform.runloop.ai](https://platform.runloop.ai) (includes $50 in credits)
   - Navigate to [Settings](https://platform.runloop.ai/settings) → API Keys
-  - Create an API key (starts with `ak_`)
+  - Create an API key (starts with `ak`_)
   - Set environment variable: `export RUNLOOP_API_KEY=ak_your_key`
 - An [Anthropic](https://console.anthropic.com) API key (**only required for Claude module examples**)
   - Sign up at [console.anthropic.com](https://console.anthropic.com)
@@ -53,21 +53,22 @@ npm install @anthropic-ai/claude-agent-sdk
 ### Supported Features by Protocol
 
 
-| Capability                                   | Claude          | ACP             |
-| -------------------------------------------- | --------------- | --------------- |
-| Send prompts / messages                      | ✅               | ✅               |
-| Streaming responses                          | ✅               | ✅               |
-| Tool use / tool results                      | ⚠️ *Auto-approve | ⚠️ *Auto-approve |
-| Cancel / interrupt turns                     | ✅               | ✅               |
-| Permission / control requests (auto-approve) | ⚠️ *Auto-approve | ⚠️ *Auto-approve |
+| Capability                                   | Claude | ACP |
+| -------------------------------------------- | ------ | --- |
+| Send prompts / messages                      | ✅      | ✅   |
+| Streaming responses                          | ✅      | ✅   |
+| Tool use / tool results                      | ✅      | ✅   |
+| Cancel / interrupt turns                     | ✅      | ✅   |
+| Permission / control requests (auto-approve) | ✅      | ✅   |
+
 
 *Auto-approve only for now, permission request flow pending
 
 ### Coming Soon
 
+
 | Status     | Description                                                                                                                                |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 🚧 Planned | **Granular permission control** — Control request / response in transaction. This is currently resolved by allowing all |
 | 🚧 Planned | **Agent installation** — support for automatically getting agents installed on the devbox                                                  |
 | 🚧 Planned | **Devbox state-transition events** — expose devbox lifecycle state changes (creating → running → suspended → …) as first-class Axon events |
 | 🚧 Planned | **Axon subscribe over WebSockets** — WebSocket transport for Axon subscriptions, enabling browser clients without a backend proxy          |
@@ -78,8 +79,7 @@ npm install @anthropic-ai/claude-agent-sdk
 
 | Status | Description                                                                                                                          |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 🐛 Bug | Failure on binary missing — agent launch does not surface a clear error when the requested agent binary is not present on the devbox |
-| 🐛 Bug | Suspend and resume of a devbox will not work correctly at the moment, this will be fixed soon. |
+| 🐛 Bug | Suspend and resume of a devbox will not work correctly at the moment, this will be fixed soon.                                       |
 
 
 ## Modules
@@ -96,11 +96,13 @@ The SDK has two independent modules — pick the one that matches your agent's p
 ### Which module should I use?
 
 **Use the ACP module when:**
+
 - You want agent-agnostic code that works with multiple agents (OpenCode, Claude via ACP, future agents)
 - You need a standardized JSON-RPC 2.0 protocol
 - You want maximum compatibility and flexibility
 
 **Use the Claude module when:**
+
 - You're specifically using Claude Code
 - You want native Claude SDK message types
 - You need Claude-specific features
@@ -185,6 +187,96 @@ for await (const msg of conn.receiveResponse()) {
 await conn.disconnect();
 ```
 
+### Timeline events
+
+Both modules provide a unified timeline event stream — the recommended way to build chat UIs that need a single chronological view of protocol messages, system events (turn start/end), and custom events.
+
+Every timeline event has `{ kind, data, axonEvent }` where `kind` is a discriminant (`"acp_protocol"` / `"claude_protocol"`, `"system"`, or `"unknown"`), `data` is the typed payload, and `axonEvent` is the raw Axon event with full metadata.
+
+**ACP — handling protocol events:**
+
+```typescript
+import { SYSTEM_EVENT_TYPES } from "@runloop/agent-axon-client/shared";
+import {
+  isAgentMessageChunk,
+  isToolCall,
+  isToolCallProgress,
+} from "@runloop/agent-axon-client/acp";
+
+agent.onTimelineEvent((event) => {
+  switch (event.kind) {
+    case "acp_protocol":
+      if (event.eventType === "session/update") {
+        const update = event.data.update;
+        if (isAgentMessageChunk(update)) {
+          process.stdout.write(update.text);
+        } else if (isToolCall(update)) {
+          console.log(`Tool: ${update.name} (${update.status})`);
+        } else if (isToolCallProgress(update)) {
+          console.log(`Tool output: ${update.content}`);
+        }
+      }
+      break;
+    case "unknown":
+      console.log(
+        `Unrecognized event: ${event.axonEvent.event_type}`,
+        event.axonEvent.payload,
+      );
+      break;
+  }
+});
+```
+
+**Claude:**
+
+```typescript
+conn.onTimelineEvent((event) => {
+  switch (event.kind) {
+    case "claude_protocol":
+      if (event.eventType === "assistant") {
+        process.stdout.write(event.data.content);
+      } else if (event.eventType === "result") {
+        console.log("Result:", event.data.content);
+      }
+      break;
+    case "unknown":
+      break;
+  }
+});
+```
+
+**Custom events** — use `publish()` to push your own events to the channel. They arrive as `kind: "unknown"` timeline events:
+
+```typescript
+import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
+
+// Publish a custom event
+await conn.publish({
+  event_type: "build_status",
+  origin: "EXTERNAL_EVENT",
+  source: "ci-pipeline",
+  payload: JSON.stringify({ step: "compile", progress: 75 }),
+});
+
+// Consume it on the other side
+conn.onTimelineEvent((event) => {
+  if (event.kind === "unknown" && event.axonEvent.event_type === "build_status") {
+    const status = tryParseTimelinePayload<{ step: string; progress: number }>(event);
+    if (status) console.log(`${status.step}: ${status.progress}%`);
+  }
+});
+```
+
+Both modules also support pull-based consumption via an async generator:
+
+```typescript
+for await (const event of agent.receiveTimelineEvents()) {
+  console.log(event.kind, event.data);
+}
+```
+
+See the [SDK documentation](sdk/README.md#custom-events-via-publish-and-tryparsetimelinepayload) for more on custom events, and the [full timeline API reference](sdk/README.md#timeline-events) for replay behavior and `afterSequence`.
+
 See the [SDK documentation](sdk/README.md) for the full API reference.
 
 ## Repository Structure
@@ -204,6 +296,7 @@ examples/
 ## Development
 
 **Prerequisites:**
+
 - [Node.js](https://nodejs.org) >= 22.0.0
 - [Bun](https://bun.sh) (package manager and task runner)
 
