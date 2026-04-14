@@ -1,14 +1,8 @@
 import {
   type ACPTimelineEvent,
-  type ACPSessionUpdateTimelineEvent,
   isAgentMessageChunk,
+  isSessionUpdateEvent,
 } from "@runloop/agent-axon-client/acp";
-
-function isSessionUpdateEvent(
-  event: ACPTimelineEvent,
-): event is ACPSessionUpdateTimelineEvent {
-  return event.kind === "acp_protocol" && event.eventType === "session/update";
-}
 
 /**
  * Extracts agent message text from an ACPTimelineEvent if the event is a

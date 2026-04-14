@@ -106,6 +106,23 @@ export {
   isUserMessageChunk,
 } from "./session-update-guards.js";
 export type {
+  BrokerErrorTimelineEvent,
+  TurnCompletedTimelineEvent,
+  TurnStartedTimelineEvent,
+} from "./timeline-event-guards.js";
+export {
+  isACPProtocolEvent,
+  isBrokerErrorEvent,
+  isInitializeEvent,
+  isNewSessionEvent,
+  isPromptEvent,
+  isSessionUpdateEvent,
+  isSystemTimelineEvent,
+  isTurnCompletedEvent,
+  isTurnStartedEvent,
+  isUnknownTimelineEvent,
+} from "./timeline-event-guards.js";
+export type {
   ACPAxonConnectionOptions,
   ACPInitializeTimelineEvent,
   ACPNewSessionTimelineEvent,
