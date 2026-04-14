@@ -87,11 +87,7 @@ export interface RunContext {
   /** ACP session ID, or null for Claude (implicit session). */
   sessionId: string | null;
 
-  /**
-   * State object from the custom Client created by `createClient`.
-   * Use cases can access this to validate client-side state (e.g. elicitation counts).
-   * The client attaches state via `__state` property, which scaffold wires here.
-   */
+  /** State from the custom Client (set via `__state` by scaffold). */
   clientState: Record<string, unknown> | null;
 
   /** Log a message (appears in run output). */

@@ -12,29 +12,19 @@ import { extractAgentText } from "../acp-helpers.js";
 
 const PROMPT = "Ask me a question before proceeding with any task.";
 
-/**
- * Elicitation use case: demonstrates handling agent-initiated user input requests.
- *
- * - ACP: Uses createClient to provide a custom Client that handles elicitation RPC,
- *   while message validation uses typed ACPTimelineEvent consumption.
- * - Claude: Uses onControlRequest to intercept can_use_tool (e.g., AskUserQuestion).
- *
- * This example shows how to wire up interactive agent flows in both protocols.
- */
+/** Elicitation: handle agent-initiated user input requests. */
 export default {
   name: "elicitation",
   description: "Handle agent-initiated user input requests",
   protocols: ["acp", "claude"],
   timeoutMs: 10_000,
 
-  // ACP: Advertise elicitation capability so the agent may use it
+  // Advertise elicitation capability
   clientCapabilities: {
     elicitation: { form: {} },
   },
 
-  // ACP: Custom Client factory that handles elicitation RPC requests.
-  // Note: session updates are consumed via onTimelineEvent in run() instead of
-  // wiring chunk collection through the Client's sessionUpdate callback.
+  // Custom Client that handles elicitation RPC (sessionUpdate is a no-op; we use onTimelineEvent)
   createClient(_agent) {
     const state = {
       elicitationCount: 0,
@@ -87,8 +77,6 @@ export default {
         }
       },
 
-      // Required by the Client interface; message consumption happens via
-      // onTimelineEvent in run() so this is a no-op.
       async sessionUpdate(): Promise<void> {},
     };
 
@@ -100,14 +88,12 @@ export default {
     if (ctx.acp) {
       ctx.log("Running ACP path with custom Client + timeline events...");
 
-      // Elicitation count is still tracked via the custom Client's extMethod handler
       const clientState = ctx.clientState as { elicitationCount: number } | null;
 
       if (!clientState) {
         throw new Error("Client state not available - createClient may not have been wired correctly");
       }
 
-      // Collect text chunks via typed ACPTimelineEvent stream
       const chunks: string[] = [];
       const unsub = ctx.acp.onTimelineEvent((event) => {
         const text = extractAgentText(event);
@@ -120,7 +106,6 @@ export default {
         prompt: [{ type: "text", text: PROMPT }],
       });
 
-      // Wait briefly to allow any additional updates after prompt resolves
       await new Promise((resolve) => setTimeout(resolve, 500));
       unsub();
 
@@ -137,15 +122,12 @@ export default {
     } else if (ctx.claude) {
       ctx.log("Running Claude path with onControlRequest...");
 
-      // Track whether we received a control request
       let controlRequestCount = 0;
 
-      // Register handler for can_use_tool (includes AskUserQuestion)
       ctx.claude.onControlRequest("can_use_tool", async (message) => {
         controlRequestCount++;
         ctx.log(`Received control request: ${message.request.tool_name}`);
 
-        // Auto-approve with success response
         const response: SDKControlResponse = {
           type: "control_response",
           response: {
@@ -160,7 +142,6 @@ export default {
       ctx.log(`Sending prompt: "${PROMPT}"`);
       await ctx.claude.send(PROMPT);
 
-      // Collect messages until result
       let resultReceived = false;
       let hasAssistantText = false;
 
@@ -186,8 +167,6 @@ export default {
       ctx.log(`Control requests handled: ${controlRequestCount}`);
       ctx.log(`Assistant responded with text: ${hasAssistantText}`);
 
-      // Validation: flow completed successfully
-      // Control requests may or may not have triggered depending on agent behavior
       ctx.log("Pass: Claude elicitation flow completed without error");
     } else {
       ctx.skip("No connection available");

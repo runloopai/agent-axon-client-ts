@@ -3,12 +3,7 @@ import { extractAgentText } from "../acp-helpers.js";
 
 const PROMPT = "Say hello world";
 
-/**
- * Single-prompt use case: send one prompt, receive a text response.
- * Tests the basic request/response flow for both ACP and Claude protocols.
- *
- * This example uses the SDK's typed timeline events to consume Axon traffic.
- */
+/** Single-prompt: send one prompt, receive a text response. */
 export default {
   name: "single-prompt",
   description: "Send one prompt, receive text response",
@@ -19,7 +14,6 @@ export default {
     if (ctx.acp) {
       ctx.log("Running ACP path...");
 
-      // Collect text chunks via typed ACPTimelineEvent stream
       const chunks: string[] = [];
       const unsub = ctx.acp.onTimelineEvent((event) => {
         const text = extractAgentText(event);
@@ -46,8 +40,6 @@ export default {
       ctx.log(`Sending prompt: "${PROMPT}"`);
       await ctx.claude.send(PROMPT);
 
-      // Collect messages until the result
-      ctx.log("Collecting messages...");
       let resultReceived = false;
       let hasAssistantText = false;
 

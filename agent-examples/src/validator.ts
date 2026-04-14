@@ -1,9 +1,6 @@
 /**
  * Wraps a promise with a timeout.
- *
- * Note: On timeout, the original promise continues running in the background.
- * Pass an AbortSignal and handle it in your promise implementation to properly
- * cancel underlying work when the timeout fires.
+ * On timeout the original promise keeps running; pass an AbortSignal to cancel it.
  */
 export function withTimeout<T>(
   promise: Promise<T>,
