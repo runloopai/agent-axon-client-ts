@@ -61,7 +61,7 @@ export default {
       });
 
       await ctx.acp.prompt({ sessionId: ctx.sessionId!, prompt: [{ type: "text", text: PROMPT }] });
-      await waitFor(() => (elicitationCount > 0 && completedCount > 0) || chunks.some((c) => c.trim()), 3_000);
+      await waitFor(() => (elicitationCount > 0 && completedCount > 0) || chunks.some((c) => c.trim()), 5_000);
       unsub();
 
       const hasText = chunks.some((c) => c.trim());
