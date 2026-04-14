@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { SessionUpdate } from "@runloop/agent-axon-client/acp";
+import { isTextContent } from "@runloop/agent-axon-client/acp";
 import type { AxonEventView } from "../hooks/useNodeAgent.js";
 
 interface AxonEventSummary {
@@ -105,8 +106,7 @@ function summarizeAxonEvent(event: AxonEventView): AxonEventSummary {
       const update = (parsed.update ?? parsed) as SessionUpdate;
       switch (update.sessionUpdate) {
         case "agent_message_chunk": {
-          const text =
-            update.content.type === "text" ? update.content.text : "";
+          const text = isTextContent(update.content) ? update.content.text : "";
           const preview =
             text.length > 60 ? text.slice(0, 60) + "\u2026" : text;
           return {
@@ -117,8 +117,7 @@ function summarizeAxonEvent(event: AxonEventView): AxonEventSummary {
           };
         }
         case "agent_thought_chunk": {
-          const text =
-            update.content.type === "text" ? update.content.text : "";
+          const text = isTextContent(update.content) ? update.content.text : "";
           const preview =
             text.length > 60 ? text.slice(0, 60) + "\u2026" : text;
           return {

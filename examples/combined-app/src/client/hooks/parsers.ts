@@ -1,29 +1,28 @@
+import type { ToolCallContent } from "@runloop/agent-axon-client/acp";
 import type { ContentItem } from "../types.js";
 
-export function parseToolCallContent(raw: unknown[]): ContentItem[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((entry: unknown) => {
-    const item = entry as Record<string, unknown>;
+export function parseToolCallContent(raw: ToolCallContent[]): ContentItem[] {
+  return raw.map((item) => {
     if (item.type === "diff") {
       return {
         type: "diff" as const,
         diff: {
-          path: (item.path as string) ?? "",
-          oldText: (item.oldText as string | null) ?? null,
-          newText: (item.newText as string) ?? "",
+          path: item.path,
+          oldText: item.oldText ?? null,
+          newText: item.newText,
         },
       };
     }
     if (item.type === "terminal") {
       return {
         type: "terminal" as const,
-        terminal: { terminalId: (item.terminalId as string) ?? "" },
+        terminal: { terminalId: item.terminalId },
       };
     }
-    const content = item.content as { type?: string; text?: string } | undefined;
+    const text = item.content?.type === "text" ? item.content.text : "";
     return {
       type: "content" as const,
-      text: content?.text ?? "",
+      text: text ?? "",
     };
   });
 }

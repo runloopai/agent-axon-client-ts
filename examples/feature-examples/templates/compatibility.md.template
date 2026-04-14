@@ -1,0 +1,22 @@
+# Agent Axon Client — Compatibility Matrix
+
+Generated: {{timestamp}}
+SDK Version: {{sdkVersion}}
+
+## Protocol × Feature
+
+| Use Case | ACP | Claude |
+|----------|-----|--------|
+{{protocolFeatureRows}}
+
+## ACP Agent × Feature
+
+{{acpAgentFeatureTable}}
+
+---
+
+## Run Details
+
+| Agent | Use Case | Status | Duration | Notes |
+|-------|----------|--------|----------|-------|
+{{runDetailsRows}}

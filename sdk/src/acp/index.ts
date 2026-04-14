@@ -79,14 +79,23 @@ export {
 } from "../shared/user-message.js";
 export { axonStream } from "./axon-stream.js";
 export { ACPAxonConnection, classifyACPAxonEvent, isACPProtocolEventType } from "./connection.js";
+export {
+  isAudioContent,
+  isEmbeddedResourceContent,
+  isImageContent,
+  isResourceLinkContent,
+  isTextContent,
+} from "./content-block-guards.js";
 export type {
   AgentMessageChunkUpdate,
+  AgentTextChunkUpdate,
   AgentThoughtChunkUpdate,
   AvailableCommandsSessionUpdate,
   ConfigOptionSessionUpdate,
   CurrentModeSessionUpdate,
   PlanSessionUpdate,
   SessionInfoSessionUpdate,
+  ThoughtTextChunkUpdate,
   ToolCallProgressSessionUpdate,
   ToolCallSessionUpdate,
   UsageSessionUpdate,
@@ -94,17 +103,41 @@ export type {
 } from "./session-update-guards.js";
 export {
   isAgentMessageChunk,
+  isAgentTextChunk,
   isAgentThoughtChunk,
   isAvailableCommandsUpdate,
   isConfigOptionUpdate,
   isCurrentModeUpdate,
   isPlan,
   isSessionInfoUpdate,
+  isThoughtTextChunk,
   isToolCall,
   isToolCallProgress,
   isUsageUpdate,
   isUserMessageChunk,
 } from "./session-update-guards.js";
+export type {
+  BrokerErrorTimelineEvent,
+  ElicitationCompleteTimelineEvent,
+  ElicitationTimelineEvent,
+  TurnCompletedTimelineEvent,
+  TurnStartedTimelineEvent,
+} from "./timeline-event-guards.js";
+export {
+  isACPProtocolEvent,
+  isBrokerErrorEvent,
+  isElicitationCompleteEvent,
+  isElicitationRequestEvent,
+  isElicitationResponseEvent,
+  isInitializeEvent,
+  isNewSessionEvent,
+  isPromptEvent,
+  isSessionUpdateEvent,
+  isSystemTimelineEvent,
+  isTurnCompletedEvent,
+  isTurnStartedEvent,
+  isUnknownTimelineEvent,
+} from "./timeline-event-guards.js";
 export type {
   ACPAxonConnectionOptions,
   ACPInitializeTimelineEvent,

@@ -1,6 +1,14 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import type { AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, StopReason } from "@runloop/agent-axon-client/acp";
-import { isUsageUpdate, isSessionInfoUpdate, extractACPUserMessage, type AxonEventView } from "@runloop/agent-axon-client/acp";
+import type { AuthMethod, ElicitationAction, ACPTimelineEvent, StopReason } from "@runloop/agent-axon-client/acp";
+import {
+  isUsageUpdate,
+  isSessionInfoUpdate,
+  extractACPUserMessage,
+  isTurnStartedEvent,
+  isTurnCompletedEvent,
+  isSessionUpdateEvent,
+  type AxonEventView,
+} from "@runloop/agent-axon-client/acp";
 import type { ClientEvent } from "../../server/acp-client.js";
 import type {
   AgentInfo,
@@ -131,44 +139,40 @@ export function useNodeAgent(): UseNodeAgentReturn {
       return;
     }
 
-    if (tlEvent.kind === "system") {
-      const { data } = tlEvent;
-      if (data.type === "turn.started") {
-        turnBlocks.setIsAgentTurn(true);
-        turnBlocks.setIsStreaming(false);
-      } else if (data.type === "turn.completed") {
-        turnBlocks.setIsAgentTurn(false);
-        turnBlocks.setIsStreaming(false);
-        turnBlocks.lastStopReasonRef.current = data.stopReason as StopReason;
-      }
+    if (isTurnStartedEvent(tlEvent)) {
+      turnBlocks.setIsAgentTurn(true);
+      turnBlocks.setIsStreaming(false);
       return;
     }
 
-    if (tlEvent.kind === "acp_protocol") {
-      if (tlEvent.axonEvent.event_type === "session/update") {
-        const payload = tlEvent.data as Record<string, unknown>;
-        const inner = (payload as { update?: unknown }).update;
-        if (!inner || typeof inner !== "object") return;
-        const update = inner as SessionUpdate;
-        turnBlocks.onSessionUpdate(update);
-        activity.onSessionUpdate(update);
-        sessionConfig.onSessionUpdate(update);
+    if (isTurnCompletedEvent(tlEvent)) {
+      turnBlocks.setIsAgentTurn(false);
+      turnBlocks.setIsStreaming(false);
+      turnBlocks.lastStopReasonRef.current = tlEvent.data.stopReason as StopReason;
+      return;
+    }
 
-        if (isUsageUpdate(update)) {
-          const { size, used, cost = null } = update;
-          setUsage({ size, used, cost });
-        }
+    if (isSessionUpdateEvent(tlEvent)) {
+      const { update } = tlEvent.data;
+      if (!update || typeof update !== "object") return;
+      turnBlocks.onSessionUpdate(update);
+      activity.onSessionUpdate(update);
+      sessionConfig.onSessionUpdate(update);
 
-        if (isSessionInfoUpdate(update)) {
-          if (update.title) {
-            setSessions((prev) =>
-              prev.map((s) =>
-                s.sessionId === sessionId
-                  ? { ...s, title: update.title, updatedAt: update.updatedAt }
-                  : s,
-              ),
-            );
-          }
+      if (isUsageUpdate(update)) {
+        const { size, used, cost = null } = update;
+        setUsage({ size, used, cost });
+      }
+
+      if (isSessionInfoUpdate(update)) {
+        if (update.title) {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.sessionId === sessionId
+                ? { ...s, title: update.title, updatedAt: update.updatedAt }
+                : s,
+            ),
+          );
         }
       }
     }

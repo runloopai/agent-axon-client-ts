@@ -1,4 +1,4 @@
-import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
+import { tryParseTimelinePayload, isUnknownTimelineEvent } from "@runloop/agent-axon-client/acp";
 import type { TimelineEvent, AgentConfigItem, AgentStartedPayload, UserAttachment } from "../types.js";
 
 /**
@@ -8,7 +8,7 @@ import type { TimelineEvent, AgentConfigItem, AgentStartedPayload, UserAttachmen
 export function isAgentStartedEvent(
   event: TimelineEvent,
 ): boolean {
-  return event.kind === "unknown" && event.axonEvent.event_type === "agent_started";
+  return isUnknownTimelineEvent(event) && event.axonEvent.event_type === "agent_started";
 }
 
 /**
