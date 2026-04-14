@@ -179,6 +179,9 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
       case "control_request":
         handleControlRequest(msg as unknown as SDKControlRequest);
         break;
+      case "control_response":
+        dispatch({ type: "SET", patch: { pendingControlRequest: null } });
+        break;
       case "tool_progress": {
         const toolUseId = msg.tool_use_id as string;
         blocks.updateBlocks((prev) =>
