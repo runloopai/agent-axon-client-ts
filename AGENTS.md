@@ -8,14 +8,6 @@ For detailed SDK API docs see [`sdk/AGENTS.md`](sdk/AGENTS.md).
 
 The `agent-examples/` directory contains runnable recipes that demonstrate how to use `@runloop/agent-axon-client` for common scenarios. **Start with [`llms.txt`](llms.txt)** — it is the generated index of all available use cases, compatibility constraints, and implementation guidance. Use it to find the right recipe before writing new integration code from scratch.
 
-Workflow:
-
-1. Read `llms.txt` to identify which use case matches your task.
-2. Follow its pointers to the relevant file in `agent-examples/src/use-cases/`.
-3. Check `agent-examples/compatibility.md` if you need to verify protocol/agent support.
-
-The use-case list in `llms.txt` is auto-generated from `agent-examples/templates/llms.txt.template`. The compatibility matrix in `agent-examples/compatibility.md` is generated from `agent-examples/templates/compatibility.md.template`. Regenerate both by running `bun run compat` (without filters).
-
 ## Repository layout
 
 ```
