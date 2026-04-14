@@ -22,7 +22,7 @@ export interface AgentConfig {
     launch_args?: string[];
   };
 
-  /** Environment variables to set in the devbox. */
+  /** Non-secret env vars only. Use sdk.secret for API keys (see scaffold.ts). */
   env?: Record<string, string>;
 }
 

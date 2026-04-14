@@ -1,6 +1,6 @@
 # Agent Axon Client — Compatibility Matrix
 
-Generated: 2026-04-14T00:06:53.224Z
+Generated: 2026-04-14T01:23:00.828Z
 SDK Version: 0.4.0
 
 ## Protocol × Feature
@@ -23,7 +23,7 @@ SDK Version: 0.4.0
 
 | Agent | Use Case | Status | Duration | Notes |
 |-------|----------|--------|----------|-------|
-| opencode | elicitation | pass | 10.7s |  |
-| opencode | single-prompt | pass | 12.0s |  |
-| claude-code | elicitation | pass | 7.1s |  |
-| claude-code | single-prompt | pass | 6.3s |  |
+| opencode | elicitation | pass | 12.4s |  |
+| opencode | single-prompt | pass | 7.2s |  |
+| claude-code | elicitation | pass | 6.9s |  |
+| claude-code | single-prompt | pass | 4.6s |  |

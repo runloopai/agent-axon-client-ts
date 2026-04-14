@@ -1,4 +1,4 @@
-import { RunloopSDK } from "@runloop/api-client";
+import { RunloopSDK, type Secret, type NetworkPolicy } from "@runloop/api-client";
 import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import type { AgentConfig, UseCase, RunContext } from "./types.js";
@@ -10,7 +10,8 @@ interface SetupResult {
 }
 
 /**
- * Provision a devbox and initialize a connection for the given agent and use case.
+ * Provision a devbox with secrets and network policy, then initialize a connection.
+ * See inline comments for best-practice patterns.
  */
 export async function setup(agent: AgentConfig, useCase: UseCase): Promise<SetupResult> {
   const runloopApiKey = process.env.RUNLOOP_API_KEY;
@@ -31,17 +32,33 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
     console.log(`[${agent.name}/${useCase.name}] ${msg}`);
   };
 
-  log("Creating Axon channel...");
-  const axon = await sdk.axon.create({ name: `${useCase.name}-${agent.name}` });
+  // Unique prefix with timestamp to avoid collisions in parallel runs.
+  const timestamp = Date.now().toString(36);
+  const resourcePrefix = `${useCase.name}-${agent.name}-${timestamp}`;
 
-  log("Creating devbox...");
-  const envVars: Record<string, string> = { ...mergedAgent.env };
-  if (anthropicApiKey && mergedAgent.env?.ANTHROPIC_API_KEY !== undefined) {
-    envVars.ANTHROPIC_API_KEY = anthropicApiKey;
+  log("Creating Axon channel...");
+  const axon = await sdk.axon.create({ name: resourcePrefix });
+
+  // Store API keys as secrets, not environment_variables.
+  let secret: Secret | null = null;
+  if (anthropicApiKey && mergedAgent.protocol === "claude") {
+    log("Creating secret for Anthropic API key...");
+    secret = await sdk.secret.create({
+      name: `${resourcePrefix}-anthropic-key`,
+      value: anthropicApiKey,
+    });
   }
 
+  // Apply a network policy. Use allowed_hostnames in production for tighter control.
+  log("Creating network policy...");
+  const networkPolicy: NetworkPolicy = await sdk.networkPolicy.create({
+    name: `${resourcePrefix}-policy`,
+    allow_all: true,
+  });
+
+  log("Creating devbox...");
   const devbox = await sdk.devbox.create({
-    name: `${useCase.name}-${agent.name}`,
+    name: resourcePrefix,
     blueprint_name: mergedAgent.blueprint,
     mounts: [
       {
@@ -52,13 +69,38 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
         ...(mergedAgent.mount.launch_args && { launch_args: mergedAgent.mount.launch_args }),
       },
     ],
-    environment_variables: Object.keys(envVars).length > 0 ? envVars : undefined,
+    // Inject secret as env var. Values are never logged.
+    ...(secret && {
+      secrets: {
+        ANTHROPIC_API_KEY: secret.name,
+      },
+    }),
+    launch_parameters: {
+      network_policy_id: networkPolicy.id,
+    },
   });
   log(`Devbox ready: ${devbox.id}`);
 
+  // Cleanup: delete secret and policy after devbox shutdown (for example only).
   const cleanup = async () => {
     log("Shutting down devbox...");
     await devbox.shutdown();
+
+    if (secret) {
+      log("Deleting secret...");
+      try {
+        await secret.delete();
+      } catch (err) {
+        log(`Failed to delete secret (continuing): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    log("Deleting network policy...");
+    try {
+      await networkPolicy.delete();
+    } catch (err) {
+      log(`Failed to delete network policy (continuing): ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
   if (mergedAgent.protocol === "acp") {

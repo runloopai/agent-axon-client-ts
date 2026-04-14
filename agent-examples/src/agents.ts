@@ -1,5 +1,6 @@
 import type { AgentConfig } from "./types.js";
 
+// API keys are injected via secrets in scaffold.ts, not here.
 export const AGENTS: AgentConfig[] = [
   {
     name: "opencode",
@@ -18,9 +19,6 @@ export const AGENTS: AgentConfig[] = [
     mount: {
       protocol: "claude_json",
       launch_args: ["--dangerously-skip-permissions"],
-    },
-    env: {
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
     },
   },
 ];
