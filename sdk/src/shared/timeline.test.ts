@@ -118,6 +118,119 @@ describe("tryParseSystemEvent", () => {
     const ev = makeAxonEvent({ event_type: "custom.event" });
     expect(tryParseSystemEvent(ev)).toBeNull();
   });
+
+  it("parses devbox.running", () => {
+    const ev = makeAxonEvent({
+      event_type: "devbox.running",
+      payload: JSON.stringify({ devbox_id: "dbx_1" }),
+    });
+    expect(tryParseSystemEvent(ev)).toEqual({
+      type: "devbox.lifecycle",
+      kind: "running",
+      devboxId: "dbx_1",
+    });
+  });
+
+  it("parses devbox.suspended", () => {
+    const ev = makeAxonEvent({
+      event_type: "devbox.suspended",
+      payload: JSON.stringify({ devbox_id: "dbx_2" }),
+    });
+    expect(tryParseSystemEvent(ev)).toEqual({
+      type: "devbox.lifecycle",
+      kind: "suspended",
+      devboxId: "dbx_2",
+    });
+  });
+
+  it("parses devbox.shutdown", () => {
+    const ev = makeAxonEvent({
+      event_type: "devbox.shutdown",
+      payload: JSON.stringify({ devbox_id: "dbx_3" }),
+    });
+    expect(tryParseSystemEvent(ev)).toEqual({
+      type: "devbox.lifecycle",
+      kind: "shutdown",
+      devboxId: "dbx_3",
+    });
+  });
+
+  it("parses devbox.failed with reason", () => {
+    const ev = makeAxonEvent({
+      event_type: "devbox.failed",
+      payload: JSON.stringify({ devbox_id: "dbx_4", reason: "deadline exceeded" }),
+    });
+    expect(tryParseSystemEvent(ev)).toEqual({
+      type: "devbox.lifecycle",
+      kind: "failed",
+      devboxId: "dbx_4",
+      reason: "deadline exceeded",
+    });
+  });
+
+  it("parses devbox.failed with missing reason leaves it undefined", () => {
+    const ev = makeAxonEvent({
+      event_type: "devbox.failed",
+      payload: JSON.stringify({ devbox_id: "dbx_5" }),
+    });
+    const result = tryParseSystemEvent(ev);
+    expect(result).toEqual({
+      type: "devbox.lifecycle",
+      kind: "failed",
+      devboxId: "dbx_5",
+      reason: undefined,
+    });
+  });
+
+  it("returns null for devbox event missing devbox_id", () => {
+    const ev = makeAxonEvent({
+      event_type: "devbox.running",
+      payload: JSON.stringify({}),
+    });
+    expect(tryParseSystemEvent(ev)).toBeNull();
+  });
+
+  it("returns null for unrecognized devbox.* suffix", () => {
+    const ev = makeAxonEvent({
+      event_type: "devbox.unknown_state",
+      payload: JSON.stringify({ devbox_id: "dbx_6" }),
+    });
+    expect(tryParseSystemEvent(ev)).toBeNull();
+  });
+
+  it("parses agent.error", () => {
+    const ev = makeAxonEvent({
+      event_type: "agent.error",
+      payload: JSON.stringify({ devbox_id: "dbx_7", type: "launch", message: "failed to start" }),
+    });
+    expect(tryParseSystemEvent(ev)).toEqual({
+      type: "agent.error",
+      devboxId: "dbx_7",
+      errorType: "launch",
+      message: "failed to start",
+    });
+  });
+
+  it("parses agent.error with missing optional fields leaves them undefined", () => {
+    const ev = makeAxonEvent({
+      event_type: "agent.error",
+      payload: JSON.stringify({ devbox_id: "dbx_8" }),
+    });
+    expect(tryParseSystemEvent(ev)).toEqual({
+      type: "agent.error",
+      devboxId: "dbx_8",
+      errorType: undefined,
+      message: undefined,
+    });
+  });
+
+  it("returns null for agent.error missing devbox_id", () => {
+    const ev = makeAxonEvent({
+      event_type: "agent.error",
+      payload: JSON.stringify({ type: "launch", message: "boom" }),
+    });
+    expect(tryParseSystemEvent(ev)).toBeNull();
+  });
 });
 
 describe("createClassifier", () => {

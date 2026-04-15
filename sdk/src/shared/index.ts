@@ -31,12 +31,16 @@ export {
   tryParseTimelinePayload,
 } from "./timeline.js";
 export type {
+  AgentErrorTimelineEvent,
   BrokerErrorTimelineEvent,
+  DevboxLifecycleTimelineEvent,
   TurnCompletedTimelineEvent,
   TurnStartedTimelineEvent,
 } from "./timeline-event-guards.js";
 export {
+  isAgentErrorEvent,
   isBrokerErrorEvent,
+  isDevboxLifecycleEvent,
   isSystemTimelineEvent,
   isTurnCompletedEvent,
   isTurnStartedEvent,
@@ -46,10 +50,13 @@ export { timelineEventGenerator } from "./timeline-generator.js";
 /** @category Types */
 /** @category Timeline */
 export type {
+  AgentErrorEvent,
   AxonEventListener,
   AxonEventView,
   BaseConnectionOptions,
   BaseTimelineEvent,
+  DevboxLifecycleEvent,
+  DevboxLifecycleKind,
   LogFn,
   SystemEvent,
   SystemTimelineEvent,
