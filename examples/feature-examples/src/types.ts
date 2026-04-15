@@ -24,6 +24,12 @@ export interface AgentConfig {
 
   /** Non-secret env vars only. Use sdk.secret for API keys (see scaffold.ts). */
   env?: Record<string, string>;
+
+  /** Map of devbox env var name -> local env var to source the value from. */
+  secrets?: Record<string, string>;
+
+  /** If false, agent is skipped in compatibility runs. Defaults to true. */
+  enabled?: boolean;
 }
 
 /**
