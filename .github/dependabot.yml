@@ -10,24 +10,6 @@ updates:
       - "dependencies"
 
   - package-ecosystem: "npm"
-    directory: "/examples/acp-app"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-
-  - package-ecosystem: "npm"
-    directory: "/examples/claude-app"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-
-  - package-ecosystem: "npm"
     directory: "/examples/claude-cli"
     schedule:
       interval: "weekly"

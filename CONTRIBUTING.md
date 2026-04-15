@@ -52,8 +52,6 @@ bun run --filter '@runloop/agent-axon-client' check:fix
 Each example app has its own dev server:
 
 ```bash
-bun run --filter '@runloop/example-acp-app' dev      # ACP example
-bun run --filter '@runloop/example-claude-app' dev   # Claude example
 bun run --filter '@runloop/example-combined-app' dev # Combined (Claude + ACP) example
 ```
 

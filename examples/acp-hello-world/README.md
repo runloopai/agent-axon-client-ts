@@ -38,4 +38,3 @@ bun run acp-hello-world.ts
 5. Shuts down the devbox
 
 For a full interactive REPL, see [`../acp-cli`](../acp-cli/).
-For a full-stack UI demo, see [`../acp-app`](../acp-app/).
