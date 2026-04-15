@@ -8,7 +8,13 @@
  */
 
 import { SYSTEM_EVENT_TYPES } from "./timeline.js";
-import type { BaseTimelineEvent, SystemTimelineEvent, UnknownTimelineEvent } from "./types.js";
+import type {
+  AgentErrorEvent,
+  BaseTimelineEvent,
+  DevboxLifecycleKind,
+  SystemTimelineEvent,
+  UnknownTimelineEvent,
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Narrowed system event types
@@ -94,6 +100,57 @@ export function isBrokerErrorEvent(event: BaseTimelineEvent): event is BrokerErr
   return (
     event.kind === "system" &&
     (event.data as { type?: string }).type === SYSTEM_EVENT_TYPES.BROKER_ERROR
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Devbox lifecycle guards
+// ---------------------------------------------------------------------------
+
+/**
+ * Narrowed type for a devbox lifecycle system event.
+ * @category Timeline
+ */
+export type DevboxLifecycleTimelineEvent = SystemTimelineEvent & {
+  data: { type: "devbox.lifecycle"; kind: DevboxLifecycleKind; devboxId: string };
+};
+
+/**
+ * Type guard for devbox lifecycle system events.
+ *
+ * @param event - The timeline event to test.
+ * @returns `true` if `event` is a {@link DevboxLifecycleTimelineEvent}.
+ * @category Timeline
+ */
+export function isDevboxLifecycleEvent(
+  event: BaseTimelineEvent,
+): event is DevboxLifecycleTimelineEvent {
+  return event.kind === "system" && (event.data as { type?: string }).type === "devbox.lifecycle";
+}
+
+// ---------------------------------------------------------------------------
+// Agent error guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Narrowed type for an `agent.error` system event.
+ * @category Timeline
+ */
+export type AgentErrorTimelineEvent = SystemTimelineEvent & {
+  data: AgentErrorEvent;
+};
+
+/**
+ * Type guard for `agent.error` system events.
+ *
+ * @param event - The timeline event to test.
+ * @returns `true` if `event` is an {@link AgentErrorTimelineEvent}.
+ * @category Timeline
+ */
+export function isAgentErrorEvent(event: BaseTimelineEvent): event is AgentErrorTimelineEvent {
+  return (
+    event.kind === "system" &&
+    (event.data as { type?: string }).type === SYSTEM_EVENT_TYPES.AGENT_ERROR
   );
 }
 
