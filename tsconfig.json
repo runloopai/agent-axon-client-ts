@@ -4,9 +4,7 @@
     { "path": "sdk" },
     { "path": "examples/acp-hello-world" },
     { "path": "examples/acp-cli" },
-    { "path": "examples/acp-app" },
     { "path": "examples/claude-hello-world" },
-    { "path": "examples/claude-cli" },
-    { "path": "examples/claude-app" }
+    { "path": "examples/claude-cli" }
   ]
 }
