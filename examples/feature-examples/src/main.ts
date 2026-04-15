@@ -258,7 +258,7 @@ function buildAcpAgentFeatureTable(
   useCases: UseCase[],
   agents: AgentConfig[],
 ): string {
-  const acpAgents = agents.filter((a) => a.protocol === "acp");
+  const acpAgents = agents.filter((a) => a.protocol === "acp" && a.enabled !== false);
   if (acpAgents.length === 0) {
     return "No ACP agents configured.";
   }
@@ -372,7 +372,7 @@ async function validateOutput(
       }
     }
 
-    const acpAgents = agents.filter((a) => a.protocol === "acp");
+    const acpAgents = agents.filter((a) => a.protocol === "acp" && a.enabled !== false);
     for (const agent of acpAgents) {
       if (!content.includes(agent.name)) {
         errors.push({
@@ -464,10 +464,12 @@ async function main(): Promise<void> {
     }
   }
 
-  let filteredAgents = AGENTS;
+  // Filter to enabled agents only (unless explicitly requested by name)
+  let filteredAgents = AGENTS.filter((a) => a.enabled !== false);
   let filteredUseCases = USE_CASES;
 
   if (args.agent) {
+    // When explicitly requesting an agent by name, include it even if disabled
     filteredAgents = AGENTS.filter((a) => a.name === args.agent);
     if (filteredAgents.length === 0) {
       console.error(`Unknown agent: ${args.agent}`);
