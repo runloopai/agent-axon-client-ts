@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.1](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.4.0...agent-axon-client-v0.4.1) (2026-04-15)
+
+
+### Features
+
+* **examples:** add agent examples and compatability matrix generator ([#88](https://github.com/runloopai/agent-axon-client-ts/issues/88)) ([52c86ba](https://github.com/runloopai/agent-axon-client-ts/commit/52c86ba54a3e99b273765e30cd89120e6022780d))
+* **sdk:** add link to docs from package & readme ([#91](https://github.com/runloopai/agent-axon-client-ts/issues/91)) ([3d431fb](https://github.com/runloopai/agent-axon-client-ts/commit/3d431fbec53b82d61d2d10731bfccd0e209e06d9))
+
+
+### Bug Fixes
+
+* **project:** update readme to reflect bugs fixed and new sdk support ([#87](https://github.com/runloopai/agent-axon-client-ts/issues/87)) ([883cef3](https://github.com/runloopai/agent-axon-client-ts/commit/883cef3b452a4e3d69531b21895a9e1883349082))
+
 ## [0.4.0](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.3.0...agent-axon-client-v0.4.0) (2026-04-13)
 
 
