@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@runloop/agent-axon-client)](https://www.npmjs.com/package/@runloop/agent-axon-client)
+[![Docs](https://img.shields.io/badge/docs-TypeDoc-blue)](https://runloopai.github.io/agent-axon-client-ts/)
 [![codecov](https://codecov.io/gh/runloopai/agent-axon-client-ts/branch/main/graph/badge.svg)](https://codecov.io/gh/runloopai/agent-axon-client-ts)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -277,7 +278,7 @@ for await (const event of agent.receiveTimelineEvents()) {
 
 See the [SDK documentation](sdk/README.md#custom-events-via-publish-and-tryparsetimelinepayload) for more on custom events, and the [full timeline API reference](sdk/README.md#timeline-events) for replay behavior and `afterSequence`.
 
-See the [SDK documentation](sdk/README.md) for the full API reference.
+See the [SDK documentation](sdk/README.md) for the full API reference, or browse the [hosted API docs](https://runloopai.github.io/agent-axon-client-ts/).
 
 ## Repository Structure
 
