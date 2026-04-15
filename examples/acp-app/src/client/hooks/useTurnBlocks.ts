@@ -6,6 +6,11 @@ import {
   isToolCall,
   isToolCallProgress,
   isPlan,
+  isTextContent,
+  isImageContent,
+  isAudioContent,
+  isResourceLinkContent,
+  isEmbeddedResourceContent,
 } from "@runloop/agent-axon-client/acp";
 import type {
   TurnBlock,
@@ -139,7 +144,7 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
     if (isAgentMessageChunk(update)) {
       finalizeThinking();
       const { content, messageId = null } = update;
-      if (content.type === "resource_link") {
+      if (isResourceLinkContent(content)) {
         pushBlock({
           type: "resource_link",
           id: nextBlockId("rl"),
@@ -149,7 +154,7 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
         });
         return;
       }
-      if (content.type === "image") {
+      if (isImageContent(content)) {
         pushBlock({
           type: "image",
           id: nextBlockId("img"),
@@ -159,7 +164,7 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
         });
         return;
       }
-      if (content.type === "audio") {
+      if (isAudioContent(content)) {
         pushBlock({
           type: "audio",
           id: nextBlockId("aud"),
@@ -168,7 +173,7 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
         });
         return;
       }
-      if (content.type === "resource") {
+      if (isEmbeddedResourceContent(content)) {
         const res = content.resource;
         pushBlock({
           type: "resource",
@@ -180,7 +185,7 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
         });
         return;
       }
-      const text = content.type === "text" ? content.text : "";
+      const text = isTextContent(content) ? content.text : "";
       const last = lastBlock();
       if (last?.type === "text") {
         updateBlocks((blocks) => {
@@ -197,7 +202,7 @@ export function useTurnBlocks(): UseTurnBlocksReturn {
 
     if (isAgentThoughtChunk(update)) {
       const { content } = update;
-      const text = content.type === "text" ? content.text : "";
+      const text = isTextContent(content) ? content.text : "";
       const last = lastBlock();
       if (last?.type === "thinking" && last.isActive) {
         updateBlocks((blocks) => {

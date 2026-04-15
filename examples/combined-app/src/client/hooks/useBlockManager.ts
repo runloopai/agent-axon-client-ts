@@ -10,7 +10,7 @@ export interface BlockManager {
   flushToMessage: (extra?: Partial<Omit<ChatMessage, "id" | "role" | "content" | "blocks">>) => ChatMessage | null;
   reset: () => void;
   blocksRef: React.RefObject<TurnBlock[]>;
-  thinkingStartRef: React.MutableRefObject<number | null>;
+  thinkingStartRef: React.RefObject<number | null>;
 }
 
 export function useBlockManager(): BlockManager {
