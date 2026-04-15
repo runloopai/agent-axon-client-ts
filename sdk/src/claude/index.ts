@@ -100,7 +100,6 @@ export type {
 export {
   isAgentErrorEvent,
   isBrokerErrorEvent,
-  isDevboxLifecycleEvent,
   isClaudeAssistantEvent,
   isClaudeAssistantTextEvent,
   isClaudeControlRequestEvent,
@@ -109,6 +108,7 @@ export {
   isClaudeQueryEvent,
   isClaudeResultEvent,
   isClaudeSystemInitEvent,
+  isDevboxLifecycleEvent,
   isSystemTimelineEvent,
   isTurnCompletedEvent,
   isTurnStartedEvent,
