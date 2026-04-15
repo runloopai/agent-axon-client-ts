@@ -19,14 +19,17 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
     throw new SkipError("RUNLOOP_API_KEY not set");
   }
 
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-  if (agent.protocol === "claude" && !anthropicApiKey) {
-    throw new SkipError("ANTHROPIC_API_KEY not set (required for Claude)");
-  }
-
   const sdk = new RunloopSDK({ bearerToken: runloopApiKey });
 
   const mergedAgent = mergeOverrides(agent, useCase.provisionOverrides);
+
+  // Validate that all required secrets are available in the local environment.
+  const secretsConfig = mergedAgent.secrets ?? {};
+  for (const [devboxEnv, localEnv] of Object.entries(secretsConfig)) {
+    if (!process.env[localEnv]) {
+      throw new SkipError(`${localEnv} not set (required for ${mergedAgent.name})`);
+    }
+  }
 
   const log = (msg: string) => {
     console.log(`[${agent.name}/${useCase.name}] ${msg}`);
@@ -39,14 +42,18 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
   log("Creating Axon channel...");
   const axon = await sdk.axon.create({ name: resourcePrefix });
 
-  // Store API keys as secrets, not environment_variables.
-  let secret: Secret | null = null;
-  if (anthropicApiKey && mergedAgent.protocol === "claude") {
-    log("Creating secret for Anthropic API key...");
-    secret = await sdk.secret.create({
-      name: `${resourcePrefix}-anthropic-key`,
-      value: anthropicApiKey,
+  // Create Runloop secrets for each entry in the agent's secrets config.
+  const createdSecrets: Secret[] = [];
+  const devboxSecretsMap: Record<string, string> = {};
+  for (const [devboxEnv, localEnv] of Object.entries(secretsConfig)) {
+    const value = process.env[localEnv]!;
+    log(`Creating secret for ${devboxEnv}...`);
+    const secret = await sdk.secret.create({
+      name: `${resourcePrefix}-${devboxEnv.toLowerCase()}`,
+      value,
     });
+    createdSecrets.push(secret);
+    devboxSecretsMap[devboxEnv] = secret.name;
   }
 
   // Apply a network policy. Use allowed_hostnames in production for tighter control.
@@ -69,25 +76,20 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
         ...(mergedAgent.mount.launch_args && { launch_args: mergedAgent.mount.launch_args }),
       },
     ],
-    // Inject secret as env var. Values are never logged.
-    ...(secret && {
-      secrets: {
-        ANTHROPIC_API_KEY: secret.name,
-      },
-    }),
+    ...(Object.keys(devboxSecretsMap).length > 0 && { secrets: devboxSecretsMap }),
     launch_parameters: {
       network_policy_id: networkPolicy.id,
     },
   });
   log(`Devbox ready: ${devbox.id}`);
 
-  // Cleanup: delete secret and policy after devbox shutdown (for example only).
+  // Cleanup: delete secrets and policy after devbox shutdown (for example only).
   const cleanup = async () => {
     log("Shutting down devbox...");
     await devbox.shutdown();
 
-    if (secret) {
-      log("Deleting secret...");
+    for (const secret of createdSecrets) {
+      log(`Deleting secret ${secret.name}...`);
       try {
         await secret.delete();
       } catch (err) {
@@ -196,6 +198,10 @@ function mergeOverrides(
     env: {
       ...agent.env,
       ...overrides.env,
+    },
+    secrets: {
+      ...agent.secrets,
+      ...overrides.secrets,
     },
   };
 }

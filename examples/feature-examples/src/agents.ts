@@ -13,6 +13,17 @@ export const AGENTS: AgentConfig[] = [
     },
   },
   {
+    name: "codex-acp",
+    protocol: "acp",
+    blueprint: "runloop/agents",
+    mount: {
+      protocol: "acp",
+      agent_binary: "codex-acp",
+    },
+    secrets: { OPENAI_API_KEY: "OPENAI_API_KEY" },
+    enabled: false, // Backend support not yet available
+  },
+  {
     name: "claude-code",
     protocol: "claude",
     blueprint: "runloop/agents",
@@ -20,5 +31,6 @@ export const AGENTS: AgentConfig[] = [
       protocol: "claude_json",
       launch_args: ["--dangerously-skip-permissions"],
     },
+    secrets: { ANTHROPIC_API_KEY: "ANTHROPIC_API_KEY" },
   },
 ];
