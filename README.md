@@ -287,10 +287,8 @@ sdk/                      → @runloop/agent-axon-client (the published npm pack
 examples/
   acp-hello-world/        → Minimal ACP single-prompt script
   acp-cli/                → Interactive ACP REPL
-  acp-app/                → Full-stack ACP demo (Express + React)
   claude-hello-world/     → Minimal Claude single-prompt script
   claude-cli/             → Interactive Claude REPL
-  claude-app/             → Full-stack Claude demo (Express + React)
   combined-app/           → Full-stack combined demo (Claude + ACP, Express + React)
 ```
 

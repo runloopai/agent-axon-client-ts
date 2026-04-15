@@ -40,8 +40,6 @@ jobs:
 
       - name: Build examples
         run: |
-          bun run --filter '@runloop/example-acp-app' build
-          bun run --filter '@runloop/example-claude-app' build
           bun run --filter '@runloop/example-combined-app' build
 
       - name: Test with coverage

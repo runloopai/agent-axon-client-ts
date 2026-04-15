@@ -38,4 +38,3 @@ bun run claude-hello-world.ts
 5. Disconnects and shuts down the devbox
 
 For a full interactive REPL, see [`../claude-cli`](../claude-cli/).
-For a full-stack UI demo, see [`../claude-app`](../claude-app/).
