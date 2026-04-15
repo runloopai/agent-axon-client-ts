@@ -379,8 +379,11 @@ export function TurnBlocksInspector({
         )}
 
         {messages.map((msg) => {
-          if (msg.role === "system") {
+          if (msg.role === "system" && msg.itemType === "agent_started") {
             return <ConfigItemGroup key={msg.id} item={msg} />;
+          }
+          if (msg.role === "system") {
+            return null;
           }
           const idx = msgIndex++;
           return (

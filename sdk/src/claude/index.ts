@@ -91,12 +91,16 @@ export {
   type ControlRequestOfSubtype,
 } from "./connection.js";
 export type {
+  AgentErrorTimelineEvent,
   BrokerErrorTimelineEvent,
+  DevboxLifecycleTimelineEvent,
   TurnCompletedTimelineEvent,
   TurnStartedTimelineEvent,
 } from "./timeline-event-guards.js";
 export {
+  isAgentErrorEvent,
   isBrokerErrorEvent,
+  isDevboxLifecycleEvent,
   isClaudeAssistantEvent,
   isClaudeAssistantTextEvent,
   isClaudeControlRequestEvent,

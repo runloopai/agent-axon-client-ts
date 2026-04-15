@@ -37,12 +37,16 @@ import type {
 // Re-export shared system/unknown guards and types for convenience.
 // Consumers can import from either `@runloop/agent-axon-client/acp` or `/shared`.
 export type {
+  AgentErrorTimelineEvent,
   BrokerErrorTimelineEvent,
+  DevboxLifecycleTimelineEvent,
   TurnCompletedTimelineEvent,
   TurnStartedTimelineEvent,
 } from "../shared/timeline-event-guards.js";
 export {
+  isAgentErrorEvent,
   isBrokerErrorEvent,
+  isDevboxLifecycleEvent,
   isSystemTimelineEvent,
   isTurnCompletedEvent,
   isTurnStartedEvent,

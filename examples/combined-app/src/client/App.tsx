@@ -5,7 +5,7 @@ import {
   useCallback,
   type KeyboardEvent,
 } from "react";
-import type { AgentType, AgentConfigItem, AgentStartedPayload, AvailableCommand, AxonEventView, UserAttachment } from "./types.js";
+import type { AgentType, AgentConfigItem, AgentStartedPayload, AvailableCommand, AxonEventView, SystemEventItem, UserAttachment } from "./types.js";
 import { useAgent } from "./hooks/useAgent.js";
 import { useAgentList } from "./hooks/useAgentList.js";
 import { useAttachments } from "./hooks/useAttachments.js";
@@ -106,6 +106,30 @@ function AgentConfigBanner({ item }: { item: AgentConfigItem }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function formatEventTime(ms: number): string {
+  const d = new Date(ms);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+const EVENT_KIND_ICONS: Record<string, string> = {
+  devbox_lifecycle: "\u{1F4E6}",
+  agent_error: "\u26A0\uFE0F",
+};
+
+function SystemEventBanner({ item }: { item: SystemEventItem }) {
+  const icon = EVENT_KIND_ICONS[item.eventKind] ?? "\u2139\uFE0F";
+  const isError = item.eventKind === "agent_error";
+
+  return (
+    <div className={`chat-system-event ${isError ? "chat-system-event-error" : ""}`}>
+      <span className="chat-system-event-icon">{icon}</span>
+      <span className="chat-system-event-label">{item.label}</span>
+      {item.detail && <span className="chat-system-event-detail">{item.detail}</span>}
+      <span className="chat-system-event-time">{formatEventTime(item.timestamp)}</span>
     </div>
   );
 }
@@ -396,6 +420,23 @@ export default function App() {
 
   const agentLabel = agent.agentType === "claude" ? "Claude Code" : "ACP Agent";
 
+  // Derive devbox status from the last devbox_lifecycle system event in messages
+  const lastDevboxEvent = [...agent.messages].reverse().find(
+    (m) => m.role === "system" && "itemType" in m && m.itemType === "system_event" && m.eventKind === "devbox_lifecycle",
+  ) as SystemEventItem | undefined;
+
+  const [statusDotClass, statusDotTooltip] = (() => {
+    if (lastDevboxEvent) {
+      const label = lastDevboxEvent.label;
+      if (label === "Devbox Running") return ["devbox-running", "Running"] as const;
+      if (label === "Devbox Suspended") return ["devbox-suspended", "Suspended"] as const;
+      if (label === "Devbox Shutdown") return ["devbox-shutdown", "Shutdown"] as const;
+      if (label === "Devbox Failed") return ["devbox-shutdown", "Failed"] as const;
+    }
+    if (agent.connectionPhase === "ready") return ["ready", "Connecting"] as const;
+    return ["connecting", "Connecting"] as const;
+  })();
+
   return (
     <div className="app">
       <AgentSidebar
@@ -410,7 +451,7 @@ export default function App() {
         <>
           <div className="main-column">
             <div className="header">
-              <div className={`status-dot ${agent.connectionPhase === "ready" ? "ready" : "connecting"}`} />
+              <div className={`status-dot ${statusDotClass}`} title={statusDotTooltip} />
               <h1>{agentLabel}</h1>
               <div className="status-bar">
                 <div className="status-ids">
@@ -463,8 +504,10 @@ export default function App() {
                 )}
 
                 {agent.messages.map((msg) =>
-                  msg.role === "system" ? (
-                    <AgentConfigBanner key={msg.id} item={msg} />
+                  msg.role === "system" && msg.itemType === "system_event" ? (
+                    <SystemEventBanner key={msg.id} item={msg} />
+                  ) : msg.role === "system" ? (
+                    <AgentConfigBanner key={msg.id} item={msg as AgentConfigItem} />
                   ) : msg.role === "user" ? (
                     <div key={msg.id} className="message user">
                       <div className="message-text">{msg.content}</div>

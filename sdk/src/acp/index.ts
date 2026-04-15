@@ -117,7 +117,9 @@ export {
   isUserMessageChunk,
 } from "./session-update-guards.js";
 export type {
+  AgentErrorTimelineEvent,
   BrokerErrorTimelineEvent,
+  DevboxLifecycleTimelineEvent,
   ElicitationCompleteTimelineEvent,
   ElicitationTimelineEvent,
   TurnCompletedTimelineEvent,
@@ -125,7 +127,9 @@ export type {
 } from "./timeline-event-guards.js";
 export {
   isACPProtocolEvent,
+  isAgentErrorEvent,
   isBrokerErrorEvent,
+  isDevboxLifecycleEvent,
   isElicitationCompleteEvent,
   isElicitationRequestEvent,
   isElicitationResponseEvent,

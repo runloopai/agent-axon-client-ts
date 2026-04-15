@@ -249,7 +249,17 @@ export interface AgentConfigItem {
   config: AgentStartedPayload;
 }
 
-export type ChatItem = ChatMessage | AgentConfigItem;
+export interface SystemEventItem {
+  id: string;
+  role: "system";
+  itemType: "system_event";
+  eventKind: "devbox_lifecycle" | "agent_error";
+  label: string;
+  detail?: string;
+  timestamp: number;
+}
+
+export type ChatItem = ChatMessage | AgentConfigItem | SystemEventItem;
 
 // --- Usage ---
 

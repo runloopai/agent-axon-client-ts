@@ -131,12 +131,26 @@ function summarizeTimelineEvent(event: TimelineEvent): TimelineSummary {
   switch (event.kind) {
     case "system": {
       const d = event.data;
-      const reason = ("stopReason" in d ? d.stopReason : undefined) ?? "";
-      const suffix = reason ? ` (${reason})` : "";
-      const icon = d.type === SYSTEM_EVENT_TYPES.TURN_STARTED ? "\u25B6\uFE0F"
-        : d.type === SYSTEM_EVENT_TYPES.TURN_COMPLETED ? "\u23F9\uFE0F"
-        : "\u26A0\uFE0F";
-      return { icon, label: d.type, summary: suffix, kindClass: "kind-system" };
+      if (d.type === "turn.started") {
+        return { icon: "\u25B6\uFE0F", label: "turn.started", summary: "", kindClass: "kind-system" };
+      }
+      if (d.type === "turn.completed") {
+        const suffix = d.stopReason ? ` (${d.stopReason})` : "";
+        return { icon: "\u23F9\uFE0F", label: "turn.completed", summary: suffix, kindClass: "kind-system" };
+      }
+      if (d.type === "devbox.lifecycle") {
+        const reason = "reason" in d ? (d as { reason?: string }).reason : undefined;
+        const suffix = reason ? ` (${reason})` : "";
+        return { icon: "\u{1F4E6}", label: `devbox.${d.kind}`, summary: d.devboxId + suffix, kindClass: "kind-system" };
+      }
+      if (d.type === "agent.error") {
+        const parts = [d.errorType, d.message].filter(Boolean).join(": ");
+        return { icon: "\u26A0\uFE0F", label: "agent.error", summary: parts || d.devboxId, kindClass: "kind-system" };
+      }
+      if (d.type === "broker.error") {
+        return { icon: "\u26A0\uFE0F", label: "broker.error", summary: d.message, kindClass: "kind-system" };
+      }
+      return { icon: "\u2139\uFE0F", label: (d as { type: string }).type, summary: "", kindClass: "kind-system" };
     }
     case "acp_protocol":
       return summarizeACPProtocol(event);

@@ -83,6 +83,9 @@ html, body, #root {
 
 .status-dot.ready { background: var(--success); box-shadow: 0 0 6px rgba(63, 185, 80, 0.4); }
 .status-dot.connecting { background: var(--warning); animation: pulse 1.2s ease-in-out infinite; }
+.status-dot.devbox-running { background: var(--success); box-shadow: 0 0 6px rgba(63, 185, 80, 0.4); }
+.status-dot.devbox-suspended { background: var(--warning); box-shadow: 0 0 6px rgba(210, 153, 34, 0.4); }
+.status-dot.devbox-shutdown { background: var(--status-error, #e55); box-shadow: 0 0 6px rgba(229, 85, 85, 0.4); }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
@@ -1955,6 +1958,53 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* --- System event banner (inline in chat) --- */
+
+.chat-system-event {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  margin: 4px 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-muted) 8%, var(--bg-secondary));
+  border-left: 3px solid var(--text-muted);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.chat-system-event-error {
+  border-left-color: var(--status-error, #e55);
+  background: color-mix(in srgb, var(--status-error, #e55) 8%, var(--bg-secondary));
+}
+
+.chat-system-event-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.chat-system-event-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.chat-system-event-detail {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.chat-system-event-time {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
 }
 
 .axon-event-source {
