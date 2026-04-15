@@ -137,6 +137,7 @@ export default function App() {
   const [agentBinary, setAgentBinary] = useState("opencode");
   const [launchArgs, setLaunchArgs] = useState("acp");
   const [launchCommands, setLaunchCommands] = useState("");
+  const [workingDir, setWorkingDir] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [blueprintName, setBlueprintName] = useState("");
   const [model, setModel] = useState("");
@@ -201,6 +202,7 @@ export default function App() {
 
     const sharedConfig = {
       launchCommands: launchCommands ? launchCommands.split("\n").filter(Boolean) : undefined,
+      workingDir: workingDir || undefined,
       systemPrompt: systemPrompt || undefined,
     };
 
@@ -693,6 +695,8 @@ export default function App() {
             setLaunchArgs={setLaunchArgs}
             launchCommands={launchCommands}
             setLaunchCommands={setLaunchCommands}
+            workingDir={workingDir}
+            setWorkingDir={setWorkingDir}
             systemPrompt={systemPrompt}
             setSystemPrompt={setSystemPrompt}
             blueprintName={blueprintName}

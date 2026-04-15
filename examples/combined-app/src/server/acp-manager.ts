@@ -14,6 +14,7 @@ export interface ACPStartOptions {
   agentBinary?: string;
   launchArgs?: string[];
   launchCommands?: string[];
+  workingDir?: string;
   systemPrompt?: string;
   autoApprovePermissions?: boolean;
 }
@@ -31,11 +32,16 @@ export class ACPConnectionManager {
 
   private axon: Axon | null = null;
   private devbox: Devbox | null = null;
+  private workingDir: string = "/home/user";
 
   constructor(
     private ws: WsBroadcaster,
     private agentId: string,
   ) {}
+
+  getWorkingDir(): string {
+    return this.workingDir;
+  }
 
   private tag(event: BaseWsEvent): WsEvent {
     return { ...event, agentId: this.agentId } as WsEvent;
@@ -56,6 +62,7 @@ export class ACPConnectionManager {
     const axon = await sdk.axon.create({ name: "combined-app-acp" });
     this.axon = axon;
 
+    if (opts.workingDir) this.workingDir = opts.workingDir;
     const launchCommands = opts.launchCommands ? [...opts.launchCommands] : [];
     if (opts.systemPrompt) {
       const config = JSON.stringify({
@@ -82,6 +89,7 @@ export class ACPConnectionManager {
           protocol: "acp" as const,
           agent_binary: opts.agentBinary ?? "opencode",
           launch_args: opts.launchArgs,
+          ...(opts.workingDir ? { working_directory: opts.workingDir } : {}),
         },
       ],
       launch_parameters: launchCommands.length
@@ -112,7 +120,7 @@ export class ACPConnectionManager {
     let sessionResp;
     try {
       sessionResp = await conn.newSession({
-        cwd: "/home/user",
+        cwd: this.workingDir,
         mcpServers: [],
       });
     } catch (err) {
