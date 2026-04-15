@@ -9,7 +9,7 @@
     "url": "git+https://github.com/runloopai/agent-axon-client-ts.git",
     "directory": "sdk"
   },
-  "homepage": "https://runloop.ai",
+  "homepage": "https://runloopai.github.io/agent-axon-client-ts/",
   "bugs": {
     "url": "https://github.com/runloopai/agent-axon-client-ts/issues"
   },
