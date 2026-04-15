@@ -38,7 +38,7 @@ export type DevboxLifecycleEvent =
   | { type: "devbox.lifecycle"; kind: "running"; devboxId: string }
   | { type: "devbox.lifecycle"; kind: "suspended"; devboxId: string }
   | { type: "devbox.lifecycle"; kind: "shutdown"; devboxId: string }
-  | { type: "devbox.lifecycle"; kind: "failed"; devboxId: string; reason: string };
+  | { type: "devbox.lifecycle"; kind: "failed"; devboxId: string; reason?: string };
 
 /**
  * Agent error event emitted when the agent fails (e.g. launch failure).
@@ -48,8 +48,8 @@ export type DevboxLifecycleEvent =
 export interface AgentErrorEvent {
   type: "agent.error";
   devboxId: string;
-  errorType: string;
-  message: string;
+  errorType?: string;
+  message?: string;
 }
 
 export type SystemEvent =

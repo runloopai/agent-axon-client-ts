@@ -168,17 +168,26 @@ describe("tryParseSystemEvent", () => {
     });
   });
 
-  it("parses devbox.failed with missing reason defaults to empty string", () => {
+  it("parses devbox.failed with missing reason leaves it undefined", () => {
     const ev = makeAxonEvent({
       event_type: "devbox.failed",
       payload: JSON.stringify({ devbox_id: "dbx_5" }),
     });
-    expect(tryParseSystemEvent(ev)).toEqual({
+    const result = tryParseSystemEvent(ev);
+    expect(result).toEqual({
       type: "devbox.lifecycle",
       kind: "failed",
       devboxId: "dbx_5",
-      reason: "",
+      reason: undefined,
     });
+  });
+
+  it("returns null for devbox event missing devbox_id", () => {
+    const ev = makeAxonEvent({
+      event_type: "devbox.running",
+      payload: JSON.stringify({}),
+    });
+    expect(tryParseSystemEvent(ev)).toBeNull();
   });
 
   it("returns null for unrecognized devbox.* suffix", () => {
@@ -202,17 +211,25 @@ describe("tryParseSystemEvent", () => {
     });
   });
 
-  it("parses agent.error with missing fields defaults to empty strings", () => {
+  it("parses agent.error with missing optional fields leaves them undefined", () => {
     const ev = makeAxonEvent({
       event_type: "agent.error",
-      payload: JSON.stringify({}),
+      payload: JSON.stringify({ devbox_id: "dbx_8" }),
     });
     expect(tryParseSystemEvent(ev)).toEqual({
       type: "agent.error",
-      devboxId: "",
-      errorType: "",
-      message: "",
+      devboxId: "dbx_8",
+      errorType: undefined,
+      message: undefined,
     });
+  });
+
+  it("returns null for agent.error missing devbox_id", () => {
+    const ev = makeAxonEvent({
+      event_type: "agent.error",
+      payload: JSON.stringify({ type: "launch", message: "boom" }),
+    });
+    expect(tryParseSystemEvent(ev)).toBeNull();
   });
 });
 

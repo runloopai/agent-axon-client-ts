@@ -145,9 +145,10 @@ export function tryParseSystemEvent(ev: AxonEventView): SystemEvent | null {
     if (DEVBOX_LIFECYCLE_KINDS.has(suffix)) {
       const kind = suffix as DevboxLifecycleKind;
       const parsed = tryParseTimelinePayload<DevboxLifecyclePayload>({ axonEvent: ev });
-      const devboxId = parsed?.devbox_id ?? "";
+      const devboxId = parsed?.devbox_id;
+      if (!devboxId) return null;
       if (kind === "failed") {
-        return { type: "devbox.lifecycle", kind: "failed", devboxId, reason: parsed?.reason ?? "" };
+        return { type: "devbox.lifecycle", kind: "failed", devboxId, reason: parsed?.reason };
       }
       return { type: "devbox.lifecycle", kind, devboxId };
     }
@@ -155,11 +156,13 @@ export function tryParseSystemEvent(ev: AxonEventView): SystemEvent | null {
 
   if (ev.event_type === SYSTEM_EVENT_TYPES.AGENT_ERROR) {
     const parsed = tryParseTimelinePayload<AgentErrorPayload>({ axonEvent: ev });
+    const devboxId = parsed?.devbox_id;
+    if (!devboxId) return null;
     return {
       type: "agent.error",
-      devboxId: parsed?.devbox_id ?? "",
-      errorType: parsed?.type ?? "",
-      message: parsed?.message ?? "",
+      devboxId,
+      errorType: parsed?.type,
+      message: parsed?.message,
     };
   }
 
