@@ -67,13 +67,15 @@ interface AgentErrorPayload {
   message?: string;
 }
 
-/** Maps wire `event_type` to {@link DevboxLifecycleKind}. */
-const DEVBOX_EVENT_KIND: Record<string, DevboxLifecycleKind> = {
-  [SYSTEM_EVENT_TYPES.DEVBOX_RUNNING]: "running",
-  [SYSTEM_EVENT_TYPES.DEVBOX_SUSPENDED]: "suspended",
-  [SYSTEM_EVENT_TYPES.DEVBOX_SHUTDOWN]: "shutdown",
-  [SYSTEM_EVENT_TYPES.DEVBOX_FAILED]: "failed",
-};
+const DEVBOX_PREFIX = "devbox.";
+
+/** Set of recognized devbox lifecycle kinds for validation. */
+const DEVBOX_LIFECYCLE_KINDS: Set<string> = new Set<string>([
+  "running",
+  "suspended",
+  "shutdown",
+  "failed",
+]);
 
 // ---------------------------------------------------------------------------
 // Payload parsing
@@ -138,14 +140,17 @@ export function tryParseSystemEvent(ev: AxonEventView): SystemEvent | null {
     return { type: "broker.error", message };
   }
 
-  const devboxKind = DEVBOX_EVENT_KIND[ev.event_type];
-  if (devboxKind) {
-    const parsed = tryParseTimelinePayload<DevboxLifecyclePayload>({ axonEvent: ev });
-    const devboxId = parsed?.devbox_id ?? "";
-    if (devboxKind === "failed") {
-      return { type: "devbox.lifecycle", kind: "failed", devboxId, reason: parsed?.reason ?? "" };
+  if (ev.event_type.startsWith(DEVBOX_PREFIX)) {
+    const suffix = ev.event_type.slice(DEVBOX_PREFIX.length);
+    if (DEVBOX_LIFECYCLE_KINDS.has(suffix)) {
+      const kind = suffix as DevboxLifecycleKind;
+      const parsed = tryParseTimelinePayload<DevboxLifecyclePayload>({ axonEvent: ev });
+      const devboxId = parsed?.devbox_id ?? "";
+      if (kind === "failed") {
+        return { type: "devbox.lifecycle", kind: "failed", devboxId, reason: parsed?.reason ?? "" };
+      }
+      return { type: "devbox.lifecycle", kind, devboxId };
     }
-    return { type: "devbox.lifecycle", kind: devboxKind, devboxId };
   }
 
   if (ev.event_type === SYSTEM_EVENT_TYPES.AGENT_ERROR) {
