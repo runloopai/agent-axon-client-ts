@@ -13,7 +13,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.18.1",
+        "@runloop/api-client": "^1.20.0",
         "diff": "^8.0.4",
         "express": "^5.2.1",
         "react": "^19.2.4",
@@ -40,7 +40,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.18.1",
+        "@runloop/api-client": "^1.20.0",
       },
     },
     "examples/acp-hello-world": {
@@ -48,7 +48,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.18.1",
+        "@runloop/api-client": "^1.20.0",
       },
     },
     "examples/claude-app": {
@@ -57,7 +57,7 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.18.1",
+        "@runloop/api-client": "^1.20.0",
         "diff": "^8.0.4",
         "express": "^5.1.0",
         "react": "^19.2.0",
@@ -85,7 +85,7 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.18.1",
+        "@runloop/api-client": "^1.20.0",
       },
     },
     "examples/claude-hello-world": {
@@ -94,7 +94,7 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.18.1",
+        "@runloop/api-client": "^1.20.0",
       },
     },
     "examples/combined-app": {
@@ -103,7 +103,7 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.18.1",
+        "@runloop/api-client": "^1.20.0",
         "diff": "^8.0.4",
         "express": "^5.2.1",
         "react": "^19.2.4",
@@ -132,7 +132,7 @@
         "@agentclientprotocol/sdk": "0.18.0",
         "@anthropic-ai/claude-agent-sdk": "^0.2.91",
         "@runloop/agent-axon-client": "workspace:*",
-        "@runloop/api-client": "^1.18.1",
+        "@runloop/api-client": "^1.20.0",
       },
       "devDependencies": {
         "typescript": "^5.8.0",
@@ -140,14 +140,14 @@
     },
     "sdk": {
       "name": "@runloop/agent-axon-client",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
         "@agentclientprotocol/sdk": "0.18.0",
       },
       "devDependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.91",
         "@biomejs/biome": "^2.4.10",
-        "@runloop/api-client": "^1.18.1",
+        "@runloop/api-client": "^1.20.0",
         "@vitest/coverage-v8": "^4.1.2",
         "typedoc": "^0.28.18",
         "typescript": "^5.8.0",
@@ -155,7 +155,7 @@
       },
       "peerDependencies": {
         "@anthropic-ai/claude-agent-sdk": ">=0.2.90",
-        "@runloop/api-client": ">=1.18.1",
+        "@runloop/api-client": ">=1.20.0",
       },
       "optionalPeers": [
         "@anthropic-ai/claude-agent-sdk",
@@ -391,7 +391,7 @@
 
     "@runloop/agent-axon-client": ["@runloop/agent-axon-client@workspace:sdk"],
 
-    "@runloop/api-client": ["@runloop/api-client@1.18.1", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7", "tar": "^7.5.2", "uuidv7": "^1.0.2", "zod": "^3.24.1" } }, "sha512-ku08FDuFPi/2T2JdryNl61FSh9zok4lzkiFyJuAbB6/tDobK9qt2AdlNr4KYaq3rwtNycIoBcy2GOomAlgwP7w=="],
+    "@runloop/api-client": ["@runloop/api-client@1.20.0", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7", "tar": "^7.5.2", "uuidv7": "^1.0.2", "zod": "^3.24.1" } }, "sha512-CePHm41HeCJsyR3a6gmwrBv2BCpM0MOE59Hn9azqU+nQcQcYAI8e5l3zmT1XV+ft+GoE9PxSvsEYXEEnwez0HQ=="],
 
     "@runloop/example-acp-app": ["@runloop/example-acp-app@workspace:examples/acp-app"],
 
