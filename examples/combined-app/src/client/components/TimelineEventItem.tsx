@@ -147,9 +147,6 @@ function summarizeTimelineEvent(event: TimelineEvent): TimelineSummary {
         const parts = [d.errorType, d.message].filter(Boolean).join(": ");
         return { icon: "\u26A0\uFE0F", label: "agent.error", summary: parts || d.devboxId, kindClass: "kind-system" };
       }
-      if (d.type === "broker.error") {
-        return { icon: "\u26A0\uFE0F", label: "broker.error", summary: d.message, kindClass: "kind-system" };
-      }
       return { icon: "\u2139\uFE0F", label: (d as { type: string }).type, summary: "", kindClass: "kind-system" };
     }
     case "acp_protocol":

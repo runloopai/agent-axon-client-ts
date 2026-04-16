@@ -92,9 +92,18 @@ export class ACPConnectionManager {
           ...(opts.workingDir ? { working_directory: opts.workingDir } : {}),
         },
       ],
-      launch_parameters: launchCommands.length
-        ? { launch_commands: launchCommands, keep_alive_time_seconds: 300 }
-        : undefined,
+      launch_parameters: {
+        ...(launchCommands.length ? { launch_commands: launchCommands } : {}),
+        lifecycle: {
+          after_idle: {
+            idle_time_seconds: 60,
+            on_idle: "suspend",
+          },
+          resume_triggers: {
+            axon_event: true,
+          },
+        },
+      },
     });
     this.devbox = devbox;
 
