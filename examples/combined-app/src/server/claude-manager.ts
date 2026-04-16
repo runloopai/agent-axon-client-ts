@@ -8,6 +8,7 @@ import type { WsBroadcaster, WsEvent, BaseWsEvent } from "./ws.ts";
 export interface ClaudeStartOptions {
   blueprintName?: string;
   launchCommands?: string[];
+  workingDir?: string;
   systemPrompt?: string;
   model?: string;
   dangerouslySkipPermissions?: boolean;
@@ -63,14 +64,24 @@ export class ClaudeConnectionManager {
           axon_id: axon.id,
           protocol: "claude_json" as const,
           launch_args: opts.dangerouslySkipPermissions !== false ? ["--dangerously-skip-permissions"] : [],
+          ...(opts.workingDir ? { working_directory: opts.workingDir } : {}),
         },
       ],
       environment_variables: {
         ...(anthropicApiKey ? { ANTHROPIC_API_KEY: anthropicApiKey } : {}),
       },
-      launch_parameters: opts.launchCommands?.length
-        ? { launch_commands: opts.launchCommands }
-        : undefined,
+      launch_parameters: {
+        ...(opts.launchCommands?.length ? { launch_commands: opts.launchCommands } : {}),
+        lifecycle: {
+          after_idle: {
+            idle_time_seconds: 60,
+            on_idle: "suspend",
+          },
+          resume_triggers: {
+            axon_event: true,
+          },
+        },
+      },
     });
 
     this.devbox = devbox;

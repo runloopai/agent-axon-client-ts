@@ -249,7 +249,33 @@ export interface AgentConfigItem {
   config: AgentStartedPayload;
 }
 
-export type ChatItem = ChatMessage | AgentConfigItem;
+export interface SystemEventItem {
+  id: string;
+  role: "system";
+  itemType: "system_event";
+  eventKind: "devbox_lifecycle" | "agent_error";
+  label: string;
+  detail?: string;
+  timestamp: number;
+}
+
+export type ChatItem = ChatMessage | AgentConfigItem | SystemEventItem;
+
+export function isSystemEventItem(item: ChatItem): item is SystemEventItem {
+  return item.role === "system" && "itemType" in item && item.itemType === "system_event";
+}
+
+export function isErrorSystemEvent(item: SystemEventItem): boolean {
+  return item.eventKind === "agent_error";
+}
+
+export function isAgentConfigItem(item: ChatItem): item is AgentConfigItem {
+  return item.role === "system" && "itemType" in item && item.itemType === "agent_started";
+}
+
+export function isChatMessage(item: ChatItem): item is ChatMessage {
+  return item.role !== "system";
+}
 
 // --- Usage ---
 

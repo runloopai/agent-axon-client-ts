@@ -27,6 +27,7 @@ import type {
   TurnBlock,
   ChatMessage,
   ChatItem,
+  SystemEventItem,
   PlanEntry,
   UsageState,
   PendingPermission,
@@ -47,7 +48,7 @@ import type {
 } from "../types.js";
 import { parseToolCallContent, extractOutputText, nextBlockId } from "./parsers.js";
 import { useBlockManager } from "./useBlockManager.js";
-import { buildAgentConfigItem } from "./timeline-helpers.js";
+import { buildAgentConfigItem, buildSystemEventItem } from "./timeline-helpers.js";
 import { api } from "./api.js";
 
 const NORMAL_END_REASONS = new Set(["end_turn", "endturn", "end turn"]);
@@ -510,6 +511,14 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
         } satisfies ACPInitExtensions,
         extra: payload as Record<string, unknown>,
       });
+      return;
+    }
+
+    const sysItem = buildSystemEventItem(tlEvent);
+    if (sysItem) {
+      flushBlocksToMessages(lastStopReasonRef.current);
+      lastStopReasonRef.current = undefined;
+      dispatch({ type: "APPEND_MESSAGE", message: sysItem });
       return;
     }
 

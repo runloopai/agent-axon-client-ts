@@ -3,7 +3,12 @@
  */
 
 import type { AxonEventView } from "@runloop/api-client/resources/axons";
-import type { SystemEvent, SystemTimelineEvent, UnknownTimelineEvent } from "./types.js";
+import type {
+  DevboxLifecycleKind,
+  SystemEvent,
+  SystemTimelineEvent,
+  UnknownTimelineEvent,
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // System event type constants
@@ -19,6 +24,11 @@ export const SYSTEM_EVENT_TYPES = {
   TURN_STARTED: "turn.started",
   TURN_COMPLETED: "turn.completed",
   BROKER_ERROR: "broker.error",
+  DEVBOX_RUNNING: "devbox.running",
+  DEVBOX_SUSPENDED: "devbox.suspended",
+  DEVBOX_SHUTDOWN: "devbox.shutdown",
+  DEVBOX_FAILED: "devbox.failed",
+  AGENT_ERROR: "agent.error",
 } as const;
 
 /** Set of all recognized system event type strings for O(1) lookup. */
@@ -45,6 +55,27 @@ interface TurnCompletedPayload {
 interface BrokerErrorPayload {
   message?: string;
 }
+
+interface DevboxLifecyclePayload {
+  devbox_id?: string;
+  reason?: string;
+}
+
+interface AgentErrorPayload {
+  devbox_id?: string;
+  type?: string;
+  message?: string;
+}
+
+const DEVBOX_PREFIX = "devbox.";
+
+/** Set of recognized devbox lifecycle kinds for validation. */
+const DEVBOX_LIFECYCLE_KINDS: Set<string> = new Set<string>([
+  "running",
+  "suspended",
+  "shutdown",
+  "failed",
+]);
 
 // ---------------------------------------------------------------------------
 // Payload parsing
@@ -107,6 +138,32 @@ export function tryParseSystemEvent(ev: AxonEventView): SystemEvent | null {
     const message =
       parsed != null ? (parsed.message ?? String(ev.payload)) : String(ev.payload ?? "");
     return { type: "broker.error", message };
+  }
+
+  if (ev.event_type.startsWith(DEVBOX_PREFIX)) {
+    const suffix = ev.event_type.slice(DEVBOX_PREFIX.length);
+    if (DEVBOX_LIFECYCLE_KINDS.has(suffix)) {
+      const kind = suffix as DevboxLifecycleKind;
+      const parsed = tryParseTimelinePayload<DevboxLifecyclePayload>({ axonEvent: ev });
+      const devboxId = parsed?.devbox_id;
+      if (!devboxId) return null;
+      if (kind === "failed") {
+        return { type: "devbox.lifecycle", kind: "failed", devboxId, reason: parsed?.reason };
+      }
+      return { type: "devbox.lifecycle", kind, devboxId };
+    }
+  }
+
+  if (ev.event_type === SYSTEM_EVENT_TYPES.AGENT_ERROR) {
+    const parsed = tryParseTimelinePayload<AgentErrorPayload>({ axonEvent: ev });
+    const devboxId = parsed?.devbox_id;
+    if (!devboxId) return null;
+    return {
+      type: "agent.error",
+      devboxId,
+      errorType: parsed?.type,
+      message: parsed?.message,
+    };
   }
 
   return null;
@@ -179,6 +236,7 @@ export function createClassifier<TProtocolEvent>(
       if (result) return result;
     }
 
-    return { kind: "unknown" as const, data: null, axonEvent: ev };
+    const unknownData = tryParseTimelinePayload({ axonEvent: ev });
+    return { kind: "unknown" as const, data: unknownData, axonEvent: ev };
   };
 }

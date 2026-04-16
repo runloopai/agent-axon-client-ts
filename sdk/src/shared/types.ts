@@ -17,10 +17,47 @@ import type { AxonEventView } from "@runloop/api-client/resources/axons";
  *
  * @category Timeline
  */
+/**
+ * Devbox lifecycle state derived from the second segment of the
+ * `devbox.*` system event type (e.g. `devbox.running` → `"running"`).
+ *
+ * @category Timeline
+ */
+export type DevboxLifecycleKind = "running" | "suspended" | "shutdown" | "failed";
+
+/**
+ * Devbox lifecycle event. Discriminate on `kind` to narrow:
+ * - `running`   — devbox is running
+ * - `suspended` — devbox is suspended / suspending
+ * - `shutdown`  — devbox reached shutdown state
+ * - `failed`    — devbox failed / not found / deadline exceeded (`reason` is set)
+ *
+ * @category Timeline
+ */
+export type DevboxLifecycleEvent =
+  | { type: "devbox.lifecycle"; kind: "running"; devboxId: string }
+  | { type: "devbox.lifecycle"; kind: "suspended"; devboxId: string }
+  | { type: "devbox.lifecycle"; kind: "shutdown"; devboxId: string }
+  | { type: "devbox.lifecycle"; kind: "failed"; devboxId: string; reason?: string };
+
+/**
+ * Agent error event emitted when the agent fails (e.g. launch failure).
+ *
+ * @category Timeline
+ */
+export interface AgentErrorEvent {
+  type: "agent.error";
+  devboxId: string;
+  errorType?: string;
+  message?: string;
+}
+
 export type SystemEvent =
   | { type: "turn.started"; turnId: string }
   | { type: "turn.completed"; turnId: string; stopReason?: string }
-  | { type: "broker.error"; message: string };
+  | { type: "broker.error"; message: string }
+  | DevboxLifecycleEvent
+  | AgentErrorEvent;
 
 /**
  * Common shape shared by every timeline event variant.
@@ -47,13 +84,25 @@ export interface SystemTimelineEvent extends BaseTimelineEvent {
 }
 
 /**
- * A timeline event the SDK did not recognize. The consumer can inspect
- * `axonEvent.origin` and `axonEvent.event_type` to decide how to handle it.
+ * A timeline event the SDK did not recognize. The `data` field contains the
+ * eagerly-parsed payload (or `null` if the payload was missing / unparseable).
+ * Inspect `axonEvent.origin` and `axonEvent.event_type` to decide how to
+ * handle it, or use {@link createCustomEventGuard} to build a typed guard.
  * @category Timeline
  */
 export interface UnknownTimelineEvent extends BaseTimelineEvent {
   kind: "unknown";
-  data: null;
+  data: unknown;
+}
+
+/**
+ * A narrowed unknown timeline event whose payload has been parsed as `T`.
+ * Produced by type guards created with {@link createCustomEventGuard}.
+ * @category Timeline
+ */
+export interface CustomTimelineEvent<T> extends BaseTimelineEvent {
+  kind: "unknown";
+  data: T;
 }
 
 /**
