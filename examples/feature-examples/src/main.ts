@@ -71,8 +71,8 @@ Examples:
 }
 
 const DISCONNECT_TIMEOUT_MS = 10_000;
-const CLEANUP_TIMEOUT_MS = 30_000;
-const MAX_USE_CASE_TIMEOUT_MS = 30_000;
+const CLEANUP_TIMEOUT_MS = 10_000;
+const MAX_USE_CASE_TIMEOUT_MS = 10_000;
 
 async function runOne(
   agent: AgentConfig,

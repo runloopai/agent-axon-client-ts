@@ -8,6 +8,7 @@ export function SetupCard({
   launchCommands, setLaunchCommands,
   workingDir, setWorkingDir,
   systemPrompt, setSystemPrompt,
+  blueprintName, setBlueprintName,
   model, setModel,
   autoApprovePermissions, setAutoApprovePermissions,
   onStart,
@@ -21,6 +22,7 @@ export function SetupCard({
   launchCommands: string; setLaunchCommands: (v: string) => void;
   workingDir: string; setWorkingDir: (v: string) => void;
   systemPrompt: string; setSystemPrompt: (v: string) => void;
+  blueprintName: string; setBlueprintName: (v: string) => void;
   model: string; setModel: (v: string) => void;
   autoApprovePermissions: boolean; setAutoApprovePermissions: (v: boolean) => void;
   onStart: () => void;
@@ -103,11 +105,18 @@ export function SetupCard({
         )}
 
         {agentType === "claude" && (
-          <div className="form-group">
-            <label>Model</label>
-            <div className="form-hint">Claude model to use. Leave empty for default.</div>
-            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="claude-sonnet-4-20250514" disabled={connecting} />
-          </div>
+          <>
+            <div className="form-group">
+              <label>Blueprint Name</label>
+              <div className="form-hint">Runloop blueprint for the sandbox. Defaults to <code>axon-agents</code>.</div>
+              <input value={blueprintName} onChange={(e) => setBlueprintName(e.target.value)} placeholder="axon-agents" disabled={connecting} />
+            </div>
+            <div className="form-group">
+              <label>Model</label>
+              <div className="form-hint">Claude model to use. Leave empty for default.</div>
+              <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="claude-sonnet-4-20250514" disabled={connecting} />
+            </div>
+          </>
         )}
 
         <div className="form-group">

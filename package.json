@@ -23,7 +23,8 @@
     "check:fix": "bun run --filter '@runloop/agent-axon-client' check:fix",
     "clean": "rm -rf sdk/dist",
     "prepare": "husky",
-    "feature-compat": "bun run --filter 'feature-examples' feature-compat"
+    "feature-compat": "bun run --filter 'feature-examples' feature-compat",
+    "build-blueprint": "bun run --filter 'blueprint' build-blueprint"
   },
   "devDependencies": {
     "husky": "^9.1.7"

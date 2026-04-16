@@ -10,7 +10,9 @@ interface SetupResult {
   sdk: RunloopSDK;
 }
 
-const SETUP_STEP_TIMEOUT_MS = 30_000;
+const DEFAULT_WORKING_DIRECTORY = "/home/user";
+const SETUP_STEP_TIMEOUT_MS = 10_000;
+const SETUP_ERROR_CLEANUP_TIMEOUT_MS = 10_000;
 
 /**
  * Provision a devbox with secrets and network policy, then initialize a connection.
@@ -69,17 +71,17 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
   log("Creating devbox...");
   const devbox = await sdk.devbox.create({
     name: resourcePrefix,
+    blueprint_name: mergedAgent.blueprint,
     mounts: [
-    {
-      type: "agent_mount",
-      agent_name: mergedAgent.agentMountName,
-    },
       {
         type: "broker_mount",
         axon_id: axon.id,
         protocol: mergedAgent.mount.protocol,
         ...(mergedAgent.mount.agent_binary && { agent_binary: mergedAgent.mount.agent_binary }),
         ...(mergedAgent.mount.launch_args && { launch_args: mergedAgent.mount.launch_args }),
+        ...(mergedAgent.mount.working_directory && {
+          working_directory: mergedAgent.mount.working_directory,
+        }),
       },
     ],
     ...(Object.keys(devboxSecretsMap).length > 0 && { secrets: devboxSecretsMap }),
@@ -131,9 +133,22 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
         "ACP initialize",
       );
 
+      // Some ACP agents (e.g. codex-acp) require `authenticate()` before `newSession()`.
+      if (mergedAgent.acpAuthMethodId) {
+        log(`Authenticating (ACP: ${mergedAgent.acpAuthMethodId})...`);
+        await withTimeout(
+          conn.authenticate({ methodId: mergedAgent.acpAuthMethodId }),
+          SETUP_STEP_TIMEOUT_MS,
+          `ACP authenticate (${mergedAgent.acpAuthMethodId})`,
+        );
+      }
+
       log("Creating session...");
       const session = await withTimeout(
-        conn.newSession({ cwd: "/home/user", mcpServers: [] }),
+        conn.newSession({
+          cwd: mergedAgent.mount.working_directory ?? DEFAULT_WORKING_DIRECTORY,
+          mcpServers: [],
+        }),
         SETUP_STEP_TIMEOUT_MS,
         "ACP newSession",
       );
@@ -176,7 +191,7 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
 
     return { ctx, sdk };
   } catch (err) {
-    await cleanup();
+    await cleanupAfterSetupError(cleanup, log);
     throw err;
   }
 }
@@ -199,6 +214,19 @@ export async function disconnect(ctx: RunContext): Promise<void> {
  */
 export async function cleanup(ctx: RunContext): Promise<void> {
   await ctx.cleanup();
+}
+
+async function cleanupAfterSetupError(
+  cleanupFn: () => Promise<void>,
+  log: (msg: string) => void,
+): Promise<void> {
+  try {
+    await withTimeout(cleanupFn(), SETUP_ERROR_CLEANUP_TIMEOUT_MS, "setup cleanup");
+  } catch (cleanupErr) {
+    log(
+      `Cleanup timeout/error after setup failure (continuing): ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`,
+    );
+  }
 }
 
 function mergeOverrides(

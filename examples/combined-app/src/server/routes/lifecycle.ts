@@ -37,7 +37,7 @@ export function registerLifecycleRoutes(app: Express, registry: AgentRegistry, w
         registry.add({
           id: agentId,
           agentType: "claude",
-          name: "Claude Agent",
+          name: config.blueprintName ?? "Claude Agent",
           axonId: result.axonId,
           devboxId: result.devboxId,
           createdAt: Date.now(),

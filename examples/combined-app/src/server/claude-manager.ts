@@ -6,6 +6,7 @@ import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster, WsEvent, BaseWsEvent } from "./ws.ts";
 
 export interface ClaudeStartOptions {
+  blueprintName?: string;
   launchCommands?: string[];
   workingDir?: string;
   systemPrompt?: string;
@@ -56,11 +57,8 @@ export class ClaudeConnectionManager {
     this.ws.broadcast(this.tag({ type: "connection_progress", step: "Provisioning sandbox..." }));
     const devbox = await sdk.devbox.create({
       name: "combined-app-claude",
+      blueprint_name: opts.blueprintName ?? "axon-agents",
       mounts: [
-        {
-          type: "agent_mount" as const,
-          agent_name: "claude-code",
-        },
         {
           type: "broker_mount" as const,
           axon_id: axon.id,

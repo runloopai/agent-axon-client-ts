@@ -1,0 +1,12 @@
+{
+  "name": "blueprint",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build-blueprint": "bun run build-blueprint.ts"
+  },
+  "dependencies": {
+    "@runloop/api-client": "^1.20.0"
+  }
+}

@@ -5,7 +5,7 @@ export const AGENTS: AgentConfig[] = [
   {
     name: "opencode",
     protocol: "acp",
-    agentMountName: "opencode",
+    blueprint: "axon-agents",
     mount: {
       protocol: "acp",
       agent_binary: "opencode",
@@ -15,17 +15,19 @@ export const AGENTS: AgentConfig[] = [
   {
     name: "codex-acp",
     protocol: "acp",
-    agentMountName: "codex-acp",
+    blueprint: "axon-agents",
     mount: {
       protocol: "acp",
       agent_binary: "codex-acp",
+      working_directory: "/home/user",
     },
     secrets: { OPENAI_API_KEY: "OPENAI_API_KEY" },
+    acpAuthMethodId: "openai-api-key",
   },
   {
     name: "claude-code",
     protocol: "claude",
-    agentMountName: "claude-code",
+    blueprint: "axon-agents",
     mount: {
       protocol: "claude_json",
       launch_args: ["--dangerously-skip-permissions"],

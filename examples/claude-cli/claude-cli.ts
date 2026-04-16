@@ -33,6 +33,7 @@ const { values: args } = parseArgs({
 const VERBOSE = args.verbose || !!process.env.VERBOSE;
 const MODEL = args.model ?? null;
 const SYSTEM_PROMPT = args["system-prompt"] ?? null;
+const DEFAULT_BLUEPRINT_NAME = "axon-agents";
 
 // ---------------------------------------------------------------------------
 // Resolve ANTHROPIC_API_KEY — prompt interactively if missing
@@ -65,16 +66,13 @@ const devbox = await runloop.devbox.create({
   name: "claude-cli",
   mounts: [
     {
-      type: "agent_mount",
-      agent_name: "claude-code",
-    },
-    {
       type: "broker_mount",
       axon_id: axon.id,
       protocol: "claude_json",
       launch_args: [],
     },
   ],
+  blueprint_name: DEFAULT_BLUEPRINT_NAME,
   environment_variables: {
     ANTHROPIC_API_KEY: anthropicApiKey,
   },

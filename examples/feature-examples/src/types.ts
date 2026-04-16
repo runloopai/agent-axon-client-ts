@@ -12,15 +12,23 @@ export interface AgentConfig {
   /** Which protocol this agent uses. */
   protocol: "acp" | "claude";
 
-  /** Public agent name for the agent_mount (e.g., "opencode", "codex-acp", "claude-code"). */
-  agentMountName: string;
+  /** Runloop blueprint name (e.g., "axon-agents"). */
+  blueprint: string;
 
   /** Mount configuration for the broker. */
   mount: {
     protocol: "acp" | "claude_json";
     agent_binary?: string;
     launch_args?: string[];
+    working_directory?: string;
   };
+
+  /**
+   * ACP auth method ID to negotiate with `authenticate()` after `initialize()`.
+   * Required by agents that enforce auth before `newSession()` (e.g. codex-acp).
+   * Must match one of the `authMethods` advertised by the agent during initialize.
+   */
+  acpAuthMethodId?: string;
 
   /** Non-secret env vars only. Use sdk.secret for API keys (see scaffold.ts). */
   env?: Record<string, string>;
