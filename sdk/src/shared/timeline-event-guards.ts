@@ -10,6 +10,7 @@
 import { SYSTEM_EVENT_TYPES } from "./timeline.js";
 import type {
   AgentErrorEvent,
+  AgentLogEvent,
   BaseTimelineEvent,
   CustomTimelineEvent,
   DevboxLifecycleKind,
@@ -152,6 +153,32 @@ export function isAgentErrorEvent(event: BaseTimelineEvent): event is AgentError
   return (
     event.kind === "system" &&
     (event.data as { type?: string }).type === SYSTEM_EVENT_TYPES.AGENT_ERROR
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Agent log guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Narrowed type for an `agent.log` system event.
+ * @category Timeline
+ */
+export type AgentLogTimelineEvent = SystemTimelineEvent & {
+  data: AgentLogEvent;
+};
+
+/**
+ * Type guard for `agent.log` system events.
+ *
+ * @param event - The timeline event to test.
+ * @returns `true` if `event` is an {@link AgentLogTimelineEvent}.
+ * @category Timeline
+ */
+export function isAgentLogEvent(event: BaseTimelineEvent): event is AgentLogTimelineEvent {
+  return (
+    event.kind === "system" &&
+    (event.data as { type?: string }).type === SYSTEM_EVENT_TYPES.AGENT_LOG
   );
 }
 

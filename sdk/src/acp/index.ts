@@ -119,6 +119,7 @@ export {
 } from "./session-update-guards.js";
 export type {
   AgentErrorTimelineEvent,
+  AgentLogTimelineEvent,
   BrokerErrorTimelineEvent,
   DevboxLifecycleTimelineEvent,
   ElicitationCompleteTimelineEvent,
@@ -130,6 +131,7 @@ export {
   createCustomEventGuard,
   isACPProtocolEvent,
   isAgentErrorEvent,
+  isAgentLogEvent,
   isBrokerErrorEvent,
   isDevboxLifecycleEvent,
   isElicitationCompleteEvent,

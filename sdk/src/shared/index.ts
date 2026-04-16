@@ -32,6 +32,7 @@ export {
 } from "./timeline.js";
 export type {
   AgentErrorTimelineEvent,
+  AgentLogTimelineEvent,
   BrokerErrorTimelineEvent,
   DevboxLifecycleTimelineEvent,
   TurnCompletedTimelineEvent,
@@ -40,6 +41,7 @@ export type {
 export {
   createCustomEventGuard,
   isAgentErrorEvent,
+  isAgentLogEvent,
   isBrokerErrorEvent,
   isDevboxLifecycleEvent,
   isSystemTimelineEvent,
@@ -52,6 +54,8 @@ export { timelineEventGenerator } from "./timeline-generator.js";
 /** @category Timeline */
 export type {
   AgentErrorEvent,
+  AgentLogEvent,
+  AgentLogType,
   AxonEventListener,
   AxonEventView,
   BaseConnectionOptions,

@@ -52,12 +52,26 @@ export interface AgentErrorEvent {
   message?: string;
 }
 
+/**
+ * Agent log event emitted when the agent produces log output (e.g. stderr).
+ *
+ * @category Timeline
+ */
+export type AgentLogType = "stderr";
+
+export interface AgentLogEvent {
+  type: "agent.log";
+  logType: AgentLogType;
+  message: string;
+}
+
 export type SystemEvent =
   | { type: "turn.started"; turnId: string }
   | { type: "turn.completed"; turnId: string; stopReason?: string }
   | { type: "broker.error"; message: string }
   | DevboxLifecycleEvent
-  | AgentErrorEvent;
+  | AgentErrorEvent
+  | AgentLogEvent;
 
 /**
  * Common shape shared by every timeline event variant.

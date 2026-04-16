@@ -38,6 +38,7 @@ import type {
 // Consumers can import from either `@runloop/agent-axon-client/claude` or `/shared`.
 export type {
   AgentErrorTimelineEvent,
+  AgentLogTimelineEvent,
   BrokerErrorTimelineEvent,
   DevboxLifecycleTimelineEvent,
   TurnCompletedTimelineEvent,
@@ -46,6 +47,7 @@ export type {
 export {
   createCustomEventGuard,
   isAgentErrorEvent,
+  isAgentLogEvent,
   isBrokerErrorEvent,
   isDevboxLifecycleEvent,
   isSystemTimelineEvent,
