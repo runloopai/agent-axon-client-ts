@@ -17,7 +17,9 @@ export default {
   protocols: ["acp"],
   timeoutMs: 10_000,
 
-  expectedFailures: { acp: "ACP protocol has not added full elicitation support yet" },
+  expectedFailuresByAgent: {
+    opencode: "ACP protocol has not added full elicitation support yet",
+  },
 
   clientCapabilities: { elicitation: { form: {} } },
 

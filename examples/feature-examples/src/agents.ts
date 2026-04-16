@@ -21,7 +21,6 @@ export const AGENTS: AgentConfig[] = [
       agent_binary: "codex-acp",
     },
     secrets: { OPENAI_API_KEY: "OPENAI_API_KEY" },
-    enabled: false, // Backend support not yet available
   },
   {
     name: "claude-code",

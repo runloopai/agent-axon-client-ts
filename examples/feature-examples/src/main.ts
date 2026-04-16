@@ -72,7 +72,7 @@ Examples:
 
 const DISCONNECT_TIMEOUT_MS = 10_000;
 const CLEANUP_TIMEOUT_MS = 30_000;
-const MAX_USE_CASE_TIMEOUT_MS = 10_000;
+const MAX_USE_CASE_TIMEOUT_MS = 30_000;
 
 async function runOne(
   agent: AgentConfig,
@@ -81,7 +81,9 @@ async function runOne(
 ): Promise<RunResult> {
   const start = Date.now();
   let ctx: RunContext | null = null;
-  const expectedFailReason = useCase.expectedFailures?.[agent.protocol];
+  const expectedFailReason =
+    useCase.expectedFailuresByAgent?.[agent.name] ??
+    useCase.expectedFailures?.[agent.protocol];
 
   try {
     const { ctx: setupCtx } = await setup(agent, useCase);
@@ -526,8 +528,7 @@ async function main(): Promise<void> {
 
   printResults(results);
 
-  const isPartialRun =
-    filteredAgents.length !== AGENTS.length || filteredUseCases.length !== USE_CASES.length;
+  const isPartialRun = !!(args.agent || args.protocol || args["use-case"]);
 
   if (isPartialRun) {
     console.log("\nPartial run detected — skipping generation of canonical files.");

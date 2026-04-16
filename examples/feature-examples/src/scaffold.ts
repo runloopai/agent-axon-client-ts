@@ -3,11 +3,14 @@ import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import type { AgentConfig, UseCase, RunContext } from "./types.js";
 import { SkipError } from "./types.js";
+import { withTimeout } from "./validator.js";
 
 interface SetupResult {
   ctx: RunContext;
   sdk: RunloopSDK;
 }
+
+const SETUP_STEP_TIMEOUT_MS = 30_000;
 
 /**
  * Provision a devbox with secrets and network policy, then initialize a connection.
@@ -105,46 +108,56 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
     }
   };
 
-  if (mergedAgent.protocol === "acp") {
-    const conn = new ACPAxonConnection(axon, devbox, {
-      createClient: useCase.createClient,
-    });
+  try {
+    if (mergedAgent.protocol === "acp") {
+      const conn = new ACPAxonConnection(axon, devbox, {
+        createClient: useCase.createClient,
+      });
 
-    log("Connecting (ACP)...");
-    await conn.connect();
+      log("Connecting (ACP)...");
+      await withTimeout(conn.connect(), SETUP_STEP_TIMEOUT_MS, "ACP connect");
 
-    log("Initializing (ACP)...");
-    await conn.initialize({
-      protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "feature-examples", version: "0.1.0" },
-      ...(useCase.clientCapabilities ? { clientCapabilities: useCase.clientCapabilities } : {}),
-    });
+      log("Initializing (ACP)...");
+      await withTimeout(
+        conn.initialize({
+          protocolVersion: PROTOCOL_VERSION,
+          clientInfo: { name: "feature-examples", version: "0.1.0" },
+          ...(useCase.clientCapabilities ? { clientCapabilities: useCase.clientCapabilities } : {}),
+        }),
+        SETUP_STEP_TIMEOUT_MS,
+        "ACP initialize",
+      );
 
-    log("Creating session...");
-    const session = await conn.newSession({ cwd: "/home/user", mcpServers: [] });
-    log(`Session ready: ${session.sessionId}`);
+      log("Creating session...");
+      const session = await withTimeout(
+        conn.newSession({ cwd: "/home/user", mcpServers: [] }),
+        SETUP_STEP_TIMEOUT_MS,
+        "ACP newSession",
+      );
+      log(`Session ready: ${session.sessionId}`);
 
-    const ctx: RunContext = {
-      agent: mergedAgent,
-      acp: conn,
-      claude: null,
-      sessionId: session.sessionId,
-      log,
-      skip: (reason: string) => {
-        throw new SkipError(reason);
-      },
-      cleanup,
-    };
+      const ctx: RunContext = {
+        agent: mergedAgent,
+        acp: conn,
+        claude: null,
+        sessionId: session.sessionId,
+        log,
+        skip: (reason: string) => {
+          throw new SkipError(reason);
+        },
+        cleanup,
+      };
 
-    return { ctx, sdk };
-  } else {
+      return { ctx, sdk };
+    }
+
     const conn = new ClaudeAxonConnection(axon, devbox);
 
     log("Connecting (Claude)...");
-    await conn.connect();
+    await withTimeout(conn.connect(), SETUP_STEP_TIMEOUT_MS, "Claude connect");
 
     log("Initializing (Claude)...");
-    await conn.initialize();
+    await withTimeout(conn.initialize(), SETUP_STEP_TIMEOUT_MS, "Claude initialize");
 
     const ctx: RunContext = {
       agent: mergedAgent,
@@ -159,6 +172,9 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
     };
 
     return { ctx, sdk };
+  } catch (err) {
+    await cleanup();
+    throw err;
   }
 }
 

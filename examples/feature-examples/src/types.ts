@@ -77,6 +77,13 @@ export interface UseCase {
   expectedFailures?: Partial<Record<"acp" | "claude", string>>;
 
   /**
+   * Per-agent expected failures (with reason), keyed by agent name.
+   * Takes precedence over `expectedFailures` when both are specified.
+   * E.g., `{ opencode: "Elicitation not yet supported" }`.
+   */
+  expectedFailuresByAgent?: Record<string, string>;
+
+  /**
    * The test body. Receives a fully initialized RunContext.
    * Throw to indicate failure. Return cleanly to indicate pass.
    * Call ctx.skip(reason) to skip.

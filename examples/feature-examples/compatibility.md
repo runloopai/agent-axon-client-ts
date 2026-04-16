@@ -1,7 +1,7 @@
 # Agent Axon Client — Compatibility Matrix
 
-Generated: 2026-04-14T23:18:48.079Z
-SDK Version: 0.4.0
+Generated: 2026-04-16T15:46:45.633Z
+SDK Version: 0.4.1
 
 ## Protocol × Feature
 
@@ -24,7 +24,7 @@ SDK Version: 0.4.0
 
 | Agent | Use Case | Status | Duration | Notes |
 |-------|----------|--------|----------|-------|
-| opencode | elicitation-acp | xfail | 11.3s | [xfail: ACP protocol has not added full elicitation support yet] Agent did not trigger session_elicitation |
-| opencode | single-prompt | pass | 10.4s |  |
-| claude-code | elicitation-claude | pass | 6.6s |  |
-| claude-code | single-prompt | pass | 4.9s |  |
+| opencode | elicitation-acp | xfail | 12.0s | [xfail: ACP protocol has not added full elicitation support yet] Agent did not trigger session_elicitation |
+| opencode | single-prompt | pass | 7.0s |  |
+| claude-code | elicitation-claude | pass | 7.4s |  |
+| claude-code | single-prompt | pass | 4.5s |  |
