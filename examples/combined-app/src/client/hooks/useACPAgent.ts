@@ -181,28 +181,6 @@ const INITIAL_ACP_STATE: ACPState = {
   availableCommands: [],
 };
 
-function isSystemEventItem(item: ChatItem): item is SystemEventItem {
-  return item.role === "system" && "itemType" in item && item.itemType === "system_event";
-}
-
-/** Insert a SystemEventItem at the correct position by timestamp, relative to other SystemEventItems. */
-function insertSystemEventOrdered(messages: ChatItem[], item: SystemEventItem): ChatItem[] {
-  // Walk backwards to find the right insertion point:
-  // insert before any trailing system events with a later timestamp.
-  let insertAt = messages.length;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (isSystemEventItem(m) && m.timestamp > item.timestamp) {
-      insertAt = i;
-    } else {
-      break;
-    }
-  }
-  const next = [...messages];
-  next.splice(insertAt, 0, item);
-  return next;
-}
-
 type ACPAction =
   | { type: "RESET" }
   | { type: "SET"; patch: Partial<ACPState> }
@@ -217,13 +195,8 @@ function acpReducer(state: ACPState, action: ACPAction): ACPState {
       return INITIAL_ACP_STATE;
     case "SET":
       return { ...state, ...action.patch };
-    case "APPEND_MESSAGE": {
-      const msg = action.message;
-      if (isSystemEventItem(msg)) {
-        return { ...state, messages: insertSystemEventOrdered(state.messages, msg) };
-      }
-      return { ...state, messages: [...state.messages, msg] };
-    }
+    case "APPEND_MESSAGE":
+      return { ...state, messages: [...state.messages, action.message] };
     case "APPEND_TIMELINE_EVENT":
       return {
         ...state,
