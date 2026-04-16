@@ -99,7 +99,7 @@ export function registerACPRoutes(app: Express, registry: AgentRegistry) {
       }
       const connection = entry.acpManager!.requireConnection();
       const resp = await connection.newSession({
-        cwd: "/home/user",
+        cwd: entry.acpManager!.getWorkingDir(),
         mcpServers: [],
       });
       entry.acpManager!.activeSessionId = resp.sessionId;

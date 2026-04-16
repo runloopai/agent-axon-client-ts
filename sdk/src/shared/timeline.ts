@@ -236,6 +236,7 @@ export function createClassifier<TProtocolEvent>(
       if (result) return result;
     }
 
-    return { kind: "unknown" as const, data: null, axonEvent: ev };
+    const unknownData = tryParseTimelinePayload({ axonEvent: ev });
+    return { kind: "unknown" as const, data: unknownData, axonEvent: ev };
   };
 }

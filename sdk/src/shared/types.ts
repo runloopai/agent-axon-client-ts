@@ -84,13 +84,25 @@ export interface SystemTimelineEvent extends BaseTimelineEvent {
 }
 
 /**
- * A timeline event the SDK did not recognize. The consumer can inspect
- * `axonEvent.origin` and `axonEvent.event_type` to decide how to handle it.
+ * A timeline event the SDK did not recognize. The `data` field contains the
+ * eagerly-parsed payload (or `null` if the payload was missing / unparseable).
+ * Inspect `axonEvent.origin` and `axonEvent.event_type` to decide how to
+ * handle it, or use {@link createCustomEventGuard} to build a typed guard.
  * @category Timeline
  */
 export interface UnknownTimelineEvent extends BaseTimelineEvent {
   kind: "unknown";
-  data: null;
+  data: unknown;
+}
+
+/**
+ * A narrowed unknown timeline event whose payload has been parsed as `T`.
+ * Produced by type guards created with {@link createCustomEventGuard}.
+ * @category Timeline
+ */
+export interface CustomTimelineEvent<T> extends BaseTimelineEvent {
+  kind: "unknown";
+  data: T;
 }
 
 /**

@@ -5,7 +5,8 @@ import {
   useCallback,
   type KeyboardEvent,
 } from "react";
-import type { AgentType, AgentConfigItem, AgentStartedPayload, AvailableCommand, AxonEventView, UserAttachment } from "./types.js";
+import type { AgentType, AgentConfigItem, AgentStartedPayload, AvailableCommand, AxonEventView, SystemEventItem, UserAttachment } from "./types.js";
+import { isSystemEventItem, isAgentConfigItem, isErrorSystemEvent } from "./types.js";
 import { useAgent } from "./hooks/useAgent.js";
 import { useAgentList } from "./hooks/useAgentList.js";
 import { useAttachments } from "./hooks/useAttachments.js";
@@ -22,6 +23,7 @@ import { AxonEventItem } from "./components/AxonEventItem.js";
 import { TimelineEventItem } from "./components/TimelineEventItem.js";
 import { TurnBlocksInspector } from "./components/TurnBlocksInspector.js";
 import { AttachIcon, CancelIcon, SendIcon } from "./components/Icons.js";
+import { formatTime } from "./components/shared.js";
 import { api } from "./hooks/api.js";
 
 type StartPhase = "idle" | "connecting" | "error";
@@ -110,6 +112,25 @@ function AgentConfigBanner({ item }: { item: AgentConfigItem }) {
   );
 }
 
+const EVENT_KIND_ICONS: Record<string, string> = {
+  devbox_lifecycle: "\u{1F4E6}",
+  agent_error: "\u26A0\uFE0F",
+};
+
+function SystemEventBanner({ item }: { item: SystemEventItem }) {
+  const icon = EVENT_KIND_ICONS[item.eventKind] ?? "\u2139\uFE0F";
+  const isError = isErrorSystemEvent(item);
+
+  return (
+    <div className={`chat-system-event ${isError ? "chat-system-event-error" : ""}`}>
+      <span className="chat-system-event-icon">{icon}</span>
+      <span className="chat-system-event-label">{item.label}</span>
+      {item.detail && <span className="chat-system-event-detail">{item.detail}</span>}
+      <span className="chat-system-event-time">{formatTime(item.timestamp)}</span>
+    </div>
+  );
+}
+
 export default function App() {
   const agentList = useAgentList();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -137,6 +158,7 @@ export default function App() {
   const [agentBinary, setAgentBinary] = useState("opencode");
   const [launchArgs, setLaunchArgs] = useState("acp");
   const [launchCommands, setLaunchCommands] = useState("");
+  const [workingDir, setWorkingDir] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [blueprintName, setBlueprintName] = useState("");
   const [model, setModel] = useState("");
@@ -201,6 +223,7 @@ export default function App() {
 
     const sharedConfig = {
       launchCommands: launchCommands ? launchCommands.split("\n").filter(Boolean) : undefined,
+      workingDir: workingDir || undefined,
       systemPrompt: systemPrompt || undefined,
     };
 
@@ -394,6 +417,23 @@ export default function App() {
 
   const agentLabel = agent.agentType === "claude" ? "Claude Code" : "ACP Agent";
 
+  // Derive devbox status from the last devbox_lifecycle system event in messages
+  const lastDevboxEvent = [...agent.messages].reverse().find(
+    (m): m is SystemEventItem => isSystemEventItem(m) && m.eventKind === "devbox_lifecycle",
+  );
+
+  const [statusDotClass, statusDotTooltip] = (() => {
+    if (lastDevboxEvent) {
+      const label = lastDevboxEvent.label;
+      if (label === "Devbox Running") return ["devbox-running", "Running"] as const;
+      if (label === "Devbox Suspended") return ["devbox-suspended", "Suspended"] as const;
+      if (label === "Devbox Shutdown") return ["devbox-shutdown", "Shutdown"] as const;
+      if (label === "Devbox Failed") return ["devbox-shutdown", "Failed"] as const;
+    }
+    if (agent.connectionPhase === "ready") return ["ready", "Ready"] as const;
+    return ["connecting", "Connecting"] as const;
+  })();
+
   return (
     <div className="app">
       <AgentSidebar
@@ -408,7 +448,7 @@ export default function App() {
         <>
           <div className="main-column">
             <div className="header">
-              <div className={`status-dot ${agent.connectionPhase === "ready" ? "ready" : "connecting"}`} />
+              <div className={`status-dot ${statusDotClass}`} title={statusDotTooltip} />
               <h1>{agentLabel}</h1>
               <div className="status-bar">
                 <div className="status-ids">
@@ -461,7 +501,9 @@ export default function App() {
                 )}
 
                 {agent.messages.map((msg) =>
-                  msg.role === "system" ? (
+                  isSystemEventItem(msg) ? (
+                    <SystemEventBanner key={msg.id} item={msg} />
+                  ) : isAgentConfigItem(msg) ? (
                     <AgentConfigBanner key={msg.id} item={msg} />
                   ) : msg.role === "user" ? (
                     <div key={msg.id} className="message user">
@@ -693,6 +735,8 @@ export default function App() {
             setLaunchArgs={setLaunchArgs}
             launchCommands={launchCommands}
             setLaunchCommands={setLaunchCommands}
+            workingDir={workingDir}
+            setWorkingDir={setWorkingDir}
             systemPrompt={systemPrompt}
             setSystemPrompt={setSystemPrompt}
             blueprintName={blueprintName}

@@ -69,6 +69,7 @@ export type {
   AxonEventListener,
   AxonEventView,
   BaseConnectionOptions,
+  CustomTimelineEvent,
   SystemEvent,
   SystemTimelineEvent,
   TimelineEventListener,
@@ -91,11 +92,15 @@ export {
   type ControlRequestOfSubtype,
 } from "./connection.js";
 export type {
+  AgentErrorTimelineEvent,
   BrokerErrorTimelineEvent,
+  DevboxLifecycleTimelineEvent,
   TurnCompletedTimelineEvent,
   TurnStartedTimelineEvent,
 } from "./timeline-event-guards.js";
 export {
+  createCustomEventGuard,
+  isAgentErrorEvent,
   isBrokerErrorEvent,
   isClaudeAssistantEvent,
   isClaudeAssistantTextEvent,
@@ -105,6 +110,7 @@ export {
   isClaudeQueryEvent,
   isClaudeResultEvent,
   isClaudeSystemInitEvent,
+  isDevboxLifecycleEvent,
   isSystemTimelineEvent,
   isTurnCompletedEvent,
   isTurnStartedEvent,

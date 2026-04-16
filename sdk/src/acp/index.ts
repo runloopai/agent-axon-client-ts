@@ -67,6 +67,7 @@ export type {
   AxonEventListener,
   AxonEventView,
   BaseConnectionOptions,
+  CustomTimelineEvent,
   SystemEvent,
   SystemTimelineEvent,
   TimelineEventListener,
@@ -117,15 +118,20 @@ export {
   isUserMessageChunk,
 } from "./session-update-guards.js";
 export type {
+  AgentErrorTimelineEvent,
   BrokerErrorTimelineEvent,
+  DevboxLifecycleTimelineEvent,
   ElicitationCompleteTimelineEvent,
   ElicitationTimelineEvent,
   TurnCompletedTimelineEvent,
   TurnStartedTimelineEvent,
 } from "./timeline-event-guards.js";
 export {
+  createCustomEventGuard,
   isACPProtocolEvent,
+  isAgentErrorEvent,
   isBrokerErrorEvent,
+  isDevboxLifecycleEvent,
   isElicitationCompleteEvent,
   isElicitationRequestEvent,
   isElicitationResponseEvent,
