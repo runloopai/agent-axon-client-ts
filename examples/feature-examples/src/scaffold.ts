@@ -69,8 +69,11 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
   log("Creating devbox...");
   const devbox = await sdk.devbox.create({
     name: resourcePrefix,
-    blueprint_name: mergedAgent.blueprint,
     mounts: [
+    {
+      type: "agent_mount",
+      agent_name: mergedAgent.agentMountName,
+    },
       {
         type: "broker_mount",
         axon_id: axon.id,

@@ -12,8 +12,8 @@ export interface AgentConfig {
   /** Which protocol this agent uses. */
   protocol: "acp" | "claude";
 
-  /** Runloop blueprint name (e.g., "runloop/agents"). */
-  blueprint: string;
+  /** Public agent name for the agent_mount (e.g., "opencode", "codex-acp", "claude-code"). */
+  agentMountName: string;
 
   /** Mount configuration for the broker. */
   mount: {

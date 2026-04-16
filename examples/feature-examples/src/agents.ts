@@ -5,7 +5,7 @@ export const AGENTS: AgentConfig[] = [
   {
     name: "opencode",
     protocol: "acp",
-    blueprint: "runloop/agents",
+    agentMountName: "opencode",
     mount: {
       protocol: "acp",
       agent_binary: "opencode",
@@ -15,7 +15,7 @@ export const AGENTS: AgentConfig[] = [
   {
     name: "codex-acp",
     protocol: "acp",
-    blueprint: "runloop/agents",
+    agentMountName: "codex-acp",
     mount: {
       protocol: "acp",
       agent_binary: "codex-acp",
@@ -25,7 +25,7 @@ export const AGENTS: AgentConfig[] = [
   {
     name: "claude-code",
     protocol: "claude",
-    blueprint: "runloop/agents",
+    agentMountName: "claude-code",
     mount: {
       protocol: "claude_json",
       launch_args: ["--dangerously-skip-permissions"],

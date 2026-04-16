@@ -39,6 +39,14 @@ const { values: args } = parseArgs({
 const VERBOSE = args.verbose || !!process.env.VERBOSE;
 const AGENT_BINARY = args.agent ?? "opencode";
 
+// Map CLI agent names to public agent mount names
+const AGENT_MOUNT_MAP: Record<string, string> = {
+  opencode: "opencode",
+  "codex-acp": "codex-acp",
+};
+
+const agentMountName = AGENT_MOUNT_MAP[AGENT_BINARY] ?? AGENT_BINARY;
+
 // ---------------------------------------------------------------------------
 // Session setup
 // ---------------------------------------------------------------------------
@@ -46,15 +54,16 @@ const AGENT_BINARY = args.agent ?? "opencode";
 const sdk = new RunloopSDK();
 
 console.log(`Starting devbox with agent "${AGENT_BINARY}"...`);
-// The runloop/agents blueprint has opencode pre-installed. The broker_mount
-// wires the Axon channel to the agent binary via the ACP protocol — the
-// broker launches the agent inside the devbox and bridges stdin/stdout to
-// the Axon event stream.
+// The agent_mount installs the agent binary; the broker_mount wires the
+// Axon channel to the agent via the ACP protocol.
 const axon = await sdk.axon.create({ name: "acp-transport" });
 const devbox = await sdk.devbox.create({
   name: "acp-cli",
-  blueprint_name: "runloop/agents",
   mounts: [
+    {
+      type: "agent_mount",
+      agent_name: agentMountName,
+    },
     {
       type: "broker_mount",
       axon_id: axon.id,

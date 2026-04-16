@@ -84,6 +84,14 @@ export class ACPConnectionManager {
       );
     }
 
+    // Map agent binary names to public agent mount names
+    const agentBinary = opts.agentBinary ?? "opencode";
+    const agentMountMap: Record<string, string> = {
+      opencode: "opencode",
+      "codex-acp": "codex-acp",
+    };
+    const agentMountName = agentMountMap[agentBinary] ?? agentBinary;
+
     this.ws.broadcast(
       this.tag({
         type: "connection_progress",
@@ -92,21 +100,24 @@ export class ACPConnectionManager {
     );
     const devbox = await sdk.devbox.create({
       name: "combined-app-acp",
-      blueprint_name: "runloop/agents",
       mounts: [
+        {
+          type: "agent_mount" as const,
+          agent_name: agentMountName,
+        },
         {
           type: "broker_mount" as const,
           axon_id: axon.id,
           protocol: "acp" as const,
-          agent_binary: opts.agentBinary ?? "opencode",
+          agent_binary: agentBinary,
           launch_args: opts.launchArgs,
           ...(opts.workingDir ? { working_directory: opts.workingDir } : {}),
         },
       ],
 
       launch_parameters: {
-        ...(opts.launchCommands?.length
-          ? { launch_commands: opts.launchCommands }
+        ...(launchCommands?.length
+          ? { launch_commands: launchCommands }
           : {}),
         lifecycle: {
           after_idle: {

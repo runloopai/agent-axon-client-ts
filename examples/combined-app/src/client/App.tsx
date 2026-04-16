@@ -52,7 +52,6 @@ const CONFIG_LABELS: Record<string, string> = {
   agentType: "Agent Type",
   agentId: "Agent ID",
   agentBinary: "Agent Binary",
-  blueprintName: "Blueprint",
   model: "Model",
   launchArgs: "Launch Args",
   launchCommands: "Launch Commands",
@@ -160,7 +159,6 @@ export default function App() {
   const [launchCommands, setLaunchCommands] = useState("");
   const [workingDir, setWorkingDir] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
-  const [blueprintName, setBlueprintName] = useState("");
   const [model, setModel] = useState("");
   const [startAutoApprove, setStartAutoApprove] = useState(true);
   const [inputText, setInputText] = useState("");
@@ -235,7 +233,6 @@ export default function App() {
           ...sharedConfig,
         }
       : {
-          blueprintName: blueprintName || undefined,
           model: model || undefined,
           dangerouslySkipPermissions: startAutoApprove,
           ...sharedConfig,
@@ -254,7 +251,7 @@ export default function App() {
         id: resp.agentId,
         agentType: resp.agentType,
         name: selectedAgentType === "claude"
-          ? (blueprintName || "Claude Agent")
+          ? "Claude Agent"
           : (agentBinary || "ACP Agent"),
         axonId: resp.axonId as string,
         devboxId: resp.devboxId as string,
@@ -739,8 +736,6 @@ export default function App() {
             setWorkingDir={setWorkingDir}
             systemPrompt={systemPrompt}
             setSystemPrompt={setSystemPrompt}
-            blueprintName={blueprintName}
-            setBlueprintName={setBlueprintName}
             model={model}
             setModel={setModel}
             autoApprovePermissions={startAutoApprove}
