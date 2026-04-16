@@ -8,7 +8,7 @@ export const AGENTS: AgentConfig[] = [
     blueprint: "axon-agents",
     mount: {
       protocol: "acp",
-      agent_binary: "opencode",
+      agent_binary: "/home/user/.opencode/bin/opencode",
       launch_args: ["acp"],
     },
   },
@@ -30,6 +30,7 @@ export const AGENTS: AgentConfig[] = [
     blueprint: "axon-agents",
     mount: {
       protocol: "claude_json",
+      agent_binary: "/home/user/.local/bin/claude",
       launch_args: ["--dangerously-skip-permissions"],
     },
     secrets: { ANTHROPIC_API_KEY: "ANTHROPIC_API_KEY" },

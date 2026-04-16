@@ -1,22 +1,22 @@
 # Agent Axon Client — Compatibility Matrix
 
-Generated: 2026-04-16T23:11:12.457Z
+Generated: 2026-04-16T23:56:48.705Z
 SDK Version: 0.4.2
 
 ## Protocol × Feature
 
 | Use Case | ACP | Claude |
 |----------|-----|--------|
-| elicitation-acp | fail | N/A |
-| elicitation-claude | N/A | fail |
-| single-prompt | fail | fail |
+| elicitation-acp | xfail | N/A |
+| elicitation-claude | N/A | pass |
+| single-prompt | pass | pass |
 
 ## ACP Agent × Feature
 
 | Use Case | opencode | codex-acp |
 |----------|------------|------------|
-| elicitation-acp | xfail | fail |
-| single-prompt | fail | pass |
+| elicitation-acp | xfail | xfail |
+| single-prompt | pass | pass |
 
 ---
 
@@ -24,9 +24,9 @@ SDK Version: 0.4.2
 
 | Agent | Use Case | Status | Duration | Notes |
 |-------|----------|--------|----------|-------|
-| opencode | elicitation-acp | xfail | 12.5s | [xfail: ACP protocol has not added full elicitation support yet] Timeout (10000ms): ACP initialize |
-| opencode | single-prompt | fail | 12.1s | Timeout (10000ms): ACP initialize |
-| codex-acp | elicitation-acp | fail | 10.9s | Agent did not trigger session_elicitation |
-| codex-acp | single-prompt | pass | 6.3s |  |
-| claude-code | elicitation-claude | fail | 12.6s | Timeout (10000ms): Claude initialize |
-| claude-code | single-prompt | fail | 11.9s | Timeout (10000ms): Claude initialize |
+| opencode | elicitation-acp | xfail | 15.6s | [xfail: ACP protocol has not added full elicitation support yet] Agent did not trigger session_elicitation |
+| opencode | single-prompt | pass | 8.6s |  |
+| codex-acp | elicitation-acp | xfail | 9.1s | [xfail: codex-acp does not advertise or send session/elicitation (uses permission requests instead)] Agent did not trigger session_elicitation |
+| codex-acp | single-prompt | pass | 4.6s |  |
+| claude-code | elicitation-claude | pass | 7.3s |  |
+| claude-code | single-prompt | pass | 3.9s |  |

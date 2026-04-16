@@ -11,7 +11,7 @@ interface SetupResult {
 }
 
 const DEFAULT_WORKING_DIRECTORY = "/home/user";
-const SETUP_STEP_TIMEOUT_MS = 10_000;
+const SETUP_STEP_TIMEOUT_MS = 30_000;
 const SETUP_ERROR_CLEANUP_TIMEOUT_MS = 10_000;
 
 /**

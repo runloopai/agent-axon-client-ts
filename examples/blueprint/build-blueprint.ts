@@ -43,6 +43,12 @@ async function main() {
   const blueprint = await sdk.blueprint.create({
     name: BLUEPRINT_NAME,
     dockerfile,
+    launch_parameters: {
+      user_parameters: {
+        uid: 1000,
+        username: "user",
+      },
+    },
   });
 
   console.log(`Blueprint created: ${blueprint.id}`);

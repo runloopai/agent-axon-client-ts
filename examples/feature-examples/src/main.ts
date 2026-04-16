@@ -58,7 +58,7 @@ Options:
   --protocol <proto>   Run only for this protocol: acp, claude (default: all)
   --use-case <name>    Run only this use case (default: all)
   --parallel <n>       Max concurrent devboxes (default: 5)
-  --timeout <ms>       Default timeout per use case, capped at 10000 (default: 10000)
+  --timeout <ms>       Default timeout per use case, capped at 30000 (default: 10000)
   --validate           Validate generated output without running (checks compatibility.md and llms.txt)
   --help               Show help
 
@@ -71,8 +71,8 @@ Examples:
 }
 
 const DISCONNECT_TIMEOUT_MS = 10_000;
-const CLEANUP_TIMEOUT_MS = 10_000;
-const MAX_USE_CASE_TIMEOUT_MS = 10_000;
+const CLEANUP_TIMEOUT_MS = 30_000;
+const MAX_USE_CASE_TIMEOUT_MS = 30_000;
 
 async function runOne(
   agent: AgentConfig,
