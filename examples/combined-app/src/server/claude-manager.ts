@@ -72,10 +72,6 @@ export class ClaudeConnectionManager {
       },
       launch_parameters: {
         ...(opts.launchCommands?.length ? { launch_commands: opts.launchCommands } : {}),
-        after_idle: {
-          idle_time_seconds: 60,
-          on_idle: "suspend",
-        },
         lifecycle: {
           after_idle: {
             idle_time_seconds: 60,
