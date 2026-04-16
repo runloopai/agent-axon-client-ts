@@ -38,6 +38,7 @@ export type {
   TurnStartedTimelineEvent,
 } from "./timeline-event-guards.js";
 export {
+  createCustomEventGuard,
   isAgentErrorEvent,
   isBrokerErrorEvent,
   isDevboxLifecycleEvent,
@@ -55,6 +56,7 @@ export type {
   AxonEventView,
   BaseConnectionOptions,
   BaseTimelineEvent,
+  CustomTimelineEvent,
   DevboxLifecycleEvent,
   DevboxLifecycleKind,
   LogFn,

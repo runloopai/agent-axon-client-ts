@@ -6,7 +6,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import type { AgentType, AgentConfigItem, AgentStartedPayload, AvailableCommand, AxonEventView, SystemEventItem, UserAttachment } from "./types.js";
-import { isSystemEventItem, isAgentConfigItem } from "./types.js";
+import { isSystemEventItem, isAgentConfigItem, isErrorSystemEvent } from "./types.js";
 import { useAgent } from "./hooks/useAgent.js";
 import { useAgentList } from "./hooks/useAgentList.js";
 import { useAttachments } from "./hooks/useAttachments.js";
@@ -119,7 +119,7 @@ const EVENT_KIND_ICONS: Record<string, string> = {
 
 function SystemEventBanner({ item }: { item: SystemEventItem }) {
   const icon = EVENT_KIND_ICONS[item.eventKind] ?? "\u2139\uFE0F";
-  const isError = item.eventKind === "agent_error";
+  const isError = isErrorSystemEvent(item);
 
   return (
     <div className={`chat-system-event ${isError ? "chat-system-event-error" : ""}`}>

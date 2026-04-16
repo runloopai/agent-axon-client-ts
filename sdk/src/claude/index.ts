@@ -69,6 +69,7 @@ export type {
   AxonEventListener,
   AxonEventView,
   BaseConnectionOptions,
+  CustomTimelineEvent,
   SystemEvent,
   SystemTimelineEvent,
   TimelineEventListener,
@@ -98,6 +99,7 @@ export type {
   TurnStartedTimelineEvent,
 } from "./timeline-event-guards.js";
 export {
+  createCustomEventGuard,
   isAgentErrorEvent,
   isBrokerErrorEvent,
   isClaudeAssistantEvent,

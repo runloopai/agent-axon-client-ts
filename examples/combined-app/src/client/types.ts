@@ -265,6 +265,10 @@ export function isSystemEventItem(item: ChatItem): item is SystemEventItem {
   return item.role === "system" && "itemType" in item && item.itemType === "system_event";
 }
 
+export function isErrorSystemEvent(item: SystemEventItem): boolean {
+  return item.eventKind === "agent_error";
+}
+
 export function isAgentConfigItem(item: ChatItem): item is AgentConfigItem {
   return item.role === "system" && "itemType" in item && item.itemType === "agent_started";
 }

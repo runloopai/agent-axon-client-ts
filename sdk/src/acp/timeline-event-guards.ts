@@ -44,6 +44,7 @@ export type {
   TurnStartedTimelineEvent,
 } from "../shared/timeline-event-guards.js";
 export {
+  createCustomEventGuard,
   isAgentErrorEvent,
   isBrokerErrorEvent,
   isDevboxLifecycleEvent,
