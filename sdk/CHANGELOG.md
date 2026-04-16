@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.4.1...agent-axon-client-v0.4.2) (2026-04-16)
+
+
+### Features
+
+* **sdk:** add typed runloop system events ([#98](https://github.com/runloopai/agent-axon-client-ts/issues/98)) ([7763c99](https://github.com/runloopai/agent-axon-client-ts/commit/7763c9969023fcc4e72bdf55e03e1f3de66cb3c2))
+* **sdk:** add working dir, suspend resume to example app ([#100](https://github.com/runloopai/agent-axon-client-ts/issues/100)) ([be15ce9](https://github.com/runloopai/agent-axon-client-ts/commit/be15ce9cc6b036d6823bdc27646c7d398b143a47))
+
 ## [0.4.1](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.4.0...agent-axon-client-v0.4.1) (2026-04-15)
 
 
