@@ -93,6 +93,7 @@ export {
 } from "./connection.js";
 export type {
   AgentErrorTimelineEvent,
+  AgentLogTimelineEvent,
   BrokerErrorTimelineEvent,
   DevboxLifecycleTimelineEvent,
   TurnCompletedTimelineEvent,
@@ -101,6 +102,7 @@ export type {
 export {
   createCustomEventGuard,
   isAgentErrorEvent,
+  isAgentLogEvent,
   isBrokerErrorEvent,
   isClaudeAssistantEvent,
   isClaudeAssistantTextEvent,
