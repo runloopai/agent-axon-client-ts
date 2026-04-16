@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import type { AgentType, AgentConfigItem, AgentStartedPayload, AvailableCommand, AxonEventView, SystemEventItem, UserAttachment } from "./types.js";
+import { isSystemEventItem, isAgentConfigItem } from "./types.js";
 import { useAgent } from "./hooks/useAgent.js";
 import { useAgentList } from "./hooks/useAgentList.js";
 import { useAttachments } from "./hooks/useAttachments.js";
@@ -22,6 +23,7 @@ import { AxonEventItem } from "./components/AxonEventItem.js";
 import { TimelineEventItem } from "./components/TimelineEventItem.js";
 import { TurnBlocksInspector } from "./components/TurnBlocksInspector.js";
 import { AttachIcon, CancelIcon, SendIcon } from "./components/Icons.js";
+import { formatTime } from "./components/shared.js";
 import { api } from "./hooks/api.js";
 
 type StartPhase = "idle" | "connecting" | "error";
@@ -110,11 +112,6 @@ function AgentConfigBanner({ item }: { item: AgentConfigItem }) {
   );
 }
 
-function formatEventTime(ms: number): string {
-  const d = new Date(ms);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
 const EVENT_KIND_ICONS: Record<string, string> = {
   devbox_lifecycle: "\u{1F4E6}",
   agent_error: "\u26A0\uFE0F",
@@ -129,7 +126,7 @@ function SystemEventBanner({ item }: { item: SystemEventItem }) {
       <span className="chat-system-event-icon">{icon}</span>
       <span className="chat-system-event-label">{item.label}</span>
       {item.detail && <span className="chat-system-event-detail">{item.detail}</span>}
-      <span className="chat-system-event-time">{formatEventTime(item.timestamp)}</span>
+      <span className="chat-system-event-time">{formatTime(item.timestamp)}</span>
     </div>
   );
 }
@@ -422,8 +419,8 @@ export default function App() {
 
   // Derive devbox status from the last devbox_lifecycle system event in messages
   const lastDevboxEvent = [...agent.messages].reverse().find(
-    (m) => m.role === "system" && "itemType" in m && m.itemType === "system_event" && m.eventKind === "devbox_lifecycle",
-  ) as SystemEventItem | undefined;
+    (m): m is SystemEventItem => isSystemEventItem(m) && m.eventKind === "devbox_lifecycle",
+  );
 
   const [statusDotClass, statusDotTooltip] = (() => {
     if (lastDevboxEvent) {
@@ -433,7 +430,7 @@ export default function App() {
       if (label === "Devbox Shutdown") return ["devbox-shutdown", "Shutdown"] as const;
       if (label === "Devbox Failed") return ["devbox-shutdown", "Failed"] as const;
     }
-    if (agent.connectionPhase === "ready") return ["ready", "Connecting"] as const;
+    if (agent.connectionPhase === "ready") return ["ready", "Ready"] as const;
     return ["connecting", "Connecting"] as const;
   })();
 
@@ -504,10 +501,10 @@ export default function App() {
                 )}
 
                 {agent.messages.map((msg) =>
-                  msg.role === "system" && msg.itemType === "system_event" ? (
+                  isSystemEventItem(msg) ? (
                     <SystemEventBanner key={msg.id} item={msg} />
-                  ) : msg.role === "system" ? (
-                    <AgentConfigBanner key={msg.id} item={msg as AgentConfigItem} />
+                  ) : isAgentConfigItem(msg) ? (
+                    <AgentConfigBanner key={msg.id} item={msg} />
                   ) : msg.role === "user" ? (
                     <div key={msg.id} className="message user">
                       <div className="message-text">{msg.content}</div>

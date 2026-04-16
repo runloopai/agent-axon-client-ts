@@ -16,6 +16,7 @@ import type {
   SystemInitBlock,
   ToolKind,
 } from "../types.js";
+import { isAgentConfigItem, isChatMessage } from "../types.js";
 import { toolKindMeta, statusIndicator, groupBlocks } from "./shared.js";
 
 function getToolCallDisplayTitle(block: ToolCallBlock): string {
@@ -379,10 +380,10 @@ export function TurnBlocksInspector({
         )}
 
         {messages.map((msg) => {
-          if (msg.role === "system" && msg.itemType === "agent_started") {
+          if (isAgentConfigItem(msg)) {
             return <ConfigItemGroup key={msg.id} item={msg} />;
           }
-          if (msg.role === "system") {
+          if (!isChatMessage(msg)) {
             return null;
           }
           const idx = msgIndex++;
