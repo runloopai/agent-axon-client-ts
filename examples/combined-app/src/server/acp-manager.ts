@@ -51,14 +51,20 @@ export class ACPConnectionManager {
     const apiKey = process.env.RUNLOOP_API_KEY;
     const baseUrl = process.env.RUNLOOP_BASE_URL;
 
-    if (!apiKey) throw new HttpError(401, "RUNLOOP_API_KEY not set in server .env");
+    if (!apiKey)
+      throw new HttpError(401, "RUNLOOP_API_KEY not set in server .env");
 
     const sdk = new RunloopSDK({
       bearerToken: apiKey,
       ...(baseUrl ? { baseURL: baseUrl } : {}),
     });
 
-    this.ws.broadcast(this.tag({ type: "connection_progress", step: "Creating Axon channel..." }));
+    this.ws.broadcast(
+      this.tag({
+        type: "connection_progress",
+        step: "Creating Axon channel...",
+      }),
+    );
     const axon = await sdk.axon.create({ name: "combined-app-acp" });
     this.axon = axon;
 
@@ -78,7 +84,12 @@ export class ACPConnectionManager {
       );
     }
 
-    this.ws.broadcast(this.tag({ type: "connection_progress", step: "Provisioning sandbox..." }));
+    this.ws.broadcast(
+      this.tag({
+        type: "connection_progress",
+        step: "Provisioning sandbox...",
+      }),
+    );
     const devbox = await sdk.devbox.create({
       name: "combined-app-acp",
       blueprint_name: "runloop/agents",
@@ -92,23 +103,23 @@ export class ACPConnectionManager {
           ...(opts.workingDir ? { working_directory: opts.workingDir } : {}),
         },
       ],
-      launch_parameters: {
-        ...(launchCommands.length ? { launch_commands: launchCommands } : {}),
-        lifecycle: {
-          after_idle: {
-            idle_time_seconds: 60,
-            on_idle: "suspend",
-          },
-          resume_triggers: {
-            axon_event: true,
-          },
-        },
-      },
+      launch_parameters: launchCommands.length
+        ? {
+            launch_commands: launchCommands,
+            after_idle: { idle_time_seconds: 60, on_idle: "suspend" },
+          }
+        : undefined,
     });
     this.devbox = devbox;
 
-    this.ws.broadcast(this.tag({ type: "connection_progress", step: "Connecting to agent..." }));
-    const conn = this.wireConnection(axon, devbox, opts.autoApprovePermissions !== false);
+    this.ws.broadcast(
+      this.tag({ type: "connection_progress", step: "Connecting to agent..." }),
+    );
+    const conn = this.wireConnection(
+      axon,
+      devbox,
+      opts.autoApprovePermissions !== false,
+    );
 
     await conn.connect();
     let initResp;
@@ -125,7 +136,9 @@ export class ACPConnectionManager {
 
     this.authMethods = initResp.authMethods ?? null;
 
-    this.ws.broadcast(this.tag({ type: "connection_progress", step: "Starting session..." }));
+    this.ws.broadcast(
+      this.tag({ type: "connection_progress", step: "Starting session..." }),
+    );
     let sessionResp;
     try {
       sessionResp = await conn.newSession({
@@ -187,7 +200,8 @@ export class ACPConnectionManager {
   }
 
   async subscribe(): Promise<void> {
-    if (!this.axon || !this.devbox) throw new Error("No axon — agent not started");
+    if (!this.axon || !this.devbox)
+      throw new Error("No axon — agent not started");
     const autoApprove = this.nodeClient?.autoApprovePermissions ?? true;
     this.connection?.abortStream();
     this.nodeClient?.shutdown();
