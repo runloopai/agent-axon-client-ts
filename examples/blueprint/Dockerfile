@@ -1,4 +1,4 @@
-FROM runloop:runloop/starter-arm64
+FROM runloop:runloop/starter-x86_64
 
 RUN npm install -g @zed-industries/codex-acp
 
