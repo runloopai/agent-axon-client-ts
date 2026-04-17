@@ -18,7 +18,7 @@ export const AGENTS: AgentConfig[] = [
     blueprint: "axon-agents",
     mount: {
       protocol: "acp",
-      agent_binary: "codex-acp",
+      agent_binary: "/usr/local/bin/codex-acp",
       working_directory: "/home/user",
     },
     secrets: { OPENAI_API_KEY: "OPENAI_API_KEY" },

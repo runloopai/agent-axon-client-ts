@@ -1,0 +1,32 @@
+# feature-examples
+
+Runnable SDK recipes demonstrating individual features of `@runloop/agent-axon-client`. **Primary audience: agents** (LLM code generators looking for working examples).
+
+## Prerequisites
+
+The shared `axon-agents` blueprint must exist on your Runloop account before anything here will run. Build it once from the repo root:
+
+```bash
+bun run build-blueprint
+```
+
+See [`../blueprint`](../blueprint/) for details.
+
+## Layout
+
+- [`src/scaffold.ts`](src/scaffold.ts) — Devbox provisioning and connection setup. Read this first to understand how agents are launched.
+- [`src/use-cases/`](src/use-cases/) — Individual feature demonstrations (one file per use case).
+- [`compatibility.md`](compatibility.md) — Generated compatibility matrix (protocol × agent × feature).
+
+## Running
+
+```bash
+bun run feature-compat              # Run all use cases, regenerate compatibility.md and llms.txt
+bun run feature-compat --agent opencode   # Run only with opencode
+bun run feature-compat --use-case single-prompt  # Run only single-prompt
+bun run feature-compat --validate   # Validate generated files without running tests
+```
+
+## Use-case index
+
+See [`llms.txt`](../../llms.txt) at the repo root for the canonical index of use cases with links.

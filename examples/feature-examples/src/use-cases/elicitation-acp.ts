@@ -17,7 +17,7 @@ export default {
   protocols: ["acp"],
   timeoutMs: 10_000,
 
-  expectedFailuresByAgent: {
+  expectedFailures: {
     opencode: "ACP protocol has not added full elicitation support yet",
     "codex-acp":
       "codex-acp does not advertise or send session/elicitation (uses permission requests instead)",

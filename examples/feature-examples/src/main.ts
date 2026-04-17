@@ -81,9 +81,7 @@ async function runOne(
 ): Promise<RunResult> {
   const start = Date.now();
   let ctx: RunContext | null = null;
-  const expectedFailReason =
-    useCase.expectedFailuresByAgent?.[agent.name] ??
-    useCase.expectedFailures?.[agent.protocol];
+  const expectedFailReason = useCase.expectedFailures?.[agent.name];
 
   try {
     const { ctx: setupCtx } = await setup(agent, useCase);

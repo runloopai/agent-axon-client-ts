@@ -78,18 +78,11 @@ export interface UseCase {
   clientCapabilities?: Record<string, unknown>;
 
   /**
-   * Protocols expected to fail (with reason).
-   * E.g., `{ acp: "Protocol has not added full support yet" }`.
-   * Results will show as "xfail" instead of "fail" and won't cause exit code 1.
-   */
-  expectedFailures?: Partial<Record<"acp" | "claude", string>>;
-
-  /**
    * Per-agent expected failures (with reason), keyed by agent name.
-   * Takes precedence over `expectedFailures` when both are specified.
+   * Results will show as "xfail" instead of "fail" and won't cause exit code 1.
    * E.g., `{ opencode: "Elicitation not yet supported" }`.
    */
-  expectedFailuresByAgent?: Record<string, string>;
+  expectedFailures?: Record<string, string>;
 
   /**
    * The test body. Receives a fully initialized RunContext.

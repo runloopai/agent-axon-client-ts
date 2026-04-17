@@ -1,5 +1,5 @@
 {
-  "name": "blueprint",
+  "name": "@runloop/example-blueprint",
   "private": true,
   "version": "0.1.0",
   "type": "module",
