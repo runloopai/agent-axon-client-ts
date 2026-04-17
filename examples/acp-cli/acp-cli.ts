@@ -4,6 +4,12 @@
  * Creates a Runloop Devbox + Axon session, connects via the ACP protocol,
  * and runs a REPL that streams session updates in real time.
  *
+ * Prerequisites:
+ *   - RUNLOOP_API_KEY must be set
+ *   - The shared `axon-agents` blueprint must exist on your Runloop account.
+ *     From the repo root, run `bun run build-blueprint` once before running
+ *     this example. See examples/blueprint/README.md for details.
+ *
  * Usage:
  *   bun run acp-cli.ts
  *   bun run acp-cli.ts --agent opencode

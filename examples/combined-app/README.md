@@ -29,6 +29,18 @@ RUNLOOP_API_KEY=your_runloop_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
 ```
 
+### Build the shared blueprint (one-time, required)
+
+This example provisions devboxes with `blueprint_name: "axon-agents"` (see [`src/server/acp-manager.ts`](src/server/acp-manager.ts) and [`src/server/claude-manager.ts`](src/server/claude-manager.ts)). That blueprint must exist on your Runloop account before starting an agent from the UI — otherwise `POST /api/start` will fail when creating the devbox.
+
+From the monorepo root:
+
+```bash
+bun run build-blueprint
+```
+
+See [`../blueprint`](../blueprint/) for details. You only need to run it once per Runloop account.
+
 ## Running
 
 You need two terminals:

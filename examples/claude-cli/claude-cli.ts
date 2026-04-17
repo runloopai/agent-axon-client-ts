@@ -4,6 +4,12 @@
  * Creates a Runloop Devbox + Axon session, connects the ClaudeAxonConnection,
  * and runs a REPL that streams assistant messages in real time.
  *
+ * Prerequisites:
+ *   - RUNLOOP_API_KEY and ANTHROPIC_API_KEY must be set
+ *   - The shared `axon-agents` blueprint must exist on your Runloop account.
+ *     From the repo root, run `bun run build-blueprint` once before running
+ *     this example. See examples/blueprint/README.md for details.
+ *
  * Usage:
  *   bun run claude-cli.ts
  *   bun run claude-cli.ts --model haiku-4.5

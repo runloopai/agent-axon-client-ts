@@ -1,0 +1,50 @@
+# @runloop/example-blueprint
+
+> **Alpha — subject to change.** This example uses an SDK in early development. APIs and behavior may change without notice between versions.
+
+Builds the shared `axon-agents` Runloop [blueprint](https://docs.runloop.ai/guides/blueprints) that every other example in this repo depends on. The blueprint bakes the agent binaries (Claude Code, OpenCode, Codex ACP, Cursor) into a devbox image so subsequent devboxes start quickly and reproducibly.
+
+**You must run this once before any other example will work.** The other examples create devboxes with `blueprint_name: "axon-agents"` — if that blueprint does not exist on your Runloop account, devbox creation will fail.
+
+## Prerequisites
+
+- Node.js 22+ / [Bun](https://bun.sh)
+- A [Runloop](https://runloop.ai) API key (`RUNLOOP_API_KEY`)
+
+## Running
+
+From the monorepo root:
+
+```bash
+bun install
+bun run build-blueprint
+```
+
+Or directly from this directory:
+
+```bash
+cd examples/blueprint
+bun run build-blueprint.ts
+```
+
+The script builds the `axon-agents` blueprint and prints its status. A successful build ends with:
+
+```
+Blueprint build complete.
+Use blueprint_name: "axon-agents" in devbox.create()
+```
+
+You only need to do this once per Runloop account. Re-run it to update the image when the `Dockerfile` changes.
+
+## What's in the blueprint
+
+See [`Dockerfile`](Dockerfile) for the exact contents. At the time of writing it installs:
+
+- [Claude Code](https://docs.claude.com/en/docs/claude-code) — for the Claude module examples
+- [OpenCode](https://opencode.ai) — for ACP examples using OpenCode
+- [Codex ACP](https://www.npmjs.com/package/@zed-industries/codex-acp) — for ACP examples using Codex
+- [Cursor CLI](https://cursor.com) — for ACP examples using Cursor agent
+
+## Alternatives
+
+Using a pre-baked blueprint is the fastest path, but not the only option. You can instead attach agents to any standard Runloop image as late-binding mounts. See [Getting Agents onto the Devbox](../../README.md#getting-agents-onto-the-devbox) in the root README for a comparison.

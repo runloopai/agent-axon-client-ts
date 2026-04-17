@@ -294,12 +294,26 @@ In the demos in this repo we use **blueprints** to showcase the fastest way to l
 ```
 sdk/                      → @runloop/agent-axon-client (the published npm package)
 examples/
+  blueprint/              → Builds the shared `axon-agents` blueprint (run this first)
   acp-hello-world/        → Minimal ACP single-prompt script
   acp-cli/                → Interactive ACP REPL
   claude-hello-world/     → Minimal Claude single-prompt script
   claude-cli/             → Interactive Claude REPL
   combined-app/           → Full-stack combined demo (Claude + ACP, Express + React)
+  feature-examples/       → Runnable SDK recipes (single-prompt, elicitation, etc.)
 ```
+
+### Running the examples
+
+> **Run the blueprint example first.** Every other example creates a devbox with `blueprint_name: "axon-agents"`. That blueprint is built by [`examples/blueprint`](examples/blueprint/) and must exist on your Runloop account before any other example will succeed.
+>
+> ```bash
+> bun install
+> bun run build
+> bun run build-blueprint   # one-time — builds the axon-agents blueprint
+> ```
+>
+> After the blueprint reports `build_complete`, you can run any of the other examples. See [`examples/blueprint/README.md`](examples/blueprint/README.md) for details and [`examples/README.md`](examples/README.md) for the full example index.
 
 ## Development
 

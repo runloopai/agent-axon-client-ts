@@ -4,6 +4,12 @@
  * Creates a Runloop Devbox, connects via the ACP protocol,
  * sends a single prompt, prints the response, and exits.
  *
+ * Prerequisites:
+ *   - RUNLOOP_API_KEY must be set
+ *   - The shared `axon-agents` blueprint must exist on your Runloop account.
+ *     From the repo root, run `bun run build-blueprint` once before running
+ *     this example. See examples/blueprint/README.md for details.
+ *
  * Usage:
  *   bun run acp-hello-world.ts
  *   bun run acp-hello-world.ts --agent opencode
