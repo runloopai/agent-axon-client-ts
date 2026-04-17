@@ -280,6 +280,15 @@ See the [SDK documentation](sdk/README.md#custom-events-via-publish-and-tryparse
 
 See the [SDK documentation](sdk/README.md) for the full API reference, or browse the [hosted API docs](https://runloopai.github.io/agent-axon-client-ts/).
 
+## Getting Agents onto the Devbox
+
+There are two ways to ensure your agent binary is available on the devbox before execution starts:
+
+- **Agent mounts (late-binding)** — Install the agent at devbox creation time via a mount. The agent lands on the box just before the broker mount connects it to Axon. This works with any standard Runloop image, so you can pick or customize the base environment independently from the agent.
+- **Blueprints (pre-baked)** — Bake the agent (and any other tooling) directly into a custom devbox image. Subsequent devbox creations skip the install step entirely, giving you the fastest cold-start and a reproducible, versioned environment.
+
+In the demos in this repo we use **blueprints** to showcase the fastest way to launch agents. Depending on your use case, you may prefer a standard image with the agent as a late-binding mount — for example, when you need to swap agent versions frequently, combine multiple agents on demand, or avoid maintaining custom images.
+
 ## Repository Structure
 
 ```

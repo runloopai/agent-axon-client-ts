@@ -311,7 +311,6 @@ async function generateCompatibilityMd(
   const sdkVersion = await getSdkVersion();
 
   const output = template
-    .replace("{{timestamp}}", new Date().toISOString())
     .replace("{{sdkVersion}}", sdkVersion)
     .replace("{{protocolFeatureRows}}", buildProtocolFeatureRows(results, useCases))
     .replace("{{acpAgentFeatureTable}}", buildAcpAgentFeatureTable(results, useCases, agents))
