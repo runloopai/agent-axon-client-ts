@@ -79,14 +79,16 @@ async function runOne(
   useCase: UseCase,
   defaultTimeout: number,
 ): Promise<RunResult> {
-  const start = Date.now();
   let ctx: RunContext | null = null;
+  let agentStartMs: number | null = null;
   const expectedFailReason = useCase.expectedFailures?.[agent.name];
+  const getDurationMs = () => (agentStartMs === null ? 0 : Date.now() - agentStartMs);
 
   try {
     const { ctx: setupCtx } = await setup(agent, useCase);
     ctx = setupCtx;
 
+    agentStartMs = Date.now();
     const timeout = Math.min(
       useCase.timeoutMs ?? defaultTimeout,
       MAX_USE_CASE_TIMEOUT_MS,
@@ -100,7 +102,7 @@ async function runOne(
         protocol: agent.protocol,
         status: "xpass",
         reason: "Expected to fail but passed",
-        durationMs: Date.now() - start,
+        durationMs: getDurationMs(),
       };
     }
     return {
@@ -108,7 +110,7 @@ async function runOne(
       useCase: useCase.name,
       protocol: agent.protocol,
       status: "pass",
-      durationMs: Date.now() - start,
+      durationMs: getDurationMs(),
     };
   } catch (err) {
     if (err instanceof SkipError) {
@@ -118,7 +120,7 @@ async function runOne(
         protocol: agent.protocol,
         status: "skip",
         reason: err.reason,
-        durationMs: Date.now() - start,
+        durationMs: getDurationMs(),
       };
     }
     if (expectedFailReason) {
@@ -129,7 +131,7 @@ async function runOne(
         status: "xfail",
         error: err instanceof Error ? err.message : String(err),
         xfailReason: expectedFailReason,
-        durationMs: Date.now() - start,
+        durationMs: getDurationMs(),
       };
     }
     return {
@@ -138,7 +140,7 @@ async function runOne(
       protocol: agent.protocol,
       status: "fail",
       error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
+      durationMs: getDurationMs(),
     };
   } finally {
     if (ctx) {

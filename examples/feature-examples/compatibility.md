@@ -23,9 +23,9 @@ SDK Version: 0.4.2
 
 | Agent | Use Case | Status | Duration | Notes |
 |-------|----------|--------|----------|-------|
-| opencode | elicitation-acp | xfail | 17.7s | [xfail: ACP protocol has not added full elicitation support yet] Timeout (10000ms): elicitation-acp execution |
-| opencode | single-prompt | pass | 10.4s |  |
-| codex-acp | elicitation-acp | xfail | 14.2s | [xfail: codex-acp does not advertise or send session/elicitation (uses permission requests instead)] Agent did not trigger session_elicitation |
-| codex-acp | single-prompt | pass | 8.6s |  |
-| claude-code | elicitation-claude | pass | 22.3s |  |
-| claude-code | single-prompt | pass | 4.5s |  |
+| opencode | elicitation-acp | xfail | 7.5s | [xfail: ACP protocol has not added full elicitation support yet] Agent did not trigger session_elicitation |
+| opencode | single-prompt | pass | 2.5s |  |
+| codex-acp | elicitation-acp | xfail | 8.1s | [xfail: codex-acp does not advertise or send session/elicitation (uses permission requests instead)] Agent did not trigger session_elicitation |
+| codex-acp | single-prompt | pass | 3.0s |  |
+| claude-code | elicitation-claude | pass | 3.8s |  |
+| claude-code | single-prompt | pass | 4.0s |  |
