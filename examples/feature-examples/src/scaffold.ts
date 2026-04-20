@@ -1,4 +1,4 @@
-import { RunloopSDK, type Secret, type NetworkPolicy } from "@runloop/api-client";
+import { RunloopSDK, type Secret } from "@runloop/api-client";
 import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import type { AgentConfig, UseCase, RunContext } from "./types.js";
@@ -13,9 +13,10 @@ interface SetupResult {
 const DEFAULT_WORKING_DIRECTORY = "/home/user";
 const SETUP_STEP_TIMEOUT_MS = 30_000;
 const SETUP_ERROR_CLEANUP_TIMEOUT_MS = 10_000;
+const DEVBOX_PROVISION_TIMEOUT_MS = 180_000; // 3 minutes for cold start with agent mounts
 
 /**
- * Provision a devbox with secrets and network policy, then initialize a connection.
+ * Provision a devbox with secrets, then initialize a connection.
  * See inline comments for best-practice patterns.
  */
 export async function setup(agent: AgentConfig, useCase: UseCase): Promise<SetupResult> {
@@ -66,37 +67,42 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
     devboxSecretsMap[devboxEnv] = secret.name;
   }
 
-  // Apply a network policy. Use allowed_hostnames in production for tighter control.
-  log("Creating network policy...");
-  const networkPolicy: NetworkPolicy = await sdk.networkPolicy.create({
-    name: `${resourcePrefix}-policy`,
-    allow_all: true,
-  });
-
   log("Creating devbox...");
-  const devbox = await sdk.devbox.create({
-    name: resourcePrefix,
-    ...(mergedAgent.blueprint && { blueprint_name: mergedAgent.blueprint }),
-    mounts: [
-      {
-        type: "broker_mount",
-        axon_id: axon.id,
-        protocol: mergedAgent.mount.protocol,
-        ...(mergedAgent.mount.agent_binary && { agent_binary: mergedAgent.mount.agent_binary }),
-        ...(mergedAgent.mount.launch_args && { launch_args: mergedAgent.mount.launch_args }),
-        ...(mergedAgent.mount.working_directory && {
-          working_directory: mergedAgent.mount.working_directory,
-        }),
+  const devbox = await sdk.devbox.create(
+    {
+      name: resourcePrefix,
+      ...(mergedAgent.blueprint && { blueprint_name: mergedAgent.blueprint }),
+      mounts: [
+        ...(mergedAgent.agentMount
+          ? [
+              {
+                type: "agent_mount" as const,
+                agent_id: null,
+                agent_name: mergedAgent.agentMount.agent_name,
+              },
+            ]
+          : []),
+        {
+          type: "broker_mount",
+          axon_id: axon.id,
+          protocol: mergedAgent.mount.protocol,
+          ...(mergedAgent.mount.agent_binary && { agent_binary: mergedAgent.mount.agent_binary }),
+          ...(mergedAgent.mount.launch_args && { launch_args: mergedAgent.mount.launch_args }),
+          ...(mergedAgent.mount.working_directory && {
+            working_directory: mergedAgent.mount.working_directory,
+          }),
+        },
+      ],
+      ...(Object.keys(devboxSecretsMap).length > 0 && { secrets: devboxSecretsMap }),
+      launch_parameters: {
+        keep_alive_time_seconds: 300,
       },
-    ],
-    ...(Object.keys(devboxSecretsMap).length > 0 && { secrets: devboxSecretsMap }),
-    launch_parameters: {
-      network_policy_id: networkPolicy.id,
     },
-  });
+    { longPoll: { timeoutMs: DEVBOX_PROVISION_TIMEOUT_MS } },
+  );
   log(`Devbox ready: ${devbox.id}`);
 
-  // Cleanup: delete secrets and policy after devbox shutdown (for example only).
+  // Cleanup: delete secrets after devbox shutdown (for example only).
   const cleanup = async () => {
     log("Shutting down devbox...");
     await devbox.shutdown();
@@ -108,13 +114,6 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
       } catch (err) {
         log(`Failed to delete secret (continuing): ${err instanceof Error ? err.message : String(err)}`);
       }
-    }
-
-    log("Deleting network policy...");
-    try {
-      await networkPolicy.delete();
-    } catch (err) {
-      log(`Failed to delete network policy (continuing): ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 

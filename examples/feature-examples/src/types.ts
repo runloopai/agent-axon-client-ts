@@ -38,6 +38,11 @@ export interface AgentConfig {
 
   /** If false, agent is skipped in compatibility runs. Defaults to true. */
   enabled?: boolean;
+
+  /** Agent mount configuration. When set, an agent_mount is added to the devbox mounts. */
+  agentMount?: {
+    agent_name: string;
+  };
 }
 
 /**

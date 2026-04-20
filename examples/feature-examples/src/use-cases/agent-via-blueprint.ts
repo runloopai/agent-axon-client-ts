@@ -25,6 +25,7 @@ export default {
   provisionOverridesByAgent: {
     opencode: {
       blueprint: "axon-agents",
+      agentMount: undefined,
       mount: {
         protocol: "acp",
         agent_binary: "/home/user/.opencode/bin/opencode",
@@ -33,6 +34,7 @@ export default {
     },
     "codex-acp": {
       blueprint: "axon-agents",
+      agentMount: undefined,
       mount: {
         protocol: "acp",
         agent_binary: "/usr/local/bin/codex-acp",
@@ -41,6 +43,7 @@ export default {
     },
     "claude-code": {
       blueprint: "axon-agents",
+      agentMount: undefined,
       mount: {
         protocol: "claude_json",
         agent_binary: "/home/user/.local/bin/claude",
