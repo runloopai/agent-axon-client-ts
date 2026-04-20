@@ -12,8 +12,8 @@ export interface AgentConfig {
   /** Which protocol this agent uses. */
   protocol: "acp" | "claude";
 
-  /** Runloop blueprint name (e.g., "axon-agents"). */
-  blueprint: string;
+  /** Runloop blueprint name. Optional when using agent mounts. */
+  blueprint?: string;
 
   /** Mount configuration for the broker. */
   mount: {
@@ -62,8 +62,15 @@ export interface UseCase {
   /** Per-use-case timeout in ms. Overrides the default. */
   timeoutMs?: number;
 
-  /** Optional provisioning overrides for special cases. */
+  /** Optional provisioning overrides for special cases (applies to all agents). */
   provisionOverrides?: Partial<AgentConfig>;
+
+  /**
+   * Per-agent provisioning overrides, keyed by agent name.
+   * Applied after provisionOverrides for agent-specific configuration.
+   * E.g., to use a different blueprint or binary path for specific agents.
+   */
+  provisionOverridesByAgent?: Record<string, Partial<AgentConfig>>;
 
   /**
    * For ACP use cases that need the full Client interface (e.g., elicitation),

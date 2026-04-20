@@ -26,7 +26,12 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
 
   const sdk = new RunloopSDK({ bearerToken: runloopApiKey });
 
-  const mergedAgent = mergeOverrides(agent, useCase.provisionOverrides);
+  // Apply use-case-level overrides, then per-agent overrides.
+  const withUseCaseOverrides = mergeOverrides(agent, useCase.provisionOverrides);
+  const mergedAgent = mergeOverrides(
+    withUseCaseOverrides,
+    useCase.provisionOverridesByAgent?.[agent.name],
+  );
 
   // Validate that all required secrets are available in the local environment.
   const secretsConfig = mergedAgent.secrets ?? {};
@@ -71,7 +76,7 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
   log("Creating devbox...");
   const devbox = await sdk.devbox.create({
     name: resourcePrefix,
-    blueprint_name: mergedAgent.blueprint,
+    ...(mergedAgent.blueprint && { blueprint_name: mergedAgent.blueprint }),
     mounts: [
       {
         type: "broker_mount",

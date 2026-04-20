@@ -4,20 +4,54 @@ import type { UseCase } from "../types.js";
 import { waitFor } from "../validator.js";
 
 const PROMPT = "Say hello world";
-// prompt() can resolve *before* the broker flushes session/update
-// notifications for this turn, so give chunks a grace window to arrive.
 const ACP_CHUNK_WAIT_MS = 5_000;
 
-/** Single-prompt: send one prompt, receive a text response. */
+/**
+ * Demonstrates using a pre-built blueprint with agents baked in.
+ *
+ * This use case shows the `provisionOverridesByAgent` pattern for configuring
+ * blueprint + binary paths per agent. The axon-agents blueprint has agents
+ * pre-installed, giving the fastest cold-start and reproducible environment.
+ *
+ * Prerequisites: The `axon-agents` blueprint must exist on your Runloop account.
+ * Run `bun run build-blueprint` from the repo root to create it.
+ */
 export default {
-  name: "single-prompt",
-  description: "Send one prompt, receive text response",
+  name: "agent-via-blueprint",
+  description: "Use pre-built blueprint with agents baked in",
   protocols: ["acp", "claude"],
   timeoutMs: 30_000,
 
+  provisionOverridesByAgent: {
+    opencode: {
+      blueprint: "axon-agents",
+      mount: {
+        protocol: "acp",
+        agent_binary: "/home/user/.opencode/bin/opencode",
+        launch_args: ["acp"],
+      },
+    },
+    "codex-acp": {
+      blueprint: "axon-agents",
+      mount: {
+        protocol: "acp",
+        agent_binary: "/usr/local/bin/codex-acp",
+        working_directory: "/home/user",
+      },
+    },
+    "claude-code": {
+      blueprint: "axon-agents",
+      mount: {
+        protocol: "claude_json",
+        agent_binary: "/home/user/.local/bin/claude",
+        launch_args: ["--dangerously-skip-permissions"],
+      },
+    },
+  },
+
   async run(ctx) {
     if (ctx.acp) {
-      ctx.log("Running ACP path...");
+      ctx.log("Running ACP path (via blueprint)...");
 
       const chunks: string[] = [];
       const unsub = ctx.acp.onSessionUpdate((_sessionId, update) => {
@@ -41,9 +75,9 @@ export default {
         throw new Error("Agent did not respond with any text");
       }
 
-      ctx.log("Pass: Agent responded with text");
+      ctx.log("Pass: Agent responded with text (via blueprint)");
     } else if (ctx.claude) {
-      ctx.log("Running Claude path...");
+      ctx.log("Running Claude path (via blueprint)...");
 
       let hasAssistantText = false;
       let resultError: string | undefined;
@@ -70,7 +104,7 @@ export default {
       if (resultError) throw new Error(resultError);
       if (!hasAssistantText) throw new Error("Assistant did not respond with any text");
 
-      ctx.log("Pass: Agent responded with text");
+      ctx.log("Pass: Agent responded with text (via blueprint)");
     } else {
       ctx.skip("No connection available");
     }

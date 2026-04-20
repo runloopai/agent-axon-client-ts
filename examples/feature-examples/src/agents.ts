@@ -1,6 +1,7 @@
 import type { AgentConfig } from "./types.js";
 
 // API keys are injected via secrets in scaffold.ts, not here.
+// Uses the axon-agents blueprint with pre-installed agent binaries.
 export const AGENTS: AgentConfig[] = [
   {
     name: "opencode",
