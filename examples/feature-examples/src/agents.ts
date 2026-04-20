@@ -1,28 +1,31 @@
 import type { AgentConfig } from "./types.js";
 
-// API keys are injected via secrets in scaffold.ts, not here.
-// Uses agent mounts to install agents dynamically on the starter image.
+/**
+ * Default agent configurations.
+ *
+ * All agents use the "agent-mount" install strategy: a starter blueprint +
+ * agent mount to install the agent at provision time. API keys are injected
+ * via secrets in scaffold.ts, not here.
+ */
 export const AGENTS: AgentConfig[] = [
   {
     name: "opencode",
     protocol: "acp",
-    blueprint: "runloop/starter-x86_64",
-    agentMount: { agent_name: "opencode" },
-    mount: {
+    install: { kind: "agent-mount", agentName: "opencode", blueprint: "runloop/starter-x86_64" },
+    brokerMount: {
       protocol: "acp",
-      agent_binary: "opencode",
-      launch_args: ["acp"],
+      agentBinary: "opencode",
+      launchArgs: ["acp"],
     },
   },
   {
     name: "codex-acp",
     protocol: "acp",
-    blueprint: "runloop/starter-x86_64",
-    agentMount: { agent_name: "codex-acp" },
-    mount: {
+    install: { kind: "agent-mount", agentName: "codex-acp", blueprint: "runloop/starter-x86_64" },
+    brokerMount: {
       protocol: "acp",
-      agent_binary: "codex-acp",
-      working_directory: "/home/user",
+      agentBinary: "codex-acp",
+      workingDirectory: "/home/user",
     },
     secrets: { OPENAI_API_KEY: "OPENAI_API_KEY" },
     acpAuthMethodId: "openai-api-key",
@@ -30,12 +33,11 @@ export const AGENTS: AgentConfig[] = [
   {
     name: "claude-code",
     protocol: "claude",
-    blueprint: "runloop/starter-x86_64",
-    agentMount: { agent_name: "claude-code" },
-    mount: {
+    install: { kind: "agent-mount", agentName: "claude-code", blueprint: "runloop/starter-x86_64" },
+    brokerMount: {
       protocol: "claude_json",
-      agent_binary: "claude",
-      launch_args: ["--dangerously-skip-permissions"],
+      agentBinary: "claude",
+      launchArgs: ["--dangerously-skip-permissions"],
     },
     secrets: { ANTHROPIC_API_KEY: "ANTHROPIC_API_KEY" },
   },

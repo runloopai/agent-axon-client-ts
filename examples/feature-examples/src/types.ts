@@ -3,25 +3,47 @@ import type { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
 import type { Client, Agent } from "@agentclientprotocol/sdk";
 
 /**
+ * How the agent gets installed on the devbox.
+ *
+ * - **agent-mount**: Use a starter blueprint + Runloop agent mount. Adds an `agent_mount`
+ *   entry to the devbox so the agent is installed at provision time.
+ * - **blueprint**: Agent is pre-baked into a custom blueprint. No `agent_mount` needed;
+ *   the broker mount points directly at the binary path.
+ */
+export type InstallStrategy =
+  | { kind: "agent-mount"; agentName: string; blueprint: string }
+  | { kind: "blueprint"; blueprint: string };
+
+/**
+ * Broker mount configuration — wires Axon to the agent process.
+ * Maps directly to the Runloop `broker_mount` API shape.
+ */
+export interface BrokerMount {
+  /** Broker protocol: "acp" for ACP agents, "claude_json" for Claude Code. */
+  protocol: "acp" | "claude_json";
+  /** Path or name of the agent binary. */
+  agentBinary?: string;
+  /** CLI args passed to the agent binary. */
+  launchArgs?: string[];
+  /** Working directory for the agent process (also used as ACP session cwd). */
+  workingDirectory?: string;
+}
+
+/**
  * Defines how to provision a specific agent.
  */
 export interface AgentConfig {
   /** Unique identifier (e.g., "opencode", "claude-code"). */
   name: string;
 
-  /** Which protocol this agent uses. */
+  /** Which protocol this agent uses (client-side). */
   protocol: "acp" | "claude";
 
-  /** Runloop blueprint name. Optional when using agent mounts. */
-  blueprint?: string;
+  /** How to install the agent on the devbox. */
+  install: InstallStrategy;
 
-  /** Mount configuration for the broker. */
-  mount: {
-    protocol: "acp" | "claude_json";
-    agent_binary?: string;
-    launch_args?: string[];
-    working_directory?: string;
-  };
+  /** Broker mount configuration — wires Axon to the agent process. */
+  brokerMount: BrokerMount;
 
   /**
    * ACP auth method ID to negotiate with `authenticate()` after `initialize()`.
@@ -38,11 +60,6 @@ export interface AgentConfig {
 
   /** If false, agent is skipped in compatibility runs. Defaults to true. */
   enabled?: boolean;
-
-  /** Agent mount configuration. When set, an agent_mount is added to the devbox mounts. */
-  agentMount?: {
-    agent_name: string;
-  };
 }
 
 /**
@@ -50,6 +67,22 @@ export interface AgentConfig {
  * Matches the SDK's CreateClientFn signature directly.
  */
 export type CreateClientFn = (agent: Agent) => Client;
+
+/**
+ * Overrides for agent provisioning. Use-cases can specify a different install
+ * strategy and/or broker mount settings per-agent.
+ *
+ * - `install` replaces the entire install strategy when provided.
+ * - `brokerMount` is shallow-merged with the base config.
+ * - Other fields (`secrets`, `env`, `acpAuthMethodId`) are shallow-merged or replaced.
+ */
+export interface AgentConfigOverride {
+  install?: InstallStrategy;
+  brokerMount?: Partial<BrokerMount>;
+  acpAuthMethodId?: string;
+  env?: Record<string, string>;
+  secrets?: Record<string, string>;
+}
 
 /**
  * Defines a single compatibility test / use case.
@@ -68,14 +101,14 @@ export interface UseCase {
   timeoutMs?: number;
 
   /** Optional provisioning overrides for special cases (applies to all agents). */
-  provisionOverrides?: Partial<AgentConfig>;
+  provisionOverrides?: AgentConfigOverride;
 
   /**
    * Per-agent provisioning overrides, keyed by agent name.
    * Applied after provisionOverrides for agent-specific configuration.
    * E.g., to use a different blueprint or binary path for specific agents.
    */
-  provisionOverridesByAgent?: Record<string, Partial<AgentConfig>>;
+  provisionOverridesByAgent?: Record<string, AgentConfigOverride>;
 
   /**
    * For ACP use cases that need the full Client interface (e.g., elicitation),

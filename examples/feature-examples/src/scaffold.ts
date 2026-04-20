@@ -1,7 +1,7 @@
 import { RunloopSDK, type Secret } from "@runloop/api-client";
 import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
 import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
-import type { AgentConfig, UseCase, RunContext } from "./types.js";
+import type { AgentConfig, AgentConfigOverride, BrokerMount, UseCase, RunContext } from "./types.js";
 import { SkipError } from "./types.js";
 import { withTimeout } from "./validator.js";
 
@@ -17,7 +17,8 @@ const DEVBOX_PROVISION_TIMEOUT_MS = 180_000; // 3 minutes for cold start with ag
 
 /**
  * Provision a devbox with secrets, then initialize a connection.
- * See inline comments for best-practice patterns.
+ *
+ * Flow: merge config → validate → create resources → create devbox → connect.
  */
 export async function setup(agent: AgentConfig, useCase: UseCase): Promise<SetupResult> {
   const runloopApiKey = process.env.RUNLOOP_API_KEY;
@@ -27,12 +28,15 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
 
   const sdk = new RunloopSDK({ bearerToken: runloopApiKey });
 
-  // Apply use-case-level overrides, then per-agent overrides.
-  const withUseCaseOverrides = mergeOverrides(agent, useCase.provisionOverrides);
-  const mergedAgent = mergeOverrides(
+  // Merge use-case overrides, then per-agent overrides.
+  const withUseCaseOverrides = applyOverrides(agent, useCase.provisionOverrides);
+  const mergedAgent = applyOverrides(
     withUseCaseOverrides,
     useCase.provisionOverridesByAgent?.[agent.name],
   );
+
+  // Validate merged config before provisioning.
+  validateConfig(mergedAgent);
 
   // Validate that all required secrets are available in the local environment.
   const secretsConfig = mergedAgent.secrets ?? {};
@@ -67,32 +71,15 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
     devboxSecretsMap[devboxEnv] = secret.name;
   }
 
+  // Build the devbox mounts array from the merged config.
+  const mounts = buildDevboxMounts(axon.id, mergedAgent);
+
   log("Creating devbox...");
   const devbox = await sdk.devbox.create(
     {
       name: resourcePrefix,
-      ...(mergedAgent.blueprint && { blueprint_name: mergedAgent.blueprint }),
-      mounts: [
-        ...(mergedAgent.agentMount
-          ? [
-              {
-                type: "agent_mount" as const,
-                agent_id: null,
-                agent_name: mergedAgent.agentMount.agent_name,
-              },
-            ]
-          : []),
-        {
-          type: "broker_mount",
-          axon_id: axon.id,
-          protocol: mergedAgent.mount.protocol,
-          ...(mergedAgent.mount.agent_binary && { agent_binary: mergedAgent.mount.agent_binary }),
-          ...(mergedAgent.mount.launch_args && { launch_args: mergedAgent.mount.launch_args }),
-          ...(mergedAgent.mount.working_directory && {
-            working_directory: mergedAgent.mount.working_directory,
-          }),
-        },
-      ],
+      blueprint_name: mergedAgent.install.blueprint,
+      mounts,
       ...(Object.keys(devboxSecretsMap).length > 0 && { secrets: devboxSecretsMap }),
       launch_parameters: {
         keep_alive_time_seconds: 300,
@@ -150,7 +137,7 @@ export async function setup(agent: AgentConfig, useCase: UseCase): Promise<Setup
       log("Creating session...");
       const session = await withTimeout(
         conn.newSession({
-          cwd: mergedAgent.mount.working_directory ?? DEFAULT_WORKING_DIRECTORY,
+          cwd: mergedAgent.brokerMount.workingDirectory ?? DEFAULT_WORKING_DIRECTORY,
           mcpServers: [],
         }),
         SETUP_STEP_TIMEOUT_MS,
@@ -220,6 +207,10 @@ export async function cleanup(ctx: RunContext): Promise<void> {
   await ctx.cleanup();
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 async function cleanupAfterSetupError(
   cleanupFn: () => Promise<void>,
   log: (msg: string) => void,
@@ -233,22 +224,97 @@ async function cleanupAfterSetupError(
   }
 }
 
-function mergeOverrides(
+/**
+ * Validate that the merged config is internally consistent.
+ */
+function validateConfig(agent: AgentConfig): void {
+  // Ensure broker protocol matches client protocol expectation.
+  const expectedBrokerProtocol = agent.protocol === "acp" ? "acp" : "claude_json";
+  if (agent.brokerMount.protocol !== expectedBrokerProtocol) {
+    throw new Error(
+      `Config error for ${agent.name}: protocol "${agent.protocol}" expects brokerMount.protocol "${expectedBrokerProtocol}", got "${agent.brokerMount.protocol}"`,
+    );
+  }
+}
+
+/**
+ * Build the devbox mounts array from the agent config.
+ *
+ * - **catalog** install: adds an `agent_mount` (to install from catalog) + `broker_mount`.
+ * - **blueprint** install: only a `broker_mount` (agent is pre-baked).
+ */
+function buildDevboxMounts(
+  axonId: string,
   agent: AgentConfig,
-  overrides?: Partial<AgentConfig>,
-): AgentConfig {
+): Array<
+  | { type: "agent_mount"; agent_id: null; agent_name: string }
+  | {
+      type: "broker_mount";
+      axon_id: string;
+      protocol: "acp" | "claude_json";
+      agent_binary?: string;
+      launch_args?: string[];
+      working_directory?: string;
+    }
+> {
+  const brokerMount = buildBrokerMount(axonId, agent.brokerMount);
+
+  if (agent.install.kind === "agent-mount") {
+    const agentMount = {
+      type: "agent_mount" as const,
+      agent_id: null,
+      agent_name: agent.install.agentName,
+    };
+    return [agentMount, brokerMount];
+  }
+
+  // Blueprint install: agent is already in the image.
+  return [brokerMount];
+}
+
+/**
+ * Build a broker_mount object from the BrokerMount config.
+ */
+function buildBrokerMount(
+  axonId: string,
+  config: BrokerMount,
+): {
+  type: "broker_mount";
+  axon_id: string;
+  protocol: "acp" | "claude_json";
+  agent_binary?: string;
+  launch_args?: string[];
+  working_directory?: string;
+} {
+  return {
+    type: "broker_mount" as const,
+    axon_id: axonId,
+    protocol: config.protocol,
+    ...(config.agentBinary && { agent_binary: config.agentBinary }),
+    ...(config.launchArgs && { launch_args: config.launchArgs }),
+    ...(config.workingDirectory && { working_directory: config.workingDirectory }),
+  };
+}
+
+/**
+ * Apply overrides to an agent config.
+ *
+ * - `install` replaces entirely when provided.
+ * - `brokerMount` is shallow-merged.
+ * - `env` and `secrets` are shallow-merged.
+ * - Other fields replace when provided.
+ */
+function applyOverrides(agent: AgentConfig, overrides?: AgentConfigOverride): AgentConfig {
   if (!overrides) return agent;
 
   return {
     ...agent,
-    ...overrides,
-    // agentMount uses replace semantics (set to undefined to clear).
-    agentMount: "agentMount" in overrides ? overrides.agentMount : agent.agentMount,
-    // Sub-objects are shallow-merged so partial updates work.
-    mount: {
-      ...agent.mount,
-      ...overrides.mount,
+    install: overrides.install ?? agent.install,
+    brokerMount: {
+      ...agent.brokerMount,
+      ...overrides.brokerMount,
     },
+    acpAuthMethodId: overrides.acpAuthMethodId ?? agent.acpAuthMethodId,
     env: {
       ...agent.env,
       ...overrides.env,

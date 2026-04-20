@@ -4,9 +4,9 @@ import singlePrompt from "./single-prompt.js";
 /**
  * Demonstrates using a pre-built blueprint with agents baked in.
  *
- * This use case shows the `provisionOverridesByAgent` pattern for configuring
- * blueprint + binary paths per agent. The axon-agents blueprint has agents
- * pre-installed, giving the fastest cold-start and reproducible environment.
+ * This use case shows the `provisionOverridesByAgent` pattern for switching
+ * from catalog install to blueprint install. The `axon-agents` blueprint has
+ * agents pre-installed, giving the fastest cold-start and reproducible environment.
  *
  * The test body is identical to single-prompt — the interesting part is the
  * provisioning configuration, not the prompt logic.
@@ -22,30 +22,24 @@ export default {
 
   provisionOverridesByAgent: {
     opencode: {
-      blueprint: "axon-agents",
-      agentMount: undefined,
-      mount: {
-        protocol: "acp",
-        agent_binary: "/home/user/.opencode/bin/opencode",
-        launch_args: ["acp"],
+      install: { kind: "blueprint", blueprint: "axon-agents" },
+      brokerMount: {
+        agentBinary: "/home/user/.opencode/bin/opencode",
+        launchArgs: ["acp"],
       },
     },
     "codex-acp": {
-      blueprint: "axon-agents",
-      agentMount: undefined,
-      mount: {
-        protocol: "acp",
-        agent_binary: "/usr/local/bin/codex-acp",
-        working_directory: "/home/user",
+      install: { kind: "blueprint", blueprint: "axon-agents" },
+      brokerMount: {
+        agentBinary: "/usr/local/bin/codex-acp",
+        workingDirectory: "/home/user",
       },
     },
     "claude-code": {
-      blueprint: "axon-agents",
-      agentMount: undefined,
-      mount: {
-        protocol: "claude_json",
-        agent_binary: "/home/user/.local/bin/claude",
-        launch_args: ["--dangerously-skip-permissions"],
+      install: { kind: "blueprint", blueprint: "axon-agents" },
+      brokerMount: {
+        agentBinary: "/home/user/.local/bin/claude",
+        launchArgs: ["--dangerously-skip-permissions"],
       },
     },
   },
