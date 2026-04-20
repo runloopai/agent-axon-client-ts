@@ -24,6 +24,13 @@
         "@runloop/api-client": "^1.20.0",
       },
     },
+    "examples/blueprint": {
+      "name": "@runloop/example-blueprint",
+      "version": "0.1.0",
+      "dependencies": {
+        "@runloop/api-client": "^1.20.0",
+      },
+    },
     "examples/claude-cli": {
       "name": "@runloop/example-claude-cli",
       "version": "0.1.0",
@@ -85,7 +92,7 @@
     },
     "sdk": {
       "name": "@runloop/agent-axon-client",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "dependencies": {
         "@agentclientprotocol/sdk": "0.18.0",
       },
@@ -341,6 +348,8 @@
     "@runloop/example-acp-cli": ["@runloop/example-acp-cli@workspace:examples/acp-cli"],
 
     "@runloop/example-acp-hello-world": ["@runloop/example-acp-hello-world@workspace:examples/acp-hello-world"],
+
+    "@runloop/example-blueprint": ["@runloop/example-blueprint@workspace:examples/blueprint"],
 
     "@runloop/example-claude-cli": ["@runloop/example-claude-cli@workspace:examples/claude-cli"],
 

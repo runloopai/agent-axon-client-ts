@@ -4,6 +4,12 @@
  * Creates a Runloop Devbox, connects via ClaudeAxonConnection,
  * sends a single prompt, prints the response, and exits.
  *
+ * Prerequisites:
+ *   - RUNLOOP_API_KEY and ANTHROPIC_API_KEY must be set
+ *   - The shared `axon-agents` blueprint must exist on your Runloop account.
+ *     From the repo root, run `bun run build-blueprint` once before running
+ *     this example. See examples/blueprint/README.md for details.
+ *
  * Usage:
  *   bun run claude-hello-world.ts
  *   bun run claude-hello-world.ts --model haiku-4.5
@@ -23,7 +29,7 @@ const { values: args } = parseArgs({
 });
 
 const MODEL = args.model ?? null;
-const DEFAULT_BLUEPRINT_NAME = "runloop/agents";
+const DEFAULT_BLUEPRINT_NAME = "axon-agents";
 
 // ---------------------------------------------------------------------------
 // Resolve ANTHROPIC_API_KEY — prompt interactively if missing

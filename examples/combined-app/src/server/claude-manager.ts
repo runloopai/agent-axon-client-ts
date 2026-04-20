@@ -57,7 +57,7 @@ export class ClaudeConnectionManager {
     this.ws.broadcast(this.tag({ type: "connection_progress", step: "Provisioning sandbox..." }));
     const devbox = await sdk.devbox.create({
       name: "combined-app-claude",
-      blueprint_name: opts.blueprintName ?? "runloop/agents",
+      blueprint_name: opts.blueprintName ?? "axon-agents",
       mounts: [
         {
           type: "broker_mount" as const,

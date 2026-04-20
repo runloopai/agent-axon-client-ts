@@ -484,7 +484,7 @@ conn.onTimelineEvent((event: ACPTimelineEvent) => {
   switch (event.kind) {
     case "acp_protocol":
       // event.eventType narrows the data type (e.g. "session/update" -> SessionNotification, "initialize" -> InitializeRequest | InitializeResponse)
-      // event.axonEvent.origin tells you direction: USER_EVENT (outbound) or AGENT_EVENT (inbound)
+      // Use isFromAgent(event) / isFromUser(event) to check direction (or event.axonEvent.origin directly)
       break;
     case "system":
       // event.data is SystemEvent: { type: "turn.started", turnId } | { type: "turn.completed", turnId, stopReason? } | { type: "broker.error", message }
@@ -661,6 +661,8 @@ interface AxonEventView {
   timestamp_ms: number;
 }
 ```
+
+Use `isFromAgent(event)` / `isFromUser(event)` to check the origin instead of comparing strings directly. These helpers accept both `AxonEventView` and timeline events.
 
 ### `AxonEventListener`
 

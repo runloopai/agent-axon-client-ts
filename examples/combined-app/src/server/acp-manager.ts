@@ -92,7 +92,7 @@ export class ACPConnectionManager {
     );
     const devbox = await sdk.devbox.create({
       name: "combined-app-acp",
-      blueprint_name: "runloop/agents",
+      blueprint_name: "axon-agents",
       mounts: [
         {
           type: "broker_mount" as const,

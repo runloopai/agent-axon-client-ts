@@ -280,17 +280,40 @@ See the [SDK documentation](sdk/README.md#custom-events-via-publish-and-tryparse
 
 See the [SDK documentation](sdk/README.md) for the full API reference, or browse the [hosted API docs](https://runloopai.github.io/agent-axon-client-ts/).
 
+## Getting Agents onto the Devbox
+
+There are two ways to ensure your agent binary is available on the devbox before execution starts:
+
+- **Agent mounts (late-binding)** — Install the agent at devbox creation time via a mount. The agent lands on the box just before the broker mount connects it to Axon. This works with any standard Runloop image, so you can pick or customize the base environment independently from the agent.
+- **Blueprints (pre-baked)** — Bake the agent (and any other tooling) directly into a custom devbox image. Subsequent devbox creations skip the install step entirely, giving you the fastest cold-start and a reproducible, versioned environment.
+
+The standalone examples (hello-world, CLI, combined-app) use a pre-baked **blueprint** for the fastest cold-start; the [feature-examples](examples/feature-examples/) default to **agent mounts** so they work with any standard image. Pick whichever fits your workflow — for example, blueprints when you want reproducible images, or mounts when you need to swap agent versions frequently or avoid maintaining custom images.
+
 ## Repository Structure
 
 ```
 sdk/                      → @runloop/agent-axon-client (the published npm package)
 examples/
+  blueprint/              → Builds the shared `axon-agents` blueprint (run this first)
   acp-hello-world/        → Minimal ACP single-prompt script
   acp-cli/                → Interactive ACP REPL
   claude-hello-world/     → Minimal Claude single-prompt script
   claude-cli/             → Interactive Claude REPL
   combined-app/           → Full-stack combined demo (Claude + ACP, Express + React)
+  feature-examples/       → Runnable SDK recipes (single-prompt, elicitation, etc.)
 ```
+
+### Running the examples
+
+> **Run the blueprint example first.** Every other example creates a devbox with `blueprint_name: "axon-agents"`. That blueprint is built by [`examples/blueprint`](examples/blueprint/) and must exist on your Runloop account before any other example will succeed.
+>
+> ```bash
+> bun install
+> bun run build
+> bun run build-blueprint   # one-time — builds the axon-agents blueprint
+> ```
+>
+> After the blueprint reports `build_complete`, you can run any of the other examples. See [`examples/blueprint/README.md`](examples/blueprint/README.md) for details and [`examples/README.md`](examples/README.md) for the full example index.
 
 ## Development
 

@@ -62,6 +62,7 @@ export {
   ClientSideConnection,
   PROTOCOL_VERSION,
 } from "@agentclientprotocol/sdk";
+export { isFromAgent, isFromUser } from "../shared/origin-guards.js";
 export { tryParseSystemEvent, tryParseTimelinePayload } from "../shared/timeline.js";
 export type {
   AxonEventListener,

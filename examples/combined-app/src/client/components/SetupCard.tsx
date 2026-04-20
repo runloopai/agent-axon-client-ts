@@ -108,8 +108,8 @@ export function SetupCard({
           <>
             <div className="form-group">
               <label>Blueprint Name</label>
-              <div className="form-hint">Runloop blueprint for the sandbox. Defaults to <code>runloop/agents</code>.</div>
-              <input value={blueprintName} onChange={(e) => setBlueprintName(e.target.value)} placeholder="runloop/agents" disabled={connecting} />
+              <div className="form-hint">Runloop blueprint for the sandbox. Defaults to <code>axon-agents</code>.</div>
+              <input value={blueprintName} onChange={(e) => setBlueprintName(e.target.value)} placeholder="axon-agents" disabled={connecting} />
             </div>
             <div className="form-group">
               <label>Model</label>

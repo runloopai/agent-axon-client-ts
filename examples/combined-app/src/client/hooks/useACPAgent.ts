@@ -19,6 +19,7 @@ import {
   isTurnCompletedEvent,
   isSessionUpdateEvent,
   isInitializeEvent,
+  isFromAgent,
   extractACPUserMessage,
 } from "@runloop/agent-axon-client/acp";
 import type { AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, InitializeResponse } from "@runloop/agent-axon-client/acp";
@@ -479,7 +480,7 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
       }
       return;
     }
-    if (isInitializeEvent(tlEvent) && tlEvent.axonEvent.origin === "AGENT_EVENT") {
+    if (isInitializeEvent(tlEvent) && isFromAgent(tlEvent)) {
       const payload = tlEvent.data as InitializeResponse;
       const info = payload.agentInfo ?? null;
       const caps = payload.agentCapabilities ?? null;
