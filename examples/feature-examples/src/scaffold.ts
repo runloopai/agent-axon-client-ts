@@ -242,6 +242,9 @@ function mergeOverrides(
   return {
     ...agent,
     ...overrides,
+    // agentMount uses replace semantics (set to undefined to clear).
+    agentMount: "agentMount" in overrides ? overrides.agentMount : agent.agentMount,
+    // Sub-objects are shallow-merged so partial updates work.
     mount: {
       ...agent.mount,
       ...overrides.mount,

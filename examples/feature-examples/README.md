@@ -4,7 +4,7 @@ Runnable SDK recipes demonstrating individual features of `@runloop/agent-axon-c
 
 ## Prerequisites
 
-The shared `axon-agents` blueprint must exist on your Runloop account before anything here will run. Build it once from the repo root:
+Most use cases run against `runloop/starter-x86_64` and show how to load an angent using agent mounts without setup. The `agent-via-blueprint` use case demonstrates how to build an agent into a blueprint for faster loading. The shared `axon-agents` blueprint demonstrates this flow — build it once from the repo root before running the full suite:
 
 ```bash
 bun run build-blueprint

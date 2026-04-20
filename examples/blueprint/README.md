@@ -2,7 +2,7 @@
 
 > **Alpha — subject to change.** This example uses an SDK in early development. APIs and behavior may change without notice between versions.
 
-Builds the shared `axon-agents` Runloop [blueprint](https://docs.runloop.ai/guides/blueprints) that every other example in this repo depends on. The blueprint bakes the agent binaries (Claude Code, OpenCode, Codex ACP, Cursor) into a devbox image so subsequent devboxes start quickly and reproducibly.
+Builds the shared `axon-agents` Runloop [blueprint](https://docs.runloop.ai/guides/blueprints) used by examples that demonstrate pre-baked agent images. The blueprint bakes the agent binaries (Claude Code, OpenCode, Codex ACP) into a devbox image so subsequent devboxes start quickly and reproducibly.
 
 **You must run this once before any other example will work.** The other examples create devboxes with `blueprint_name: "axon-agents"` — if that blueprint does not exist on your Runloop account, devbox creation will fail.
 
@@ -43,7 +43,6 @@ See [`Dockerfile`](Dockerfile) for the exact contents. At the time of writing it
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) — for the Claude module examples
 - [OpenCode](https://opencode.ai) — for ACP examples using OpenCode
 - [Codex ACP](https://www.npmjs.com/package/@zed-industries/codex-acp) — for ACP examples using Codex
-- [Cursor CLI](https://cursor.com) — for ACP examples using Cursor agent
 
 ## Alternatives
 

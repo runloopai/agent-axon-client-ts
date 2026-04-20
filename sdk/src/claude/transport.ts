@@ -24,7 +24,8 @@ import type { WireData } from "./types.js";
 /**
  * Returns `true` if the event is a `control_request` (agent requesting permission).
  *
- * This is a Claude protocol-specific event type.
+ * This checks the event *type* only; pair with {@link isFromAgent} to confirm
+ * direction (control requests originate from the agent).
  *
  * @param event - An AxonEventView to check.
  * @returns `true` if `event_type === "control_request"`.
@@ -37,7 +38,8 @@ export function isControlRequest(event: AxonEventView): boolean {
 /**
  * Returns `true` if the event is a `control_response` (client responding to permission request).
  *
- * This is a Claude protocol-specific event type.
+ * This checks the event *type* only; pair with {@link isFromUser} to confirm
+ * direction (control responses originate from the client).
  *
  * @param event - An AxonEventView to check.
  * @returns `true` if `event_type === "control_response"`.

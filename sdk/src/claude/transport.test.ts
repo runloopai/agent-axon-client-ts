@@ -7,7 +7,12 @@ import {
   makeUserEvent,
 } from "../__test-utils__/mock-axon.js";
 import { SystemError } from "../shared/errors/system-error.js";
-import { AxonTransport, MESSAGE_TYPE_TO_EVENT_TYPE } from "./transport.js";
+import {
+  AxonTransport,
+  isControlRequest,
+  isControlResponse,
+  MESSAGE_TYPE_TO_EVENT_TYPE,
+} from "./transport.js";
 
 // ---------------------------------------------------------------------------
 // MESSAGE_TYPE_TO_EVENT_TYPE constant tests (preserved from original)
@@ -34,6 +39,32 @@ describe("MESSAGE_TYPE_TO_EVENT_TYPE", () => {
       expect(MESSAGE_TYPE_TO_EVENT_TYPE[msgType]).toBe(eventType);
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// isControlRequest / isControlResponse
+// ---------------------------------------------------------------------------
+
+describe("isControlRequest", () => {
+  it("returns true when event_type is control_request", () => {
+    expect(isControlRequest({ event_type: "control_request" } as never)).toBe(true);
+  });
+
+  it("returns false for other event types", () => {
+    expect(isControlRequest({ event_type: "control_response" } as never)).toBe(false);
+    expect(isControlRequest({ event_type: "query" } as never)).toBe(false);
+  });
+});
+
+describe("isControlResponse", () => {
+  it("returns true when event_type is control_response", () => {
+    expect(isControlResponse({ event_type: "control_response" } as never)).toBe(true);
+  });
+
+  it("returns false for other event types", () => {
+    expect(isControlResponse({ event_type: "control_request" } as never)).toBe(false);
+    expect(isControlResponse({ event_type: "result" } as never)).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

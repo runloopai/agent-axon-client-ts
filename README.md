@@ -287,7 +287,7 @@ There are two ways to ensure your agent binary is available on the devbox before
 - **Agent mounts (late-binding)** — Install the agent at devbox creation time via a mount. The agent lands on the box just before the broker mount connects it to Axon. This works with any standard Runloop image, so you can pick or customize the base environment independently from the agent.
 - **Blueprints (pre-baked)** — Bake the agent (and any other tooling) directly into a custom devbox image. Subsequent devbox creations skip the install step entirely, giving you the fastest cold-start and a reproducible, versioned environment.
 
-In the demos in this repo we use **blueprints** to showcase the fastest way to launch agents. Depending on your use case, you may prefer a standard image with the agent as a late-binding mount — for example, when you need to swap agent versions frequently, combine multiple agents on demand, or avoid maintaining custom images.
+The standalone examples (hello-world, CLI, combined-app) use a pre-baked **blueprint** for the fastest cold-start; the [feature-examples](examples/feature-examples/) default to **agent mounts** so they work with any standard image. Pick whichever fits your workflow — for example, blueprints when you want reproducible images, or mounts when you need to swap agent versions frequently or avoid maintaining custom images.
 
 ## Repository Structure
 
