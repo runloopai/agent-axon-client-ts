@@ -24,6 +24,7 @@
  */
 
 import { AGENT_METHODS, CLIENT_METHODS } from "@agentclientprotocol/sdk";
+import { isFromAgent, isFromUser } from "../shared/origin-guards.js";
 import type {
   ACPInitializeTimelineEvent,
   ACPNewSessionTimelineEvent,
@@ -173,7 +174,7 @@ export function isElicitationRequestEvent(
   return (
     event.kind === "acp_protocol" &&
     event.eventType === CLIENT_METHODS.session_elicitation &&
-    event.axonEvent.origin === "AGENT_EVENT"
+    isFromAgent(event)
   );
 }
 
@@ -193,7 +194,7 @@ export function isElicitationResponseEvent(
   return (
     event.kind === "acp_protocol" &&
     event.eventType === CLIENT_METHODS.session_elicitation &&
-    event.axonEvent.origin === "USER_EVENT"
+    isFromUser(event)
   );
 }
 

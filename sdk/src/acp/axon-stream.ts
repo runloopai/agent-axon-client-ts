@@ -4,6 +4,7 @@ import type { AxonEventView } from "@runloop/api-client/resources/axons";
 import type { Axon } from "@runloop/api-client/sdk";
 import { isSystemError, SystemError } from "../shared/errors/system-error.js";
 import { makeDefaultOnError } from "../shared/logging.js";
+import { isFromAgent, isFromUser } from "../shared/origin-guards.js";
 import type { LogFn } from "../shared/types.js";
 import type { AxonStreamOptions } from "./types.js";
 
@@ -194,7 +195,7 @@ function createReadable(
               return;
             }
 
-            if (axonEvent.origin !== "AGENT_EVENT") {
+            if (!isFromAgent(axonEvent)) {
               log?.("read", `#${totalEvents} SKIP ${axonEvent.origin} ${axonEvent.event_type}`);
               continue;
             }
@@ -260,13 +261,13 @@ function processReplayEvent(
   log: LogFn | undefined,
   eventIndex: number,
 ): void {
-  if (axonEvent.origin === "USER_EVENT" && isClientMethod(axonEvent.event_type)) {
+  if (isFromUser(axonEvent) && isClientMethod(axonEvent.event_type)) {
     replayBuffer.delete(axonEvent.event_type);
     log?.("read", `#${eventIndex} REPLAY resolved ${axonEvent.event_type}`);
     return;
   }
 
-  if (axonEvent.origin === "AGENT_EVENT") {
+  if (isFromAgent(axonEvent)) {
     if (isClientMethod(axonEvent.event_type)) {
       const msg = axonEventToJsonRpc(
         axonEvent,

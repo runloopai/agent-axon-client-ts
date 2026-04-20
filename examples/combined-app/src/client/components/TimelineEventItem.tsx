@@ -6,6 +6,7 @@ import {
   isDevboxLifecycleEvent,
   isAgentErrorEvent,
   isBrokerErrorEvent,
+  isFromUser,
 } from "@runloop/agent-axon-client/acp";
 import type {
   ACPProtocolTimelineEvent,
@@ -41,7 +42,7 @@ interface TimelineSummary {
 }
 
 function summarizeACPProtocol(event: ACPProtocolTimelineEvent): TimelineSummary {
-  const isUser = event.axonEvent.origin === "USER_EVENT";
+  const isUser = isFromUser(event);
 
   switch (event.eventType) {
     case "session/update": {

@@ -7,6 +7,7 @@
  */
 
 import type { ContentBlock } from "@agentclientprotocol/sdk";
+import { isFromUser } from "./origin-guards.js";
 import type { AxonEventView } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -47,7 +48,7 @@ export function extractACPUserMessage(
   data: unknown,
   axonEvent: AxonEventView,
 ): ExtractedACPUserMessage | null {
-  if (axonEvent.origin !== "USER_EVENT") return null;
+  if (!isFromUser(axonEvent)) return null;
   if (axonEvent.event_type !== "session/prompt") return null;
 
   if (data == null || typeof data !== "object") return null;
@@ -113,7 +114,7 @@ export function extractClaudeUserMessage(
   data: unknown,
   axonEvent: AxonEventView,
 ): ExtractedClaudeUserMessage | null {
-  if (axonEvent.origin !== "USER_EVENT") return null;
+  if (!isFromUser(axonEvent)) return null;
 
   if (
     data == null ||

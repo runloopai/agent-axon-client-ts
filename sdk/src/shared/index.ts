@@ -21,6 +21,7 @@ export { SystemError, type SystemErrorEventInfo } from "./errors/system-error.js
 export { runDisconnectHook } from "./lifecycle.js";
 export { ListenerSet } from "./listener-set.js";
 export { makeDefaultOnError, makeLogger } from "./logging.js";
+export { isFromAgent, isFromUser } from "./origin-guards.js";
 export { getLastSequence } from "./replay.js";
 export {
   type ClassifyConfig,

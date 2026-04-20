@@ -64,6 +64,7 @@ export type {
   SDKUserMessage,
   SDKUserMessageReplay,
 } from "@anthropic-ai/claude-agent-sdk";
+export { isFromAgent, isFromUser } from "../shared/origin-guards.js";
 export { tryParseSystemEvent, tryParseTimelinePayload } from "../shared/timeline.js";
 export type {
   AxonEventListener,
@@ -121,6 +122,8 @@ export {
 export {
   AxonTransport,
   type AxonTransportOptions,
+  isControlRequest,
+  isControlResponse,
   type Transport,
 } from "./transport.js";
 export type {
