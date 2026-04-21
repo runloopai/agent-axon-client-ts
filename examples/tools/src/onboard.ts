@@ -4,6 +4,15 @@
  * A reusable onboarding workflow for ACP agents that exposes explicit checkpoints
  * at each setup stage: connect, initialize, authenticate, newSession, and prompt.
  *
+ * Use this tool to help you onboard a new ACP agent to Runloop. This tool helps
+ * ensure that the agent's authentication method is working correctly and that
+ * any environment variables used to control agent credentials and base URL
+ * are set correctly.
+ *
+ * Prerequisites:
+ *  - Runloop API key is set in the RUNLOOP_API_KEY environment variable.
+ *  - Use the agent API to register your agent with Runloop.
+ *
  * Usage:
  *   bun run onboard --agent qwen
  *   bun run onboard --agent qwen --pause-after initialize
@@ -32,7 +41,14 @@ import { withTimeout, waitFor } from "feature-examples/validator";
 /**
  * Onboarding stages in execution order.
  */
-const STAGES = ["devbox", "connect", "initialize", "authenticate", "newSession", "prompt"] as const;
+const STAGES = [
+  "devbox",
+  "connect",
+  "initialize",
+  "authenticate",
+  "newSession",
+  "prompt",
+] as const;
 type Stage = (typeof STAGES)[number];
 
 /**
@@ -42,7 +58,12 @@ export class OnboardingStageError extends Error {
   readonly stage: Stage;
   readonly agentName: string;
 
-  constructor(stage: Stage, agentName: string, message: string, options?: ErrorOptions) {
+  constructor(
+    stage: Stage,
+    agentName: string,
+    message: string,
+    options?: ErrorOptions,
+  ) {
     super(`[${stage}] ${message}`, options);
     this.name = "OnboardingStageError";
     this.stage = stage;
@@ -88,10 +109,13 @@ function logSubsection(title: string): void {
 async function promptToContinue(stage: Stage): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
-    rl.question(`\nPaused after '${stage}'. Press Enter to continue (or Ctrl+C to exit)... `, () => {
-      rl.close();
-      resolve();
-    });
+    rl.question(
+      `\nPaused after '${stage}'. Press Enter to continue (or Ctrl+C to exit)... `,
+      () => {
+        rl.close();
+        resolve();
+      },
+    );
   });
 }
 
@@ -120,7 +144,8 @@ Examples:
 // ---------------------------------------------------------------------------
 
 function validateConfig(agent: AgentConfig): void {
-  const expectedBrokerProtocol = agent.protocol === "acp" ? "acp" : "claude_json";
+  const expectedBrokerProtocol =
+    agent.protocol === "acp" ? "acp" : "claude_json";
   if (agent.brokerMount.protocol !== expectedBrokerProtocol) {
     throw new Error(
       `Config error for ${agent.name}: protocol "${agent.protocol}" expects brokerMount.protocol "${expectedBrokerProtocol}", got "${agent.brokerMount.protocol}"`,
@@ -145,7 +170,9 @@ function buildBrokerMount(
     protocol: config.protocol,
     ...(config.agentBinary && { agent_binary: config.agentBinary }),
     ...(config.launchArgs && { launch_args: config.launchArgs }),
-    ...(config.workingDirectory && { working_directory: config.workingDirectory }),
+    ...(config.workingDirectory && {
+      working_directory: config.workingDirectory,
+    }),
   };
 }
 
@@ -209,12 +236,20 @@ async function cleanup(ctx: OnboardContext): Promise<void> {
       log(ctx.agent.name, "cleanup", "Shutting down devbox...");
       await ctx.devbox.shutdown();
     } catch (err) {
-      log(ctx.agent.name, "cleanup", `Devbox shutdown error (continuing): ${err}`);
+      log(
+        ctx.agent.name,
+        "cleanup",
+        `Devbox shutdown error (continuing): ${err}`,
+      );
     }
   }
 
   if (ctx.axon) {
-    log(ctx.agent.name, "cleanup", `TODO: Update me to delete the Axon with ID: ${ctx.axon.id}.`);
+    log(
+      ctx.agent.name,
+      "cleanup",
+      `TODO: Update me to delete the Axon with ID: ${ctx.axon.id}.`,
+    );
   }
 
   for (const secret of ctx.createdSecrets) {
@@ -222,7 +257,11 @@ async function cleanup(ctx: OnboardContext): Promise<void> {
       log(ctx.agent.name, "cleanup", `Deleting secret ${secret.name}...`);
       await secret.delete();
     } catch (err) {
-      log(ctx.agent.name, "cleanup", `Secret delete error (continuing): ${err}`);
+      log(
+        ctx.agent.name,
+        "cleanup",
+        `Secret delete error (continuing): ${err}`,
+      );
     }
   }
 
@@ -276,8 +315,16 @@ async function runDevboxStage(ctx: OnboardContext): Promise<void> {
 
   log(agent.name, "devbox", "Creating devbox...");
   log(agent.name, "devbox", `  Blueprint: ${agent.install.blueprint}`);
-  log(agent.name, "devbox", `  Agent binary: ${agent.brokerMount.agentBinary ?? "(default)"}`);
-  log(agent.name, "devbox", `  Launch args: ${JSON.stringify(agent.brokerMount.launchArgs ?? [])}`);
+  log(
+    agent.name,
+    "devbox",
+    `  Agent binary: ${agent.brokerMount.agentBinary ?? "(default)"}`,
+  );
+  log(
+    agent.name,
+    "devbox",
+    `  Launch args: ${JSON.stringify(agent.brokerMount.launchArgs ?? [])}`,
+  );
 
   try {
     ctx.devbox = await sdk.devbox.create(
@@ -285,7 +332,9 @@ async function runDevboxStage(ctx: OnboardContext): Promise<void> {
         name: resourcePrefix,
         blueprint_name: agent.install.blueprint,
         mounts,
-        ...(Object.keys(devboxSecretsMap).length > 0 && { secrets: devboxSecretsMap }),
+        ...(Object.keys(devboxSecretsMap).length > 0 && {
+          secrets: devboxSecretsMap,
+        }),
         launch_parameters: {
           keep_alive_time_seconds: 300,
         },
@@ -306,7 +355,11 @@ async function runDevboxStage(ctx: OnboardContext): Promise<void> {
 async function runConnectStage(ctx: OnboardContext): Promise<void> {
   const { agent, axon, devbox } = ctx;
   if (!axon || !devbox) {
-    throw new OnboardingStageError("connect", agent.name, "Missing axon or devbox from previous stage");
+    throw new OnboardingStageError(
+      "connect",
+      agent.name,
+      "Missing axon or devbox from previous stage",
+    );
   }
 
   log(agent.name, "connect", "Creating ACP connection...");
@@ -331,7 +384,11 @@ async function runConnectStage(ctx: OnboardContext): Promise<void> {
 async function runInitializeStage(ctx: OnboardContext): Promise<void> {
   const { agent, conn } = ctx;
   if (!conn) {
-    throw new OnboardingStageError("initialize", agent.name, "Missing connection from previous stage");
+    throw new OnboardingStageError(
+      "initialize",
+      agent.name,
+      "Missing connection from previous stage",
+    );
   }
 
   log(agent.name, "initialize", "Sending ACP initialize request...");
@@ -359,12 +416,17 @@ async function runInitializeStage(ctx: OnboardContext): Promise<void> {
       (agentInfo?.authMethods as unknown[] | undefined) ??
       [];
     if (authMethods.length === 0) {
-      console.log("  No auth methods found at response.authMethods or response.agentInfo.authMethods.");
+      console.log(
+        "  No auth methods found at response.authMethods or response.agentInfo.authMethods.",
+      );
       console.log("  -> authenticate() is likely not required.");
     } else {
       console.log(`  Agent advertises ${authMethods.length} auth method(s):`);
       for (const method of authMethods) {
-        const methodId = typeof method === "string" ? method : (method as { id?: string }).id ?? JSON.stringify(method);
+        const methodId =
+          typeof method === "string"
+            ? method
+            : ((method as { id?: string }).id ?? JSON.stringify(method));
         console.log(`    - ${methodId}`);
       }
 
@@ -374,15 +436,23 @@ async function runInitializeStage(ctx: OnboardContext): Promise<void> {
           return id === agent.acpAuthMethodId;
         });
         if (configuredMethodExists) {
-          console.log(`\n  Configured acpAuthMethodId "${agent.acpAuthMethodId}" MATCHES an advertised method.`);
+          console.log(
+            `\n  Configured acpAuthMethodId "${agent.acpAuthMethodId}" MATCHES an advertised method.`,
+          );
         } else {
-          console.log(`\n  WARNING: Configured acpAuthMethodId "${agent.acpAuthMethodId}" does NOT match any advertised method!`);
+          console.log(
+            `\n  WARNING: Configured acpAuthMethodId "${agent.acpAuthMethodId}" does NOT match any advertised method!`,
+          );
           console.log("  -> This will likely cause authenticate() to fail.");
-          console.log("  -> Update agents.ts with a valid methodId from the list above.");
+          console.log(
+            "  -> Update agents.ts with a valid methodId from the list above.",
+          );
         }
       } else {
         console.log("\n  No acpAuthMethodId configured for this agent.");
-        console.log("  -> If auth is required, add acpAuthMethodId to agents.ts");
+        console.log(
+          "  -> If auth is required, add acpAuthMethodId to agents.ts",
+        );
       }
     }
   } catch (err) {
@@ -398,16 +468,32 @@ async function runInitializeStage(ctx: OnboardContext): Promise<void> {
 async function runAuthenticateStage(ctx: OnboardContext): Promise<void> {
   const { agent, conn } = ctx;
   if (!conn) {
-    throw new OnboardingStageError("authenticate", agent.name, "Missing connection from previous stage");
+    throw new OnboardingStageError(
+      "authenticate",
+      agent.name,
+      "Missing connection from previous stage",
+    );
   }
 
   if (!agent.acpAuthMethodId) {
-    log(agent.name, "authenticate", "No acpAuthMethodId configured - skipping authenticate().");
-    log(agent.name, "authenticate", "  (If newSession fails, this might need to change.)");
+    log(
+      agent.name,
+      "authenticate",
+      "No acpAuthMethodId configured - skipping authenticate().",
+    );
+    log(
+      agent.name,
+      "authenticate",
+      "  (If newSession fails, this might need to change.)",
+    );
     return;
   }
 
-  log(agent.name, "authenticate", `Authenticating with methodId: ${agent.acpAuthMethodId}`);
+  log(
+    agent.name,
+    "authenticate",
+    `Authenticating with methodId: ${agent.acpAuthMethodId}`,
+  );
 
   try {
     const authResponse = await withTimeout(
@@ -434,7 +520,11 @@ async function runAuthenticateStage(ctx: OnboardContext): Promise<void> {
 async function runNewSessionStage(ctx: OnboardContext): Promise<void> {
   const { agent, conn } = ctx;
   if (!conn) {
-    throw new OnboardingStageError("newSession", agent.name, "Missing connection from previous stage");
+    throw new OnboardingStageError(
+      "newSession",
+      agent.name,
+      "Missing connection from previous stage",
+    );
   }
 
   const cwd = agent.brokerMount.workingDirectory ?? DEFAULT_WORKING_DIRECTORY;
@@ -468,7 +558,11 @@ async function runNewSessionStage(ctx: OnboardContext): Promise<void> {
 async function runPromptStage(ctx: OnboardContext): Promise<void> {
   const { agent, conn, sessionId } = ctx;
   if (!conn || !sessionId) {
-    throw new OnboardingStageError("prompt", agent.name, "Missing connection or sessionId from previous stage");
+    throw new OnboardingStageError(
+      "prompt",
+      agent.name,
+      "Missing connection or sessionId from previous stage",
+    );
   }
 
   log(agent.name, "prompt", `Sending prompt: "${PROMPT_TEXT}"`);
@@ -503,7 +597,9 @@ async function runPromptStage(ctx: OnboardContext): Promise<void> {
 
     console.log(`  Received ${chunks.length} text chunk(s):`);
     const fullResponse = chunks.join("");
-    console.log(`  Response: ${fullResponse.slice(0, 200)}${fullResponse.length > 200 ? "..." : ""}`);
+    console.log(
+      `  Response: ${fullResponse.slice(0, 200)}${fullResponse.length > 200 ? "..." : ""}`,
+    );
     log(agent.name, "prompt", "Prompt completed successfully.");
   } catch (err) {
     unsub();
@@ -533,13 +629,19 @@ async function runOnboarding(options: OnboardOptions): Promise<void> {
   logSection(`Onboarding: ${agent.name}`);
   console.log(`Protocol: ${agent.protocol}`);
   console.log(`acpAuthMethodId: ${agent.acpAuthMethodId ?? "(none)"}`);
-  console.log(`Secrets required: ${Object.keys(agent.secrets ?? {}).join(", ") || "(none)"}`);
+  console.log(
+    `Secrets required: ${Object.keys(agent.secrets ?? {}).join(", ") || "(none)"}`,
+  );
   if (pauseAfter) console.log(`Pause after: ${pauseAfter}`);
   if (skipPrompt) console.log(`Skip prompt: yes`);
 
   const runloopApiKey = process.env.RUNLOOP_API_KEY;
   if (!runloopApiKey) {
-    throw new OnboardingStageError("devbox", agent.name, "RUNLOOP_API_KEY environment variable not set");
+    throw new OnboardingStageError(
+      "devbox",
+      agent.name,
+      "RUNLOOP_API_KEY environment variable not set",
+    );
   }
 
   const ctx: OnboardContext = {
@@ -584,8 +686,14 @@ async function runOnboarding(options: OnboardOptions): Promise<void> {
     logSection("Onboarding Complete");
     console.log(`All stages passed for ${agent.name}.`);
     console.log("\nNext steps:");
-    console.log("  1. Run: bun run feature-compat --agent " + agent.name + " --use-case single-prompt");
-    console.log("  2. If that passes, run the full compatibility suite without filters.");
+    console.log(
+      "  1. Run: bun run feature-compat --agent " +
+        agent.name +
+        " --use-case single-prompt",
+    );
+    console.log(
+      "  2. If that passes, run the full compatibility suite without filters.",
+    );
   } catch (err) {
     logSection("Onboarding Failed");
 
@@ -600,31 +708,59 @@ async function runOnboarding(options: OnboardOptions): Promise<void> {
       console.log("\nDiagnosis hints:");
       switch (err.stage) {
         case "devbox":
-          console.log("  - Check RUNLOOP_API_KEY and agent-specific secrets are set");
-          console.log("  - Verify the blueprint exists: " + agent.install.blueprint);
-          console.log("  - Check agent mount name: " + (agent.install.kind === "agent-mount" ? agent.install.agentName : "N/A"));
+          console.log(
+            "  - Check RUNLOOP_API_KEY and agent-specific secrets are set",
+          );
+          console.log(
+            "  - Verify the blueprint exists: " + agent.install.blueprint,
+          );
+          console.log(
+            "  - Check agent mount name: " +
+              (agent.install.kind === "agent-mount"
+                ? agent.install.agentName
+                : "N/A"),
+          );
           break;
         case "connect":
-          console.log("  - The broker may have failed to start the agent process");
-          console.log("  - Check agent binary: " + agent.brokerMount.agentBinary);
-          console.log("  - Check launch args: " + JSON.stringify(agent.brokerMount.launchArgs ?? []));
+          console.log(
+            "  - The broker may have failed to start the agent process",
+          );
+          console.log(
+            "  - Check agent binary: " + agent.brokerMount.agentBinary,
+          );
+          console.log(
+            "  - Check launch args: " +
+              JSON.stringify(agent.brokerMount.launchArgs ?? []),
+          );
           break;
         case "initialize":
-          console.log("  - The agent may not speak ACP or has a protocol mismatch");
+          console.log(
+            "  - The agent may not speak ACP or has a protocol mismatch",
+          );
           console.log("  - Try running the agent manually to verify it starts");
           break;
         case "authenticate":
           console.log("  - The configured acpAuthMethodId may be wrong");
-          console.log("  - Re-run with --pause-after initialize to see advertised auth methods");
-          console.log("  - If no auth is needed, remove acpAuthMethodId from agents.ts");
+          console.log(
+            "  - Re-run with --pause-after initialize to see advertised auth methods",
+          );
+          console.log(
+            "  - If no auth is needed, remove acpAuthMethodId from agents.ts",
+          );
           break;
         case "newSession":
-          console.log("  - If authenticate() was skipped, the agent may require it");
-          console.log("  - Add acpAuthMethodId to agents.ts if the agent requires authentication");
+          console.log(
+            "  - If authenticate() was skipped, the agent may require it",
+          );
+          console.log(
+            "  - Add acpAuthMethodId to agents.ts if the agent requires authentication",
+          );
           break;
         case "prompt":
           console.log("  - Session was created but prompt failed");
-          console.log("  - This may indicate an API key issue or agent-specific problem");
+          console.log(
+            "  - This may indicate an API key issue or agent-specific problem",
+          );
           break;
       }
     } else {
@@ -674,14 +810,18 @@ async function main(): Promise<void> {
   }
 
   if (agent.protocol !== "acp") {
-    console.error(`Error: Agent "${agent.name}" uses protocol "${agent.protocol}", but onboard only supports ACP agents.`);
+    console.error(
+      `Error: Agent "${agent.name}" uses protocol "${agent.protocol}", but onboard only supports ACP agents.`,
+    );
     process.exit(1);
   }
 
   let pauseAfter: Stage | undefined;
   if (args["pause-after"]) {
     if (!STAGES.includes(args["pause-after"] as Stage)) {
-      console.error(`Error: Invalid --pause-after value "${args["pause-after"]}"`);
+      console.error(
+        `Error: Invalid --pause-after value "${args["pause-after"]}"`,
+      );
       console.error(`Valid stages: ${STAGES.join(", ")}`);
       process.exit(1);
     }
