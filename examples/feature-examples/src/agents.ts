@@ -57,6 +57,21 @@ export const AGENTS: AgentConfig[] = [
     },
   },
   {
+    name: "gemini-cli",
+    protocol: "acp",
+    install: {
+      kind: "agent-mount",
+      agentName: "gemini-cli",
+      blueprint: "runloop/starter-x86_64",
+    },
+    brokerMount: {
+      protocol: "acp",
+      agentBinary: "gemini",
+      launchArgs: ["--experimental-acp", "--yolo", "--model", "gemini-2.5-flash"],
+    },
+    secrets: { GEMINI_API_KEY: "GEMINI_API_KEY" },
+  },
+  {
     name: "claude-code",
     protocol: "claude",
     install: {
