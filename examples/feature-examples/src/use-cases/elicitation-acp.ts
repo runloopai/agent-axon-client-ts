@@ -22,6 +22,7 @@ export default {
     "codex-acp":
       "codex-acp does not advertise or send session/elicitation (uses permission requests instead)",
     qwen: "qwen does not advertise or send session/elicitation",
+    "gemini-cli": "gemini-cli does not advertise or send session/elicitation",
   },
 
   clientCapabilities: { elicitation: { form: {} } },
