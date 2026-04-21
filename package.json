@@ -24,6 +24,7 @@
     "clean": "rm -rf sdk/dist",
     "prepare": "husky",
     "feature-compat": "bun run --filter 'feature-examples' feature-compat",
+    "onboard": "bun run --filter 'tools' onboard",
     "build-blueprint": "bun run --filter '@runloop/example-blueprint' build-blueprint"
   },
   "devDependencies": {
