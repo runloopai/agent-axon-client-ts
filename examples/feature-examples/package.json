@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./types": "./src/types.ts",
+    "./agents": "./src/agents.ts",
+    "./validator": "./src/validator.ts"
+  },
   "scripts": {
     "feature-compat": "bun run src/main.ts",
     "typecheck": "tsc --noEmit"

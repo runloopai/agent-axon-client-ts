@@ -11,7 +11,11 @@ export const AGENTS: AgentConfig[] = [
   {
     name: "opencode",
     protocol: "acp",
-    install: { kind: "agent-mount", agentName: "opencode", blueprint: "runloop/starter-x86_64" },
+    install: {
+      kind: "agent-mount",
+      agentName: "opencode",
+      blueprint: "runloop/starter-x86_64",
+    },
     brokerMount: {
       protocol: "acp",
       agentBinary: "opencode",
@@ -21,7 +25,11 @@ export const AGENTS: AgentConfig[] = [
   {
     name: "codex-acp",
     protocol: "acp",
-    install: { kind: "agent-mount", agentName: "codex-acp", blueprint: "runloop/starter-x86_64" },
+    install: {
+      kind: "agent-mount",
+      agentName: "codex-acp",
+      blueprint: "runloop/starter-x86_64",
+    },
     brokerMount: {
       protocol: "acp",
       agentBinary: "codex-acp",
@@ -31,9 +39,31 @@ export const AGENTS: AgentConfig[] = [
     acpAuthMethodId: "openai-api-key",
   },
   {
+    name: "qwen",
+    protocol: "acp",
+    install: {
+      kind: "agent-mount",
+      agentName: "qwen",
+      blueprint: "runloop/starter-x86_64",
+    },
+    brokerMount: {
+      protocol: "acp",
+      agentBinary: "qwen",
+      launchArgs: ["--auth-type", "openai", "--acp"],
+    },
+    secrets: {
+      OPENAI_API_KEY: "DASHSCOPE_API_KEY",
+      OPENAI_BASE_URL: "DASHSCOPE_BASE_URL",
+    },
+  },
+  {
     name: "claude-code",
     protocol: "claude",
-    install: { kind: "agent-mount", agentName: "claude-code", blueprint: "runloop/starter-x86_64" },
+    install: {
+      kind: "agent-mount",
+      agentName: "claude-code",
+      blueprint: "runloop/starter-x86_64",
+    },
     brokerMount: {
       protocol: "claude_json",
       agentBinary: "claude",
