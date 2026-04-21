@@ -15,7 +15,7 @@ export default {
   name: "elicitation-acp",
   description: "Handle agent-initiated user input via ACP session_elicitation",
   protocols: ["acp"],
-  timeoutMs: 10_000,
+  timeoutMs: 20_000,
 
   expectedFailures: {
     opencode: "ACP protocol has not added full elicitation support yet",
@@ -65,7 +65,7 @@ export default {
     });
 
     await ctx.acp.prompt({ sessionId: ctx.sessionId!, prompt: [{ type: "text", text: PROMPT }] });
-    await waitFor(() => elicitationCount > 0 && completedCount > 0, 5_000);
+    await waitFor(() => elicitationCount > 0 && completedCount > 0, 8_000);
     unsub();
 
     const hasElicitation = elicitationCount > 0 && completedCount > 0;

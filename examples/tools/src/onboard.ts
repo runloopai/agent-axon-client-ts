@@ -17,6 +17,7 @@ import {
   ACPAxonConnection,
   PROTOCOL_VERSION,
   isAgentTextChunk,
+  isThoughtTextChunk,
   type InitializeResponse,
 } from "@runloop/agent-axon-client/acp";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
@@ -57,11 +58,15 @@ const DEFAULT_WORKING_DIRECTORY = "/home/user";
 const SETUP_STEP_TIMEOUT_MS = 30_000;
 const DEVBOX_PROVISION_TIMEOUT_MS = 180_000;
 const PROMPT_TEXT = "Say hello world";
-const CHUNK_WAIT_MS = 5_000;
+const CHUNK_WAIT_MS = 15_000;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function toErrMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 function log(agentName: string, stage: Stage | "cleanup", msg: string): void {
   const timestamp = new Date().toISOString().slice(11, 23);
@@ -208,6 +213,10 @@ async function cleanup(ctx: OnboardContext): Promise<void> {
     }
   }
 
+  if (ctx.axon) {
+    log(ctx.agent.name, "cleanup", `TODO: Update me to delete the Axon with ID: ${ctx.axon.id}.`);
+  }
+
   for (const secret of ctx.createdSecrets) {
     try {
       log(ctx.agent.name, "cleanup", `Deleting secret ${secret.name}...`);
@@ -288,7 +297,7 @@ async function runDevboxStage(ctx: OnboardContext): Promise<void> {
     throw new OnboardingStageError(
       "devbox",
       agent.name,
-      `Failed to provision devbox: ${err instanceof Error ? err.message : String(err)}`,
+      `Failed to provision devbox: ${toErrMsg(err)}`,
       { cause: err },
     );
   }
@@ -313,7 +322,7 @@ async function runConnectStage(ctx: OnboardContext): Promise<void> {
     throw new OnboardingStageError(
       "connect",
       agent.name,
-      `Failed to connect: ${err instanceof Error ? err.message : String(err)}`,
+      `Failed to connect: ${toErrMsg(err)}`,
       { cause: err },
     );
   }
@@ -342,11 +351,15 @@ async function runInitializeStage(ctx: OnboardContext): Promise<void> {
     console.log(JSON.stringify(ctx.initializeResponse, null, 2));
 
     logSubsection("Auth Methods Analysis");
-    // authMethods may be on the response directly or in agentInfo depending on ACP version
+    // authMethods may appear at the top level or nested under agentInfo depending on ACP version
     const response = ctx.initializeResponse as Record<string, unknown>;
-    const authMethods = (response.authMethods as unknown[]) ?? [];
+    const agentInfo = response.agentInfo as Record<string, unknown> | undefined;
+    const authMethods =
+      (response.authMethods as unknown[] | undefined) ??
+      (agentInfo?.authMethods as unknown[] | undefined) ??
+      [];
     if (authMethods.length === 0) {
-      console.log("  No auth methods advertised by agent.");
+      console.log("  No auth methods found at response.authMethods or response.agentInfo.authMethods.");
       console.log("  -> authenticate() is likely not required.");
     } else {
       console.log(`  Agent advertises ${authMethods.length} auth method(s):`);
@@ -376,7 +389,7 @@ async function runInitializeStage(ctx: OnboardContext): Promise<void> {
     throw new OnboardingStageError(
       "initialize",
       agent.name,
-      `Failed to initialize: ${err instanceof Error ? err.message : String(err)}`,
+      `Failed to initialize: ${toErrMsg(err)}`,
       { cause: err },
     );
   }
@@ -407,11 +420,10 @@ async function runAuthenticateStage(ctx: OnboardContext): Promise<void> {
     console.log(JSON.stringify(authResponse, null, 2));
     log(agent.name, "authenticate", "Authentication successful.");
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
     throw new OnboardingStageError(
       "authenticate",
       agent.name,
-      `Failed to authenticate: ${errMsg}\n` +
+      `Failed to authenticate: ${toErrMsg(err)}\n` +
         `  Configured methodId: ${agent.acpAuthMethodId}\n` +
         `  Check that this matches an authMethod advertised during initialize().`,
       { cause: err },
@@ -443,11 +455,10 @@ async function runNewSessionStage(ctx: OnboardContext): Promise<void> {
     console.log(JSON.stringify(session, null, 2));
     log(agent.name, "newSession", `Session created: ${session.sessionId}`);
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
     throw new OnboardingStageError(
       "newSession",
       agent.name,
-      `Failed to create session: ${errMsg}\n` +
+      `Failed to create session: ${toErrMsg(err)}\n` +
         `  If authenticate() was skipped but the agent requires it, add acpAuthMethodId to agents.ts.`,
       { cause: err },
     );
@@ -463,8 +474,9 @@ async function runPromptStage(ctx: OnboardContext): Promise<void> {
   log(agent.name, "prompt", `Sending prompt: "${PROMPT_TEXT}"`);
 
   const chunks: string[] = [];
+  // Count thought chunks as text so agents that only stream thoughts are not treated as silent
   const unsub = conn.onSessionUpdate((_sid, update) => {
-    if (isAgentTextChunk(update)) {
+    if (isAgentTextChunk(update) || isThoughtTextChunk(update)) {
       chunks.push(update.content.text);
     }
   });
@@ -476,13 +488,17 @@ async function runPromptStage(ctx: OnboardContext): Promise<void> {
     });
 
     const hasText = () => chunks.some((c) => c.trim().length > 0);
-    await waitFor(hasText, CHUNK_WAIT_MS);
+    const textReceived = await waitFor(hasText, CHUNK_WAIT_MS);
     unsub();
 
     logSubsection("Prompt Response");
-    if (chunks.length === 0) {
-      console.log("  No text chunks received.");
-      throw new OnboardingStageError("prompt", agent.name, "Agent did not respond with any text chunks");
+    if (!textReceived) {
+      console.log("  No text chunks received within timeout.");
+      throw new OnboardingStageError(
+        "prompt",
+        agent.name,
+        `Timed out waiting for agent text after ${CHUNK_WAIT_MS}ms — no text or thought chunks arrived`,
+      );
     }
 
     console.log(`  Received ${chunks.length} text chunk(s):`);
@@ -495,7 +511,7 @@ async function runPromptStage(ctx: OnboardContext): Promise<void> {
     throw new OnboardingStageError(
       "prompt",
       agent.name,
-      `Failed during prompt: ${err instanceof Error ? err.message : String(err)}`,
+      `Failed during prompt: ${toErrMsg(err)}`,
       { cause: err },
     );
   }
@@ -642,16 +658,18 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  const availableAgents = AGENTS.map((a) => a.name).join(", ");
+
   if (!args.agent) {
     console.error("Error: --agent is required");
-    console.error(`Available agents: ${AGENTS.map((a) => a.name).join(", ")}`);
+    console.error(`Available agents: ${availableAgents}`);
     process.exit(1);
   }
 
   const agent = AGENTS.find((a) => a.name === args.agent);
   if (!agent) {
     console.error(`Error: Unknown agent "${args.agent}"`);
-    console.error(`Available agents: ${AGENTS.map((a) => a.name).join(", ")}`);
+    console.error(`Available agents: ${availableAgents}`);
     process.exit(1);
   }
 
