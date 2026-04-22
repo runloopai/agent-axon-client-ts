@@ -14,6 +14,7 @@ import type { Stream } from "@runloop/api-client/streaming";
 import { isSystemError, SystemError } from "../shared/errors/system-error.js";
 import { makeLogger } from "../shared/logging.js";
 import { isFromAgent, isFromUser } from "../shared/origin-guards.js";
+import { getRequestId, isNonNullObject } from "../shared/structural-guards.js";
 import type { LogFn } from "../shared/types.js";
 import type { WireData } from "./types.js";
 
@@ -22,7 +23,19 @@ import type { WireData } from "./types.js";
 // ---------------------------------------------------------------------------
 
 /**
- * Returns `true` if the event is a `control_request` (agent requesting permission).
+ * AxonEventView narrowed to `control_request` event type.
+ * @category Transport
+ */
+export type ControlRequestEvent = AxonEventView & { event_type: "control_request" };
+
+/**
+ * AxonEventView narrowed to `control_response` event type.
+ * @category Transport
+ */
+export type ControlResponseEvent = AxonEventView & { event_type: "control_response" };
+
+/**
+ * Type guard that narrows an event to `control_request`.
  *
  * This checks the event *type* only; pair with {@link isFromAgent} to confirm
  * direction (control requests originate from the agent).
@@ -31,12 +44,12 @@ import type { WireData } from "./types.js";
  * @returns `true` if `event_type === "control_request"`.
  * @category Transport
  */
-export function isControlRequest(event: AxonEventView): boolean {
+export function isControlRequest(event: AxonEventView): event is ControlRequestEvent {
   return event.event_type === "control_request";
 }
 
 /**
- * Returns `true` if the event is a `control_response` (client responding to permission request).
+ * Type guard that narrows an event to `control_response`.
  *
  * This checks the event *type* only; pair with {@link isFromUser} to confirm
  * direction (control responses originate from the client).
@@ -45,7 +58,7 @@ export function isControlRequest(event: AxonEventView): boolean {
  * @returns `true` if `event_type === "control_response"`.
  * @category Transport
  */
-export function isControlResponse(event: AxonEventView): boolean {
+export function isControlResponse(event: AxonEventView): event is ControlResponseEvent {
   return event.event_type === "control_response";
 }
 
@@ -281,10 +294,10 @@ export class AxonTransport implements Transport {
           if (event.payload != null) {
             try {
               const parsed = JSON.parse(event.payload);
-              if (parsed != null && typeof parsed === "object") {
-                const requestId: string | undefined = parsed.request_id;
+              if (isNonNullObject(parsed)) {
+                const requestId = getRequestId(parsed);
                 if (requestId) {
-                  replayBuffer.set(requestId, parsed);
+                  replayBuffer.set(requestId, parsed as WireData);
                   this.log("read", `#${eventCount} REPLAY buffered control_request ${requestId}`);
                 }
               }
@@ -297,8 +310,8 @@ export class AxonTransport implements Transport {
           if (event.payload != null) {
             try {
               const parsed = JSON.parse(event.payload);
-              const response = parsed?.response;
-              const requestId: string | undefined = response?.request_id;
+              const response = isNonNullObject(parsed) ? parsed.response : undefined;
+              const requestId = getRequestId(response);
               if (requestId && replayBuffer.has(requestId)) {
                 replayBuffer.delete(requestId);
                 this.log("read", `#${eventCount} REPLAY resolved control_request ${requestId}`);
@@ -344,11 +357,11 @@ export class AxonTransport implements Transport {
         }
         try {
           const parsed = JSON.parse(event.payload);
-          if (parsed == null || typeof parsed !== "object") {
+          if (!isNonNullObject(parsed)) {
             this.log("read", `#${eventCount} skipping non-object payload`);
             continue;
           }
-          yield parsed;
+          yield parsed as WireData;
         } catch (err) {
           this.log(
             "read",

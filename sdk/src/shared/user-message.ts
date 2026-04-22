@@ -8,6 +8,7 @@
 
 import type { ContentBlock } from "@agentclientprotocol/sdk";
 import { isFromUser } from "./origin-guards.js";
+import { hasStringType, isNonNullObject, isTextContentBlock } from "./structural-guards.js";
 import type { AxonEventView } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -51,19 +52,17 @@ export function extractACPUserMessage(
   if (!isFromUser(axonEvent)) return null;
   if (axonEvent.event_type !== "session/prompt") return null;
 
-  if (data == null || typeof data !== "object") return null;
+  if (!isNonNullObject(data)) return null;
 
-  const obj = data as Record<string, unknown>;
-  const prompt = obj.prompt;
-
+  const prompt = data.prompt;
   if (!Array.isArray(prompt)) return null;
 
   let text = "";
   const content: ContentBlock[] = [];
   for (const block of prompt) {
-    if (block != null && typeof block === "object" && "type" in block) {
+    if (hasStringType(block)) {
       content.push(block as ContentBlock);
-      if (block.type === "text" && "text" in block && typeof block.text === "string") {
+      if (isTextContentBlock(block)) {
         text += block.text;
       }
     }
@@ -116,12 +115,7 @@ export function extractClaudeUserMessage(
 ): ExtractedClaudeUserMessage | null {
   if (!isFromUser(axonEvent)) return null;
 
-  if (
-    data == null ||
-    typeof data !== "object" ||
-    !("type" in data) ||
-    (data as { type: unknown }).type !== "user"
-  ) {
+  if (!hasStringType(data) || data.type !== "user") {
     return null;
   }
 
@@ -135,14 +129,9 @@ export function extractClaudeUserMessage(
     content.push({ type: "text", text: rawContent });
   } else if (Array.isArray(rawContent)) {
     for (const block of rawContent) {
-      if (block != null && typeof block === "object") {
+      if (isNonNullObject(block)) {
         content.push(block);
-        if (
-          "type" in block &&
-          block.type === "text" &&
-          "text" in block &&
-          typeof block.text === "string"
-        ) {
+        if (isTextContentBlock(block)) {
           text += block.text;
         }
       }

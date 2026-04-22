@@ -23,6 +23,7 @@
  * @module
  */
 
+import { isTextContentBlock } from "../shared/structural-guards.js";
 import type {
   ClaudeAssistantTimelineEvent,
   ClaudeControlRequestTimelineEvent,
@@ -116,16 +117,7 @@ export function isClaudeAssistantTextEvent(
   if (!Array.isArray(content)) {
     return false;
   }
-  return content.some(
-    (block) =>
-      block != null &&
-      typeof block === "object" &&
-      "type" in block &&
-      block.type === "text" &&
-      "text" in block &&
-      typeof block.text === "string" &&
-      block.text.trim().length > 0,
-  );
+  return content.some((block) => isTextContentBlock(block) && block.text.trim().length > 0);
 }
 
 /**
