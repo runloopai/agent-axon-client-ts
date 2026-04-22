@@ -35,6 +35,18 @@ import type { BaseTimelineEvent } from "./types.js";
 type HasOrigin = AxonEventView | BaseTimelineEvent;
 
 /**
+ * AxonEventView narrowed to agent origin.
+ * @category Origin
+ */
+export type AgentOriginEvent<T extends HasOrigin = AxonEventView> = T & { origin: "AGENT_EVENT" };
+
+/**
+ * AxonEventView narrowed to user origin.
+ * @category Origin
+ */
+export type UserOriginEvent<T extends HasOrigin = AxonEventView> = T & { origin: "USER_EVENT" };
+
+/**
  * Extracts the origin string from either an AxonEventView or a timeline event.
  */
 function getOrigin(eventOrTimeline: HasOrigin): string {
@@ -42,7 +54,7 @@ function getOrigin(eventOrTimeline: HasOrigin): string {
 }
 
 /**
- * Returns `true` if the event originated from the agent.
+ * Type guard that narrows an event to agent origin.
  *
  * Works with both raw `AxonEventView` objects and timeline events.
  *
@@ -50,12 +62,12 @@ function getOrigin(eventOrTimeline: HasOrigin): string {
  * @returns `true` if `origin === "AGENT_EVENT"`.
  * @category Origin
  */
-export function isFromAgent(event: HasOrigin): boolean {
+export function isFromAgent<T extends HasOrigin>(event: T): event is T & { origin: "AGENT_EVENT" } {
   return getOrigin(event) === "AGENT_EVENT";
 }
 
 /**
- * Returns `true` if the event originated from the user/client.
+ * Type guard that narrows an event to user origin.
  *
  * Works with both raw `AxonEventView` objects and timeline events.
  *
@@ -63,6 +75,6 @@ export function isFromAgent(event: HasOrigin): boolean {
  * @returns `true` if `origin === "USER_EVENT"`.
  * @category Origin
  */
-export function isFromUser(event: HasOrigin): boolean {
+export function isFromUser<T extends HasOrigin>(event: T): event is T & { origin: "USER_EVENT" } {
   return getOrigin(event) === "USER_EVENT";
 }
