@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.3](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.4.2...agent-axon-client-v0.4.3) (2026-04-22)
+
+
+### Features
+
+* **acp:** added codex-acp support ([#105](https://github.com/runloopai/agent-axon-client-ts/issues/105)) ([17f9425](https://github.com/runloopai/agent-axon-client-ts/commit/17f9425c3e89bd579e513c063f1e8da8b7ea6009))
+* **sdk:** add agent log event for agent stderr log emissions ([#103](https://github.com/runloopai/agent-axon-client-ts/issues/103)) ([443d927](https://github.com/runloopai/agent-axon-client-ts/commit/443d927360b7849a47566512eaecf7919799924f))
+* **sdk:** type guard all the things! ([#108](https://github.com/runloopai/agent-axon-client-ts/issues/108)) ([f4ad944](https://github.com/runloopai/agent-axon-client-ts/commit/f4ad944bb498cbaa6b533efbb4163110e13dde42))
+
 ## [0.4.2](https://github.com/runloopai/agent-axon-client-ts/compare/agent-axon-client-v0.4.1...agent-axon-client-v0.4.2) (2026-04-16)
 
 
