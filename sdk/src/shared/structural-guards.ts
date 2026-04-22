@@ -71,24 +71,6 @@ export function getStringProp(value: unknown, key: string): string | undefined {
 }
 
 /**
- * Safely extracts an optional string property from an unknown object.
- *
- * Returns `undefined` if the value is not an object, the property is missing,
- * or the property is not a string.
- *
- * @param value - The value to extract from.
- * @param key - The property name to extract.
- * @returns The string value or `undefined`.
- * @category Structural
- */
-export function getOptionalStringProp(value: unknown, key: string): string | undefined {
-  if (!isNonNullObject(value)) return undefined;
-  const prop = value[key];
-  if (prop === undefined) return undefined;
-  return typeof prop === "string" ? prop : undefined;
-}
-
-/**
  * Type guard for JSON-RPC 2.0 message ID.
  *
  * JSON-RPC IDs can be strings, numbers, or null. This guard checks for

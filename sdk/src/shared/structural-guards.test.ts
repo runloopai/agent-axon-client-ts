@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   getJsonRpcId,
-  getOptionalStringProp,
   getRequestId,
   getStringProp,
   hasJsonRpcId,
@@ -112,21 +111,6 @@ describe("getStringProp", () => {
     expect(getStringProp(null, "key")).toBeUndefined();
     expect(getStringProp("string", "length")).toBeUndefined();
     expect(getStringProp(123, "toString")).toBeUndefined();
-  });
-});
-
-describe("getOptionalStringProp", () => {
-  it("extracts string properties", () => {
-    expect(getOptionalStringProp({ name: "Alice" }, "name")).toBe("Alice");
-  });
-
-  it("returns undefined for missing properties", () => {
-    expect(getOptionalStringProp({}, "name")).toBeUndefined();
-    expect(getOptionalStringProp({ name: undefined }, "name")).toBeUndefined();
-  });
-
-  it("returns undefined for non-string properties", () => {
-    expect(getOptionalStringProp({ count: 123 }, "count")).toBeUndefined();
   });
 });
 

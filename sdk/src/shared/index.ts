@@ -30,7 +30,6 @@ export {
 export { getLastSequence } from "./replay.js";
 export {
   getJsonRpcId,
-  getOptionalStringProp,
   getRequestId,
   getStringProp,
   hasJsonRpcId,
@@ -67,7 +66,6 @@ export {
   isUnknownTimelineEvent,
 } from "./timeline-event-guards.js";
 export { timelineEventGenerator } from "./timeline-generator.js";
-/** @category Types */
 /** @category Timeline */
 export type {
   AgentErrorEvent,
