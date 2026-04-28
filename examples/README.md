@@ -2,7 +2,7 @@
 
 > **Alpha — subject to change.** These examples use an SDK in early development. APIs and behavior may change without notice between versions.
 
-Example applications and scripts showing how to use `@runloop/agent-axon-client` to connect to coding agents running in [Runloop](https://runloop.ai) devboxes.
+Example applications and scripts showing how to use `@runloop/remote-agents-sdk` to connect to coding agents running in [Runloop](https://runloop.ai) devboxes.
 
 ## Examples
 

@@ -5,7 +5,7 @@ import {
   CLIENT_METHODS,
   isElicitationCompleteEvent,
   isElicitationRequestEvent,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import type { UseCase } from "../types.js";
 import { waitFor } from "../validator.js";
 

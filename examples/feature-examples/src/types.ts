@@ -1,5 +1,5 @@
-import type { ACPAxonConnection } from "@runloop/agent-axon-client/acp";
-import type { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
+import type { ACPAxonConnection } from "@runloop/remote-agents-sdk/acp";
+import type { ClaudeAxonConnection } from "@runloop/remote-agents-sdk/claude";
 import type { Client, Agent } from "@agentclientprotocol/sdk";
 
 /**

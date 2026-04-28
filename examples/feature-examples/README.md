@@ -1,6 +1,6 @@
 # feature-examples
 
-Runnable SDK recipes demonstrating individual features of `@runloop/agent-axon-client`. **Primary audience: agents** (LLM code generators looking for working examples).
+Runnable SDK recipes demonstrating individual features of `@runloop/remote-agents-sdk`. **Primary audience: agents** (LLM code generators looking for working examples).
 
 ## Prerequisites
 

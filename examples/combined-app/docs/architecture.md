@@ -4,7 +4,7 @@
 
 The combined-app is a full-stack demo (Express + React) that supports both ACP
 and Claude Code agents through a unified chat UI. It consumes the
-`@runloop/agent-axon-client` SDK's timeline event API to render a streaming
+`@runloop/remote-agents-sdk` SDK's timeline event API to render a streaming
 chat experience with tool calls, thinking blocks, plans, and more.
 
 ## System Diagram

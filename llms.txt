@@ -1,11 +1,11 @@
-# @runloop/agent-axon-client
+# @runloop/remote-agents-sdk
 
-Index for generating code that uses the SDK to connect to coding agents in Runloop devboxes.
+Index for generating code that uses the SDK to connect to Runloop-hosted remote agents.
 
 ## Install
 
 ```bash
-npm install @runloop/agent-axon-client @runloop/api-client
+npm install @runloop/remote-agents-sdk @runloop/api-client
 # Claude module only:
 npm install @anthropic-ai/claude-agent-sdk
 ```
@@ -16,15 +16,15 @@ Refer to ../scaffold.ts for setup and advice on best practices.
 
 ## Use Cases
 
-- [agent-via-blueprint](https://github.com/runloopai/agent-axon-client-ts/blob/main/examples/feature-examples/src/use-cases/agent-via-blueprint.ts) — Use pre-built blueprint with agents baked in (acp + claude)
-- [elicitation-acp](https://github.com/runloopai/agent-axon-client-ts/blob/main/examples/feature-examples/src/use-cases/elicitation-acp.ts) — Handle agent-initiated user input via ACP session_elicitation (acp)
-- [elicitation-claude](https://github.com/runloopai/agent-axon-client-ts/blob/main/examples/feature-examples/src/use-cases/elicitation-claude.ts) — Handle agent-initiated user input via Claude conversational flow (claude)
-- [single-prompt](https://github.com/runloopai/agent-axon-client-ts/blob/main/examples/feature-examples/src/use-cases/single-prompt.ts) — Send one prompt, receive text response (acp + claude)
+- [agent-via-blueprint](https://github.com/runloopai/remote-agents-sdk/blob/main/examples/feature-examples/src/use-cases/agent-via-blueprint.ts) — Use pre-built blueprint with agents baked in (acp + claude)
+- [elicitation-acp](https://github.com/runloopai/remote-agents-sdk/blob/main/examples/feature-examples/src/use-cases/elicitation-acp.ts) — Handle agent-initiated user input via ACP session_elicitation (acp)
+- [elicitation-claude](https://github.com/runloopai/remote-agents-sdk/blob/main/examples/feature-examples/src/use-cases/elicitation-claude.ts) — Handle agent-initiated user input via Claude conversational flow (claude)
+- [single-prompt](https://github.com/runloopai/remote-agents-sdk/blob/main/examples/feature-examples/src/use-cases/single-prompt.ts) — Send one prompt, receive text response (acp + claude)
 
 ## Compatibility
 
 Not every agent supports every protocol or feature. See the compatibility matrix before assuming a combination works:
-https://github.com/runloopai/agent-axon-client-ts/blob/main/examples/feature-examples/compatibility.md
+https://github.com/runloopai/remote-agents-sdk/blob/main/examples/feature-examples/compatibility.md
 
 ## Implementation Notes
 
@@ -35,7 +35,7 @@ https://github.com/runloopai/agent-axon-client-ts/blob/main/examples/feature-exa
 
 ## References
 
-- SDK README: https://github.com/runloopai/agent-axon-client-ts/blob/main/sdk/README.md
-- SDK agent guide: https://github.com/runloopai/agent-axon-client-ts/blob/main/sdk/AGENTS.md
+- SDK README: https://github.com/runloopai/remote-agents-sdk/blob/main/sdk/README.md
+- SDK agent guide: https://github.com/runloopai/remote-agents-sdk/blob/main/sdk/AGENTS.md
 - Runloop docs: https://docs.runloop.ai
 - API client: https://github.com/runloopai/api-client-ts

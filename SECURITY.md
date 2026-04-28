@@ -22,6 +22,6 @@ mitigation plan within 7 days.
 
 ## Scope
 
-This policy covers the `@runloop/agent-axon-client` SDK package. Security
+This policy covers the `@runloop/remote-agents-sdk` SDK package. Security
 issues in third-party dependencies should be reported upstream, though we
 appreciate a heads-up if they affect this project.

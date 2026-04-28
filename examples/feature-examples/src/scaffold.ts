@@ -1,6 +1,6 @@
 import { RunloopSDK, type Secret } from "@runloop/api-client";
-import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
-import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
+import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/remote-agents-sdk/acp";
+import { ClaudeAxonConnection } from "@runloop/remote-agents-sdk/claude";
 import type { AgentConfig, AgentConfigOverride, BrokerMount, UseCase, RunContext } from "./types.js";
 import { SkipError } from "./types.js";
 import { withTimeout } from "./validator.js";

@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest a new feature or improvement for @runloop/agent-axon-client
+about: Suggest a new feature or improvement for @runloop/remote-agents-sdk
 title: ''
 labels: enhancement
 assignees: ''

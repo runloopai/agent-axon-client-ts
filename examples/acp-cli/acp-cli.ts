@@ -27,7 +27,7 @@ import {
   isToolCallProgress,
   isPlan,
   isUsageUpdate,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import { parseArgs } from "util";
 
 // ---------------------------------------------------------------------------

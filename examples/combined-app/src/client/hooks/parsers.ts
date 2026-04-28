@@ -1,4 +1,4 @@
-import type { ToolCallContent } from "@runloop/agent-axon-client/acp";
+import type { ToolCallContent } from "@runloop/remote-agents-sdk/acp";
 import type { ContentItem } from "../types.js";
 
 export function parseToolCallContent(raw: ToolCallContent[]): ContentItem[] {

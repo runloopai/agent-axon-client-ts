@@ -320,7 +320,7 @@ async function generateCompatibilityMd(
   return output;
 }
 
-const GITHUB_REPO_BASE = "https://github.com/runloopai/agent-axon-client-ts/blob/main";
+const GITHUB_REPO_BASE = "https://github.com/runloopai/remote-agents-sdk/blob/main";
 
 function buildUseCasesList(useCases: UseCase[]): string {
   let list = "";

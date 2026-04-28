@@ -4,8 +4,8 @@ import {
   isClaudeProtocolEvent,
   isTurnStartedEvent,
   isTurnCompletedEvent,
-} from "@runloop/agent-axon-client/claude";
-import type { ClaudeTimelineEvent, SDKControlRequest, ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
+} from "@runloop/remote-agents-sdk/claude";
+import type { ClaudeTimelineEvent, SDKControlRequest, ControlRequestOfSubtype } from "@runloop/remote-agents-sdk/claude";
 import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,
