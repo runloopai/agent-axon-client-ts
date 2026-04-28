@@ -104,7 +104,7 @@
     },
     "sdk": {
       "name": "@runloop/remote-agents-sdk",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "dependencies": {
         "@agentclientprotocol/sdk": "0.18.0",
       },
