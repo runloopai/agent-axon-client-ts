@@ -28,7 +28,7 @@ import {
   isAgentTextChunk,
   isThoughtTextChunk,
   type InitializeResponse,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
 import type { AgentConfig, BrokerMount } from "feature-examples/types";
 import { AGENTS } from "feature-examples/agents";

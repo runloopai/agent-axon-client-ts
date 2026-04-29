@@ -40,7 +40,7 @@ jobs:
         run: bun run build
 
       - name: Generate docs
-        run: bun run --filter '@runloop/agent-axon-client' docs
+        run: bun run --filter '@runloop/remote-agents-sdk' docs
 
       - uses: actions/configure-pages@v5
 

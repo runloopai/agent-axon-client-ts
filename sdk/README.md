@@ -1,23 +1,23 @@
-# @runloop/agent-axon-client
+# @runloop/remote-agents-sdk
 
 > **Alpha — subject to change.** This SDK is in early development. APIs, interfaces, and behavior may change without notice between versions.
 
-TypeScript client for connecting to coding agents running inside [Runloop](https://runloop.ai) devboxes via the Axon event bus.
+TypeScript client for connecting applications to Runloop-hosted remote agents via the Axon event bus.
 
 This package provides two protocol modules and a shared utilities module:
 
 | Module | Import path | Protocol | Use case |
 |--------|-------------|----------|----------|
-| **ACP** | `@runloop/agent-axon-client/acp` | [Agent Client Protocol](https://agentclientprotocol.com) (JSON-RPC 2.0) | Any ACP-compatible agent (OpenCode, Claude via ACP, etc.) |
-| **Claude** | `@runloop/agent-axon-client/claude` | Claude Code SDK wire format | Claude Code with native SDK message types |
-| **Shared** | `@runloop/agent-axon-client/shared` | — | Common types (`BaseConnectionOptions`, `AxonEventView`, `AxonEventListener`) and utilities |
+| **ACP** | `@runloop/remote-agents-sdk/acp` | [Agent Client Protocol](https://agentclientprotocol.com) (JSON-RPC 2.0) | Any ACP-compatible agent (OpenCode, Claude via ACP, etc.) |
+| **Claude** | `@runloop/remote-agents-sdk/claude` | Claude Code SDK wire format | Claude Code with native SDK message types |
+| **Shared** | `@runloop/remote-agents-sdk/shared` | — | Common types (`BaseConnectionOptions`, `AxonEventView`, `AxonEventListener`) and utilities |
 
 Both protocol modules communicate over Runloop Axon channels. Pick the one that matches your agent's protocol. Shared types are also re-exported from each protocol module for convenience.
 
 ## Installation
 
 ```bash
-npm install @runloop/agent-axon-client @runloop/api-client
+npm install @runloop/remote-agents-sdk @runloop/api-client
 ```
 
 `@runloop/api-client` is a peer dependency — you provide the Runloop SDK instance.
@@ -32,12 +32,12 @@ npm install @anthropic-ai/claude-agent-sdk
 
 ```typescript
 // Subpath imports (recommended — tree-shakable)
-import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
-import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
-import type { BaseConnectionOptions, AxonEventView } from "@runloop/agent-axon-client/shared";
+import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/remote-agents-sdk/acp";
+import { ClaudeAxonConnection } from "@runloop/remote-agents-sdk/claude";
+import type { BaseConnectionOptions, AxonEventView } from "@runloop/remote-agents-sdk/shared";
 
 // Namespaced root import (all modules at once)
-import { acp, claude, shared } from "@runloop/agent-axon-client";
+import { acp, claude, shared } from "@runloop/remote-agents-sdk";
 ```
 
 ## Getting Started
@@ -49,7 +49,7 @@ import {
   ACPAxonConnection,
   isAgentMessageChunk,
   PROTOCOL_VERSION,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -114,7 +114,7 @@ await conn.disconnect();
 ### Claude Code Agent
 
 ```typescript
-import { ClaudeAxonConnection, tryParseTimelinePayload } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection, tryParseTimelinePayload } from "@runloop/remote-agents-sdk/claude";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -235,7 +235,7 @@ Higher-level wrapper that manages an `axonStream`, an `AbortController`, and the
 Create an Axon channel, attach a devbox `broker_mount` with `protocol: "acp"`, then pass `axon` and `devboxId` into `ACPAxonConnection`:
 
 ```typescript
-import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
+import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/remote-agents-sdk/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -307,7 +307,7 @@ import {
   isToolCall,
   isUsageUpdate,
   // ...
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 
 // SessionUpdate is a union type — use type guards to narrow and handle each variant
 conn.onSessionUpdate((sessionId, update) => {
@@ -332,7 +332,7 @@ import type {
   ToolCall,
   ContentBlock,
   // ... etc.
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 ```
 
 ---
@@ -359,7 +359,7 @@ import type {
   SDKToolProgressMessage,
   PermissionMode,
   // ... etc.
-} from "@runloop/agent-axon-client/claude";
+} from "@runloop/remote-agents-sdk/claude";
 ```
 
 ### `ClaudeAxonConnection`
@@ -429,7 +429,7 @@ Bidirectional, interactive client for Claude Code via Axon. Messages are yielded
 Lower-level transport that implements the `Transport` interface using Runloop Axon. Used internally by `ClaudeAxonConnection` but available for custom integrations.
 
 ```typescript
-import { AxonTransport, type Transport } from "@runloop/agent-axon-client/claude";
+import { AxonTransport, type Transport } from "@runloop/remote-agents-sdk/claude";
 
 // AxonTransport gives direct access to the Claude wire protocol over Axon —
 // use this if you need custom message handling beyond what ClaudeAxonConnection provides
@@ -477,8 +477,8 @@ Every timeline event has three fields:
 ### ACP timeline events (`ACPTimelineEvent`)
 
 ```typescript
-import type { ACPTimelineEvent } from "@runloop/agent-axon-client/acp";
-import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
+import type { ACPTimelineEvent } from "@runloop/remote-agents-sdk/acp";
+import { tryParseTimelinePayload } from "@runloop/remote-agents-sdk/acp";
 
 conn.onTimelineEvent((event: ACPTimelineEvent) => {
   switch (event.kind) {
@@ -503,8 +503,8 @@ conn.onTimelineEvent((event: ACPTimelineEvent) => {
 ### Claude timeline events (`ClaudeTimelineEvent`)
 
 ```typescript
-import type { ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
-import { tryParseTimelinePayload } from "@runloop/agent-axon-client/claude";
+import type { ClaudeTimelineEvent } from "@runloop/remote-agents-sdk/claude";
+import { tryParseTimelinePayload } from "@runloop/remote-agents-sdk/claude";
 
 conn.onTimelineEvent((event: ClaudeTimelineEvent) => {
   switch (event.kind) {
@@ -551,7 +551,7 @@ await conn.publish({
 **Consuming it on the other side:**
 
 ```typescript
-import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
+import { tryParseTimelinePayload } from "@runloop/remote-agents-sdk/acp";
 
 interface BuildStatus {
   step: string;
@@ -632,7 +632,7 @@ ACP Module                                    Claude Module
 
 ## Shared Types
 
-Shared types are available from `@runloop/agent-axon-client/shared` or re-exported from each protocol module.
+Shared types are available from `@runloop/remote-agents-sdk/shared` or re-exported from each protocol module.
 
 ### `BaseConnectionOptions`
 
@@ -709,7 +709,7 @@ This means **`await conn.prompt(...)` returns before the agent's response text h
 - **Use `onTimelineEvent` to watch for `system` events** (recommended). These bracket all content for a turn. Use a `switch` on `event.kind` and the exported `SYSTEM_EVENT_TYPES` constants for exhaustive, type-safe matching:
 
   ```typescript
-  import { SYSTEM_EVENT_TYPES } from "@runloop/agent-axon-client/shared";
+  import { SYSTEM_EVENT_TYPES } from "@runloop/remote-agents-sdk/shared";
 
   conn.onTimelineEvent((event) => {
     switch (event.kind) {

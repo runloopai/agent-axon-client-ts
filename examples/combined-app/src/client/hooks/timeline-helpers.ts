@@ -3,7 +3,7 @@ import {
   isUnknownTimelineEvent,
   isDevboxLifecycleEvent,
   isAgentErrorEvent,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import type { TimelineEvent, AgentConfigItem, AgentStartedPayload, SystemEventItem, UserAttachment } from "../types.js";
 
 /**

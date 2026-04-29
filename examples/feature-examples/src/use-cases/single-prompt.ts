@@ -1,5 +1,5 @@
-import { isAgentTextChunk } from "@runloop/agent-axon-client/acp";
-import { isClaudeAssistantTextEvent, isClaudeResultEvent } from "@runloop/agent-axon-client/claude";
+import { isAgentTextChunk } from "@runloop/remote-agents-sdk/acp";
+import { isClaudeAssistantTextEvent, isClaudeResultEvent } from "@runloop/remote-agents-sdk/claude";
 import type { UseCase } from "../types.js";
 import { waitFor } from "../validator.js";
 

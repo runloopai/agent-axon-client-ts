@@ -1,6 +1,6 @@
 import { RunloopSDK } from "@runloop/api-client";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
-import { ClaudeAxonConnection, type AxonEventView } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection, type AxonEventView } from "@runloop/remote-agents-sdk/claude";
 import type { SDKControlResponse } from "@anthropic-ai/claude-agent-sdk";
 import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster, WsEvent, BaseWsEvent } from "./ws.ts";

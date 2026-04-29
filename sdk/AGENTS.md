@@ -1,25 +1,25 @@
-# AGENTS.md — @runloop/agent-axon-client
+# AGENTS.md — @runloop/remote-agents-sdk
 
 > AI-agent quick reference for using this SDK. For full docs see `README.md`.
 
 ## What this package does
 
-Connects to coding agents (Claude Code, OpenCode, etc.) running inside Runloop
-devboxes via the Axon event bus. Two protocol modules plus shared utilities.
+Connects applications to Runloop-hosted remote agents (Claude Code, OpenCode,
+etc.) via the Axon event bus. Two protocol modules plus shared utilities.
 
 ## Choose your module
 
 | Module | Import | When to use |
 |--------|--------|-------------|
-| **ACP** | `@runloop/agent-axon-client/acp` | Any ACP-compatible agent (OpenCode, Claude via ACP) |
-| **Claude** | `@runloop/agent-axon-client/claude` | Claude Code with native SDK message types |
-| **Shared** | `@runloop/agent-axon-client/shared` | Common types (`BaseConnectionOptions`, `AxonEventView`, `AxonEventListener`) and utilities |
+| **ACP** | `@runloop/remote-agents-sdk/acp` | Any ACP-compatible agent (OpenCode, Claude via ACP) |
+| **Claude** | `@runloop/remote-agents-sdk/claude` | Claude Code with native SDK message types |
+| **Shared** | `@runloop/remote-agents-sdk/shared` | Common types (`BaseConnectionOptions`, `AxonEventView`, `AxonEventListener`) and utilities |
 
 ## Required dependencies
 
 ```bash
 # Always required
-npm install @runloop/agent-axon-client @runloop/api-client
+npm install @runloop/remote-agents-sdk @runloop/api-client
 
 # Only for the Claude module
 npm install @anthropic-ai/claude-agent-sdk
@@ -28,7 +28,7 @@ npm install @anthropic-ai/claude-agent-sdk
 ## ACP module — quick start
 
 ```typescript
-import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/agent-axon-client/acp";
+import { ACPAxonConnection, PROTOCOL_VERSION } from "@runloop/remote-agents-sdk/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -88,7 +88,7 @@ import {
   isAgentMessageChunk,
   isToolCall,
   isUsageUpdate,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 
 conn.onSessionUpdate((sessionId, update) => {
   if (isAgentMessageChunk(update)) process.stdout.write(update.message);
@@ -121,7 +121,7 @@ Available guards: `isUserMessageChunk`, `isAgentMessageChunk`,
 ## Claude module — quick start
 
 ```typescript
-import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection } from "@runloop/remote-agents-sdk/claude";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -215,7 +215,7 @@ for await (const event of conn.receiveTimelineEvents()) {
 ### Utility: `tryParseTimelinePayload`
 
 ```typescript
-import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
+import { tryParseTimelinePayload } from "@runloop/remote-agents-sdk/acp";
 
 conn.onTimelineEvent((event) => {
   if (event.kind === "unknown") {

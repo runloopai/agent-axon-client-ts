@@ -1,14 +1,14 @@
-# @runloop/agent-axon-client
+# @runloop/remote-agents-sdk
 
-[![CI](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@runloop/agent-axon-client)](https://www.npmjs.com/package/@runloop/agent-axon-client)
-[![Docs](https://img.shields.io/badge/docs-TypeDoc-blue)](https://runloopai.github.io/agent-axon-client-ts/)
-[![codecov](https://codecov.io/gh/runloopai/agent-axon-client-ts/branch/main/graph/badge.svg)](https://codecov.io/gh/runloopai/agent-axon-client-ts)
+[![CI](https://github.com/runloopai/remote-agents-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/runloopai/remote-agents-sdk/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@runloop/remote-agents-sdk)](https://www.npmjs.com/package/@runloop/remote-agents-sdk)
+[![Docs](https://img.shields.io/badge/docs-TypeDoc-blue)](https://runloopai.github.io/remote-agents-sdk/)
+[![codecov](https://codecov.io/gh/runloopai/remote-agents-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/runloopai/remote-agents-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **Alpha — subject to change.** This SDK is in early development. APIs, interfaces, and behavior may change without notice between versions.
 
-TypeScript SDK for connecting to coding agents (Claude Code, OpenCode, etc.) running inside [Runloop](https://runloop.ai) devboxes via the Axon event bus.
+TypeScript SDK for connecting applications to Runloop-hosted remote agents (Claude Code, OpenCode, etc.) via the Axon event bus.
 
 ## Key Concepts
 
@@ -38,7 +38,7 @@ In short: **Runloop** hosts **devboxes** where agents run; a **broker mount** co
 ## Installation
 
 ```bash
-npm install @runloop/agent-axon-client @runloop/api-client
+npm install @runloop/remote-agents-sdk @runloop/api-client
 ```
 
 `@runloop/api-client` is a required peer dependency — it provides the `RunloopSDK` instance and Axon types used by both modules.
@@ -90,8 +90,8 @@ The SDK has two independent modules — pick the one that matches your agent's p
 
 | Module     | Import path                         | Protocol                                                                | Use when                                        |
 | ---------- | ----------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------- |
-| **ACP**    | `@runloop/agent-axon-client/acp`    | [Agent Client Protocol](https://agentclientprotocol.com) (JSON-RPC 2.0) | Using OpenCode, or Claude via ACP               |
-| **Claude** | `@runloop/agent-axon-client/claude` | Claude Code SDK wire format                                             | Using Claude Code with native SDK message types |
+| **ACP**    | `@runloop/remote-agents-sdk/acp`    | [Agent Client Protocol](https://agentclientprotocol.com) (JSON-RPC 2.0) | Using OpenCode, or Claude via ACP               |
+| **Claude** | `@runloop/remote-agents-sdk/claude` | Claude Code SDK wire format                                             | Using Claude Code with native SDK message types |
 
 
 ### Which module should I use?
@@ -115,7 +115,7 @@ The SDK has two independent modules — pick the one that matches your agent's p
 ### ACP module
 
 ```typescript
-import { ACPAxonConnection, PROTOCOL_VERSION, isAgentMessageChunk } from "@runloop/agent-axon-client/acp";
+import { ACPAxonConnection, PROTOCOL_VERSION, isAgentMessageChunk } from "@runloop/remote-agents-sdk/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -160,7 +160,7 @@ await agent.disconnect();
 ### Claude module
 
 ```typescript
-import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection } from "@runloop/remote-agents-sdk/claude";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -197,12 +197,12 @@ Every timeline event has `{ kind, data, axonEvent }` where `kind` is a discrimin
 **ACP — handling protocol events:**
 
 ```typescript
-import { SYSTEM_EVENT_TYPES } from "@runloop/agent-axon-client/shared";
+import { SYSTEM_EVENT_TYPES } from "@runloop/remote-agents-sdk/shared";
 import {
   isAgentMessageChunk,
   isToolCall,
   isToolCallProgress,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 
 agent.onTimelineEvent((event) => {
   switch (event.kind) {
@@ -249,7 +249,7 @@ conn.onTimelineEvent((event) => {
 **Custom events** — use `publish()` to push your own events to the channel. They arrive as `kind: "unknown"` timeline events:
 
 ```typescript
-import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
+import { tryParseTimelinePayload } from "@runloop/remote-agents-sdk/acp";
 
 // Publish a custom event
 await conn.publish({
@@ -278,7 +278,7 @@ for await (const event of agent.receiveTimelineEvents()) {
 
 See the [SDK documentation](sdk/README.md#custom-events-via-publish-and-tryparsetimelinepayload) for more on custom events, and the [full timeline API reference](sdk/README.md#timeline-events) for replay behavior and `afterSequence`.
 
-See the [SDK documentation](sdk/README.md) for the full API reference, or browse the [hosted API docs](https://runloopai.github.io/agent-axon-client-ts/).
+See the [SDK documentation](sdk/README.md) for the full API reference, or browse the [hosted API docs](https://runloopai.github.io/remote-agents-sdk/).
 
 ## Getting Agents onto the Devbox
 
@@ -292,7 +292,7 @@ The standalone examples (hello-world, CLI, combined-app) use a pre-baked **bluep
 ## Repository Structure
 
 ```
-sdk/                      → @runloop/agent-axon-client (the published npm package)
+sdk/                      → @runloop/remote-agents-sdk (the published npm package)
 examples/
   blueprint/              → Builds the shared `axon-agents` blueprint (run this first)
   acp-hello-world/        → Minimal ACP single-prompt script

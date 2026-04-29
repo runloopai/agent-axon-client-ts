@@ -15,9 +15,9 @@ import type {
   Implementation,
   PlanEntry,
   SessionConfigOption,
-} from "@runloop/agent-axon-client/acp";
-import type { ACPTimelineEvent, AxonEventView } from "@runloop/agent-axon-client/acp";
-import type { ClaudeTimelineEvent, SDKControlRequest } from "@runloop/agent-axon-client/claude";
+} from "@runloop/remote-agents-sdk/acp";
+import type { ACPTimelineEvent, AxonEventView } from "@runloop/remote-agents-sdk/acp";
+import type { ClaudeTimelineEvent, SDKControlRequest } from "@runloop/remote-agents-sdk/claude";
 
 export type {
   AgentCapabilities,
@@ -38,9 +38,9 @@ export type {
   Terminal,
   ToolCallStatus,
   ToolKind,
-} from "@runloop/agent-axon-client/acp";
-export type { ACPTimelineEvent, AxonEventView } from "@runloop/agent-axon-client/acp";
-export type { ClaudeTimelineEvent } from "@runloop/agent-axon-client/claude";
+} from "@runloop/remote-agents-sdk/acp";
+export type { ACPTimelineEvent, AxonEventView } from "@runloop/remote-agents-sdk/acp";
+export type { ClaudeTimelineEvent } from "@runloop/remote-agents-sdk/claude";
 
 export type TimelineEvent = ACPTimelineEvent | ClaudeTimelineEvent;
 

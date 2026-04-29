@@ -1,5 +1,5 @@
-import type { ACPTimelineEvent, ElicitationRequest, RequestPermissionRequest } from "@runloop/agent-axon-client/acp";
-import type { ClaudeTimelineEvent, SDKControlRequest } from "@runloop/agent-axon-client/claude";
+import type { ACPTimelineEvent, ElicitationRequest, RequestPermissionRequest } from "@runloop/remote-agents-sdk/acp";
+import type { ClaudeTimelineEvent, SDKControlRequest } from "@runloop/remote-agents-sdk/claude";
 
 export type BaseWsEvent =
   | { type: "timeline_event"; event: ACPTimelineEvent | ClaudeTimelineEvent }

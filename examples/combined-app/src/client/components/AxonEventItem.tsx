@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { SessionUpdate } from "@runloop/agent-axon-client/acp";
+import type { SessionUpdate } from "@runloop/remote-agents-sdk/acp";
 import type { AxonEventView } from "../types.js";
 import { PayloadTree, formatTime, originLabel, originBadgeClass } from "./shared.js";
 

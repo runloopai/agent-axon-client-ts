@@ -5,7 +5,7 @@ import {
   PROTOCOL_VERSION,
   type ACPTimelineEvent,
   type AxonEventView,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import { NodeACPClient } from "./acp-client.ts";
 import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster, WsEvent, BaseWsEvent } from "./ws.ts";

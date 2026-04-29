@@ -21,7 +21,7 @@ import {
   PROTOCOL_VERSION,
   isAgentTextChunk,
   isToolCall,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import { parseArgs } from "util";
 
 const { values: args } = parseArgs({

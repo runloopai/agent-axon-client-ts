@@ -7,7 +7,7 @@ import {
   isAgentErrorEvent,
   isBrokerErrorEvent,
   isFromUser,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import type {
   ACPProtocolTimelineEvent,
   InitializeRequest,
@@ -19,14 +19,14 @@ import type {
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import type {
   ClaudeProtocolTimelineEvent,
   SDKControlRequest,
   SDKPartialAssistantMessage,
   SDKResultMessage,
   SDKSystemMessage,
-} from "@runloop/agent-axon-client/claude";
+} from "@runloop/remote-agents-sdk/claude";
 import type { AgentStartedPayload, TimelineEvent } from "../types.js";
 import { PayloadTree, formatTime, originLabel, originBadgeClass } from "./shared.js";
 

@@ -21,8 +21,8 @@ import {
   isInitializeEvent,
   isFromAgent,
   extractACPUserMessage,
-} from "@runloop/agent-axon-client/acp";
-import type { AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, InitializeResponse } from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
+import type { AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, InitializeResponse } from "@runloop/remote-agents-sdk/acp";
 import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,

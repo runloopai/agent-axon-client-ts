@@ -3,7 +3,7 @@
   "entryPoints": ["src/index.ts", "src/acp/index.ts", "src/claude/index.ts", "src/shared/index.ts"],
   "plugin": ["./typedoc-default-category-plugin.mjs"],
   "out": "docs",
-  "name": "@runloop/agent-axon-client",
+  "name": "@runloop/remote-agents-sdk",
   "readme": "README.md",
   "excludeInternal": true,
   "excludePrivate": true,

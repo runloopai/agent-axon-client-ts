@@ -36,7 +36,7 @@ import type {
 } from "./types.js";
 
 // Re-export shared system/unknown guards and types for convenience.
-// Consumers can import from either `@runloop/agent-axon-client/acp` or `/shared`.
+// Consumers can import from either `@runloop/remote-agents-sdk/acp` or `/shared`.
 export type {
   AgentErrorTimelineEvent,
   AgentLogTimelineEvent,

@@ -1,10 +1,10 @@
-# AGENTS.md — agent-axon-client-ts
+# AGENTS.md — remote-agents-sdk
 
 Repo guide for AI agents. SDK API docs: [`sdk/AGENTS.md`](sdk/AGENTS.md).
 
 ## Layout
 
-- `sdk/` — `@runloop/agent-axon-client` (published package)
+- `sdk/` — `@runloop/remote-agents-sdk` (published package)
 - `examples/feature-examples/` — runnable SDK recipes
 - `examples/` — demo apps (hello-world, CLI, full-stack)
 

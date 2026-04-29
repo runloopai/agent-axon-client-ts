@@ -9,7 +9,7 @@ A full-stack demo that supports both ACP and Claude Code agents running in Runlo
 - Node.js 22+
 - A [Runloop](https://runloop.ai) API key
 - An [Anthropic](https://anthropic.com) API key (required for Claude agents)
-- The `@runloop/agent-axon-client` SDK built locally (`cd ../../sdk && bun run build`)
+- The `@runloop/remote-agents-sdk` SDK built locally (`cd ../../sdk && bun run build`)
 
 ## Setup
 
@@ -99,4 +99,4 @@ src/
 
 ## License
 
-MIT — part of the [`agent-axon-client`](https://github.com/runloopai/agent-axon-client-ts) workspace.
+MIT — part of the [`remote-agents-sdk`](https://github.com/runloopai/remote-agents-sdk) workspace.
