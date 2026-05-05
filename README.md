@@ -63,9 +63,10 @@ npm install @anthropic-ai/claude-agent-sdk
 
 ### Coming Soon
 
-| Status     | Description                                                                                                                       |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 🚧 Planned | **Axon subscribe over WebSockets** — WebSocket transport for Axon subscriptions, enabling browser clients without a backend proxy |
+| Status     | Description                                                                                                                                                     |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🚧 Planned | **Devbox state-transition events** — expose transitional lifecycle states (`suspending`, `resuming`, `creating`) as first-class Axon events (terminal states like `running`, `suspended`, `shutdown`, `failed` are already supported) |
+| 🚧 Planned | **Axon subscribe over WebSockets** — WebSocket transport for Axon subscriptions, enabling browser clients without a backend proxy                               |
 
 ## Modules
 
