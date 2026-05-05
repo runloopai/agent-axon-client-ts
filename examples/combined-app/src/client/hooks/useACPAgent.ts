@@ -22,7 +22,13 @@ import {
   isFromAgent,
   extractACPUserMessage,
 } from "@runloop/remote-agents-sdk/acp";
-import type { AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, InitializeResponse } from "@runloop/remote-agents-sdk/acp";
+import type {
+  AuthMethod,
+  CreateElicitationResponse,
+  SessionUpdate,
+  ACPTimelineEvent,
+  InitializeResponse,
+} from "@runloop/remote-agents-sdk/acp";
 import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,
@@ -101,7 +107,7 @@ export interface UseACPAgentReturn {
   respondToPermission: (requestId: string, optionId: string) => Promise<void>;
   cancelPermission: (requestId: string) => Promise<void>;
   setAutoApprovePermissions: (enabled: boolean) => Promise<void>;
-  respondToElicitation: (requestId: string, action: ElicitationAction) => Promise<void>;
+  respondToElicitation: (requestId: string, response: CreateElicitationResponse) => Promise<void>;
   shutdown: () => Promise<void>;
   createNewSession: () => Promise<void>;
   switchSession: (sessionId: string) => Promise<void>;
@@ -704,9 +710,9 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
     }
   }, [agentId]);
 
-  const respondToElicitation = useCallback(async (requestId: string, action: ElicitationAction) => {
+  const respondToElicitation = useCallback(async (requestId: string, response: CreateElicitationResponse) => {
     dispatch({ type: "SET", patch: { pendingElicitation: null } });
-    try { await api("/api/elicitation-response", { agentId, requestId, action }); } catch (err) {
+    try { await api("/api/elicitation-response", { agentId, requestId, response }); } catch (err) {
       dispatch({ type: "SET", patch: { error: err instanceof Error ? err.message : String(err) } });
     }
   }, [agentId]);

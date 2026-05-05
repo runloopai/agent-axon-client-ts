@@ -66,7 +66,7 @@ export function registerACPRoutes(app: Express, registry: AgentRegistry) {
       }
       entry
         .acpManager!.requireClient()
-        .resolveElicitation(req.body.requestId, { action: req.body.action });
+        .resolveElicitation(req.body.requestId, req.body.response);
       res.json({ ok: true });
     }),
   );
