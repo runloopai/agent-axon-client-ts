@@ -68,19 +68,9 @@ npm install @anthropic-ai/claude-agent-sdk
 ### Coming Soon
 
 
-| Status     | Description                                                                                                                                |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 🚧 Planned | **Agent installation** — support for automatically getting agents installed on the devbox                                                  |
-| 🚧 Planned | **Devbox state-transition events** — expose devbox lifecycle state changes (creating → running → suspended → …) as first-class Axon events |
-| 🚧 Planned | **Axon subscribe over WebSockets** — WebSocket transport for Axon subscriptions, enabling browser clients without a backend proxy          |
-
-
-### Known Issues
-
-
-| Status | Description                                                                                                                          |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 🐛 Bug | Suspend and resume of a devbox will not work correctly at the moment, this will be fixed soon.                                       |
+| Status     | Description                                                                                                                       |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 🚧 Planned | **Axon subscribe over WebSockets** — WebSocket transport for Axon subscriptions, enabling browser clients without a backend proxy |
 
 
 ## Modules
@@ -181,7 +171,7 @@ await conn.initialize();
 
 await conn.send("What files are in this directory?");
 
-for await (const msg of conn.receiveResponse()) {
+for await (const msg of conn.receiveAgentResponse()) {
   console.log(msg.type, msg);
 }
 
