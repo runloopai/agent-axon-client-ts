@@ -13,11 +13,11 @@ import type { AxonStreamOptions } from "./types.js";
  * Set of event_types that are notifications (no request ID correlation).
  * `session/update` is the main one -- the broker sends streaming chunks,
  * tool calls, plan updates, etc. as session/update notifications.
- * `session/elicitation/complete` signals elicitation finished (no response expected).
+ * `elicitation/complete` signals elicitation finished (no response expected).
  */
 const NOTIFICATION_TYPES = new Set<string>([
   CLIENT_METHODS.session_update,
-  CLIENT_METHODS.session_elicitation_complete,
+  CLIENT_METHODS.elicitation_complete,
 ]);
 
 /**

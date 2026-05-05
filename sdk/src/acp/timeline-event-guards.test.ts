@@ -242,13 +242,13 @@ describe("isUnknownTimelineEvent", () => {
 // ---------------------------------------------------------------------------
 
 describe("isElicitationRequestEvent", () => {
-  it("returns true for session/elicitation AGENT_EVENT", () => {
-    const event = makeProtocolTimelineEvent(CLIENT_METHODS.session_elicitation, "AGENT_EVENT");
+  it("returns true for elicitation/create AGENT_EVENT", () => {
+    const event = makeProtocolTimelineEvent(CLIENT_METHODS.elicitation_create, "AGENT_EVENT");
     expect(isElicitationRequestEvent(event)).toBe(true);
   });
 
-  it("returns false for session/elicitation USER_EVENT (response)", () => {
-    const event = makeProtocolTimelineEvent(CLIENT_METHODS.session_elicitation, "USER_EVENT");
+  it("returns false for elicitation/create USER_EVENT (response)", () => {
+    const event = makeProtocolTimelineEvent(CLIENT_METHODS.elicitation_create, "USER_EVENT");
     expect(isElicitationRequestEvent(event)).toBe(false);
   });
 
@@ -269,13 +269,13 @@ describe("isElicitationRequestEvent", () => {
 });
 
 describe("isElicitationResponseEvent", () => {
-  it("returns true for session/elicitation USER_EVENT", () => {
-    const event = makeProtocolTimelineEvent(CLIENT_METHODS.session_elicitation, "USER_EVENT");
+  it("returns true for elicitation/create USER_EVENT", () => {
+    const event = makeProtocolTimelineEvent(CLIENT_METHODS.elicitation_create, "USER_EVENT");
     expect(isElicitationResponseEvent(event)).toBe(true);
   });
 
-  it("returns false for session/elicitation AGENT_EVENT (request)", () => {
-    const event = makeProtocolTimelineEvent(CLIENT_METHODS.session_elicitation, "AGENT_EVENT");
+  it("returns false for elicitation/create AGENT_EVENT (request)", () => {
+    const event = makeProtocolTimelineEvent(CLIENT_METHODS.elicitation_create, "AGENT_EVENT");
     expect(isElicitationResponseEvent(event)).toBe(false);
   });
 
@@ -296,24 +296,18 @@ describe("isElicitationResponseEvent", () => {
 });
 
 describe("isElicitationCompleteEvent", () => {
-  it("returns true for session/elicitation/complete AGENT_EVENT", () => {
-    const event = makeProtocolTimelineEvent(
-      CLIENT_METHODS.session_elicitation_complete,
-      "AGENT_EVENT",
-    );
+  it("returns true for elicitation/complete AGENT_EVENT", () => {
+    const event = makeProtocolTimelineEvent(CLIENT_METHODS.elicitation_complete, "AGENT_EVENT");
     expect(isElicitationCompleteEvent(event)).toBe(true);
   });
 
-  it("returns true for session/elicitation/complete USER_EVENT", () => {
-    const event = makeProtocolTimelineEvent(
-      CLIENT_METHODS.session_elicitation_complete,
-      "USER_EVENT",
-    );
+  it("returns true for elicitation/complete USER_EVENT", () => {
+    const event = makeProtocolTimelineEvent(CLIENT_METHODS.elicitation_complete, "USER_EVENT");
     expect(isElicitationCompleteEvent(event)).toBe(true);
   });
 
-  it("returns false for session/elicitation events", () => {
-    const event = makeProtocolTimelineEvent(CLIENT_METHODS.session_elicitation, "AGENT_EVENT");
+  it("returns false for elicitation/create events", () => {
+    const event = makeProtocolTimelineEvent(CLIENT_METHODS.elicitation_create, "AGENT_EVENT");
     expect(isElicitationCompleteEvent(event)).toBe(false);
   });
 
