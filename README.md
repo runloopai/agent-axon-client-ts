@@ -6,8 +6,6 @@
 [![codecov](https://codecov.io/gh/runloopai/remote-agents-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/runloopai/remote-agents-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **Alpha — subject to change.** This SDK is in early development. APIs, interfaces, and behavior may change without notice between versions.
-
 TypeScript SDK for connecting applications to Runloop-hosted remote agents (Claude Code, OpenCode, etc.) via the Axon event bus.
 
 ## Key Concepts
@@ -27,7 +25,7 @@ In short: **Runloop** hosts **devboxes** where agents run; a **broker mount** co
 - A [Runloop](https://runloop.ai) API key
   - Sign up for free at [platform.runloop.ai](https://platform.runloop.ai) (includes $50 in credits)
   - Navigate to [Settings](https://platform.runloop.ai/settings) → API Keys
-  - Create an API key (starts with `ak`_)
+  - Create an API key (starts with `ak`\_)
   - Set environment variable: `export RUNLOOP_API_KEY=ak_your_key`
 - An [Anthropic](https://console.anthropic.com) API key (**only required for Claude module examples**)
   - Sign up at [console.anthropic.com](https://console.anthropic.com)
@@ -53,36 +51,30 @@ npm install @anthropic-ai/claude-agent-sdk
 
 ### Supported Features by Protocol
 
-
 | Capability                                   | Claude | ACP |
 | -------------------------------------------- | ------ | --- |
-| Send prompts / messages                      | ✅      | ✅   |
-| Streaming responses                          | ✅      | ✅   |
-| Tool use / tool results                      | ✅      | ✅   |
-| Cancel / interrupt turns                     | ✅      | ✅   |
-| Permission / control requests (auto-approve) | ✅      | ✅   |
+| Send prompts / messages                      | ✅     | ✅  |
+| Streaming responses                          | ✅     | ✅  |
+| Tool use / tool results                      | ✅     | ✅  |
+| Cancel / interrupt turns                     | ✅     | ✅  |
+| Permission / control requests (auto-approve) | ✅     | ✅  |
 
-
-*Auto-approve only for now, permission request flow pending
+\*Auto-approve only for now, permission request flow pending
 
 ### Coming Soon
-
 
 | Status     | Description                                                                                                                       |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | 🚧 Planned | **Axon subscribe over WebSockets** — WebSocket transport for Axon subscriptions, enabling browser clients without a backend proxy |
 
-
 ## Modules
 
 The SDK has two independent modules — pick the one that matches your agent's protocol:
-
 
 | Module     | Import path                         | Protocol                                                                | Use when                                        |
 | ---------- | ----------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------- |
 | **ACP**    | `@runloop/remote-agents-sdk/acp`    | [Agent Client Protocol](https://agentclientprotocol.com) (JSON-RPC 2.0) | Using OpenCode, or Claude via ACP               |
 | **Claude** | `@runloop/remote-agents-sdk/claude` | Claude Code SDK wire format                                             | Using Claude Code with native SDK message types |
-
 
 ### Which module should I use?
 
@@ -105,7 +97,11 @@ The SDK has two independent modules — pick the one that matches your agent's p
 ### ACP module
 
 ```typescript
-import { ACPAxonConnection, PROTOCOL_VERSION, isAgentMessageChunk } from "@runloop/remote-agents-sdk/acp";
+import {
+  ACPAxonConnection,
+  PROTOCOL_VERSION,
+  isAgentMessageChunk,
+} from "@runloop/remote-agents-sdk/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -157,15 +153,19 @@ const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
 
 const axon = await sdk.axon.create({ name: "claude-transport" });
 const devbox = await sdk.devbox.create({
-  mounts: [{
-    type: "broker_mount",
-    axon_id: axon.id,
-    protocol: "claude_json",
-    agent_binary: "claude",
-  }],
+  mounts: [
+    {
+      type: "broker_mount",
+      axon_id: axon.id,
+      protocol: "claude_json",
+      agent_binary: "claude",
+    },
+  ],
 });
 
-const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection(axon, devbox, {
+  model: "claude-sonnet-4-5",
+});
 await conn.connect();
 await conn.initialize();
 
@@ -251,8 +251,13 @@ await conn.publish({
 
 // Consume it on the other side
 conn.onTimelineEvent((event) => {
-  if (event.kind === "unknown" && event.axonEvent.event_type === "build_status") {
-    const status = tryParseTimelinePayload<{ step: string; progress: number }>(event);
+  if (
+    event.kind === "unknown" &&
+    event.axonEvent.event_type === "build_status"
+  ) {
+    const status = tryParseTimelinePayload<{ step: string; progress: number }>(
+      event,
+    );
     if (status) console.log(`${status.step}: ${status.progress}%`);
   }
 });
