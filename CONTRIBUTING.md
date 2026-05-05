@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in contributing to `@runloop/agent-axon-client`.
+Thanks for your interest in contributing to `@runloop/remote-agents-sdk`.
 
 ## Prerequisites
 
@@ -10,8 +10,8 @@ Thanks for your interest in contributing to `@runloop/agent-axon-client`.
 ## Getting Started
 
 ```bash
-git clone git@github.com:runloopai/agent-axon-client-ts.git
-cd agent-axon-client-ts
+git clone git@github.com:runloopai/remote-agents-sdk.git
+cd remote-agents-sdk
 bun install
 bun run build
 ```
@@ -20,7 +20,7 @@ bun run build
 
 This is a Bun workspaces monorepo:
 
-- **`sdk/`** — The published `@runloop/agent-axon-client` package. All SDK source lives in `sdk/src/`.
+- **`sdk/`** — The published `@runloop/remote-agents-sdk` package. All SDK source lives in `sdk/src/`.
 - **`examples/`** — Example applications that consume the SDK. These are private packages and are not published.
 
 ## Development Workflow
@@ -32,19 +32,19 @@ This is a Bun workspaces monorepo:
 bun run build
 
 # Watch mode (rebuilds on changes)
-bun run --filter '@runloop/agent-axon-client' dev
+bun run --filter '@runloop/remote-agents-sdk' dev
 
 # Run tests
 bun run test
 
 # Run tests in watch mode
-bun run --filter '@runloop/agent-axon-client' test:watch
+bun run --filter '@runloop/remote-agents-sdk' test:watch
 
 # Lint and format check
 bun run check
 
 # Auto-fix lint and formatting issues
-bun run --filter '@runloop/agent-axon-client' check:fix
+bun run --filter '@runloop/remote-agents-sdk' check:fix
 ```
 
 ### Working on examples

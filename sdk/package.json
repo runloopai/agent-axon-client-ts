@@ -1,20 +1,21 @@
 {
-  "name": "@runloop/agent-axon-client",
-  "version": "0.4.1",
-  "description": "Axon-backed ACP and Claude agent clients for Runloop broker agents",
+  "name": "@runloop/remote-agents-sdk",
+  "version": "0.4.3",
+  "description": "TypeScript SDK for connecting to Runloop-hosted remote agents using Axons",
   "license": "MIT",
   "author": "Runloop, Inc.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/runloopai/agent-axon-client-ts.git",
+    "url": "git+https://github.com/runloopai/remote-agents-sdk.git",
     "directory": "sdk"
   },
-  "homepage": "https://runloopai.github.io/agent-axon-client-ts/",
+  "homepage": "https://runloopai.github.io/remote-agents-sdk/",
   "bugs": {
-    "url": "https://github.com/runloopai/agent-axon-client-ts/issues"
+    "url": "https://github.com/runloopai/remote-agents-sdk/issues"
   },
   "keywords": [
     "runloop",
+    "remote-agents",
     "axon",
     "acp",
     "claude",

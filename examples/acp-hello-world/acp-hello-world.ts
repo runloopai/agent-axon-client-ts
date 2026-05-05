@@ -4,6 +4,12 @@
  * Creates a Runloop Devbox, connects via the ACP protocol,
  * sends a single prompt, prints the response, and exits.
  *
+ * Prerequisites:
+ *   - RUNLOOP_API_KEY must be set
+ *   - The shared `axon-agents` blueprint must exist on your Runloop account.
+ *     From the repo root, run `bun run build-blueprint` once before running
+ *     this example. See examples/blueprint/README.md for details.
+ *
  * Usage:
  *   bun run acp-hello-world.ts
  *   bun run acp-hello-world.ts --agent opencode
@@ -15,7 +21,7 @@ import {
   PROTOCOL_VERSION,
   isAgentTextChunk,
   isToolCall,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import { parseArgs } from "util";
 
 const { values: args } = parseArgs({
@@ -34,14 +40,14 @@ const AGENT_BINARY = args.agent ?? "opencode";
 const sdk = new RunloopSDK();
 
 console.log(`Starting devbox with agent "${AGENT_BINARY}"...`);
-// The runloop/agents blueprint has opencode pre-installed. The broker_mount
+// The axon-agents blueprint has agents pre-installed. The broker_mount
 // wires the Axon channel to the agent binary via the ACP protocol — the
 // broker launches the agent inside the devbox and bridges stdin/stdout to
 // the Axon event stream.
 const axon = await sdk.axon.create({ name: "acp-transport" });
 const devbox = await sdk.devbox.create({
   name: "acp-hello-world",
-  blueprint_name: "runloop/agents",
+  blueprint_name: "axon-agents",
   mounts: [
     {
       type: "broker_mount",

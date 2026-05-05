@@ -10,7 +10,9 @@
 import { SYSTEM_EVENT_TYPES } from "./timeline.js";
 import type {
   AgentErrorEvent,
+  AgentLogEvent,
   BaseTimelineEvent,
+  CustomTimelineEvent,
   DevboxLifecycleKind,
   SystemTimelineEvent,
   UnknownTimelineEvent,
@@ -155,6 +157,32 @@ export function isAgentErrorEvent(event: BaseTimelineEvent): event is AgentError
 }
 
 // ---------------------------------------------------------------------------
+// Agent log guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Narrowed type for an `agent.log` system event.
+ * @category Timeline
+ */
+export type AgentLogTimelineEvent = SystemTimelineEvent & {
+  data: AgentLogEvent;
+};
+
+/**
+ * Type guard for `agent.log` system events.
+ *
+ * @param event - The timeline event to test.
+ * @returns `true` if `event` is an {@link AgentLogTimelineEvent}.
+ * @category Timeline
+ */
+export function isAgentLogEvent(event: BaseTimelineEvent): event is AgentLogTimelineEvent {
+  return (
+    event.kind === "system" &&
+    (event.data as { type?: string }).type === SYSTEM_EVENT_TYPES.AGENT_LOG
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Unknown event guard
 // ---------------------------------------------------------------------------
 
@@ -170,4 +198,44 @@ export function isAgentErrorEvent(event: BaseTimelineEvent): event is AgentError
  */
 export function isUnknownTimelineEvent(event: BaseTimelineEvent): event is UnknownTimelineEvent {
   return event.kind === "unknown";
+}
+
+// ---------------------------------------------------------------------------
+// Custom event guard factory
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a type guard that matches unknown timeline events by `event_type`
+ * and narrows the `data` field to `T`.
+ *
+ * Unknown events are eagerly parsed by the classifier, so the `data` field
+ * already contains the parsed payload (or `null` when unparseable). The
+ * returned guard checks both `kind === "unknown"` and the `event_type` string,
+ * giving you a fully typed {@link CustomTimelineEvent\<T\>} without manual
+ * parsing.
+ *
+ * @example
+ * ```typescript
+ * interface AgentStartedPayload { agentType: string; model?: string; }
+ *
+ * const isAgentStarted = createCustomEventGuard<AgentStartedPayload>("agent_started");
+ *
+ * conn.onTimelineEvent((event) => {
+ *   if (isAgentStarted(event)) {
+ *     console.log(event.data.agentType); // fully typed
+ *   }
+ * });
+ * ```
+ *
+ * @typeParam T - The expected shape of the parsed event payload.
+ * @param eventType - The `axonEvent.event_type` string to match.
+ * @returns A type guard function.
+ * @category Timeline
+ */
+export function createCustomEventGuard<T>(
+  eventType: string,
+): (event: BaseTimelineEvent) => event is CustomTimelineEvent<T> {
+  return (event: BaseTimelineEvent): event is CustomTimelineEvent<T> => {
+    return event.kind === "unknown" && event.axonEvent.event_type === eventType;
+  };
 }

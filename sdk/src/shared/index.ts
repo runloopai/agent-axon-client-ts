@@ -21,7 +21,23 @@ export { SystemError, type SystemErrorEventInfo } from "./errors/system-error.js
 export { runDisconnectHook } from "./lifecycle.js";
 export { ListenerSet } from "./listener-set.js";
 export { makeDefaultOnError, makeLogger } from "./logging.js";
+export {
+  type AgentOriginEvent,
+  isFromAgent,
+  isFromUser,
+  type UserOriginEvent,
+} from "./origin-guards.js";
 export { getLastSequence } from "./replay.js";
+export {
+  getJsonRpcId,
+  getRequestId,
+  getStringProp,
+  hasJsonRpcId,
+  hasRequestId,
+  hasStringType,
+  isNonNullObject,
+  isTextContentBlock,
+} from "./structural-guards.js";
 export {
   type ClassifyConfig,
   createClassifier,
@@ -32,13 +48,16 @@ export {
 } from "./timeline.js";
 export type {
   AgentErrorTimelineEvent,
+  AgentLogTimelineEvent,
   BrokerErrorTimelineEvent,
   DevboxLifecycleTimelineEvent,
   TurnCompletedTimelineEvent,
   TurnStartedTimelineEvent,
 } from "./timeline-event-guards.js";
 export {
+  createCustomEventGuard,
   isAgentErrorEvent,
+  isAgentLogEvent,
   isBrokerErrorEvent,
   isDevboxLifecycleEvent,
   isSystemTimelineEvent,
@@ -47,14 +66,16 @@ export {
   isUnknownTimelineEvent,
 } from "./timeline-event-guards.js";
 export { timelineEventGenerator } from "./timeline-generator.js";
-/** @category Types */
 /** @category Timeline */
 export type {
   AgentErrorEvent,
+  AgentLogEvent,
+  AgentLogType,
   AxonEventListener,
   AxonEventView,
   BaseConnectionOptions,
   BaseTimelineEvent,
+  CustomTimelineEvent,
   DevboxLifecycleEvent,
   DevboxLifecycleKind,
   LogFn,

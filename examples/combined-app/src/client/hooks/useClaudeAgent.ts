@@ -4,8 +4,8 @@ import {
   isClaudeProtocolEvent,
   isTurnStartedEvent,
   isTurnCompletedEvent,
-} from "@runloop/agent-axon-client/claude";
-import type { ClaudeTimelineEvent, SDKControlRequest, ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
+} from "@runloop/remote-agents-sdk/claude";
+import type { ClaudeTimelineEvent, SDKControlRequest, ControlRequestOfSubtype } from "@runloop/remote-agents-sdk/claude";
 import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,
@@ -23,7 +23,7 @@ import type {
 } from "../types.js";
 import { nextBlockId, inferToolKind } from "./parsers.js";
 import { useBlockManager } from "./useBlockManager.js";
-import { buildAgentConfigItem, extractImageAttachments } from "./timeline-helpers.js";
+import { buildAgentConfigItem, buildSystemEventItem, extractImageAttachments } from "./timeline-helpers.js";
 import { api } from "./api.js";
 
 export interface UseClaudeAgentReturn {
@@ -606,6 +606,12 @@ export function useClaudeAgent(agentId: string | null): UseClaudeAgentReturn {
 
     if (isClaudeProtocolEvent(tlEvent)) {
       handleSDKMessage(tlEvent.data);
+      return;
+    }
+
+    const sysItem = buildSystemEventItem(tlEvent);
+    if (sysItem) {
+      dispatch({ type: "APPEND_MESSAGE", message: sysItem });
       return;
     }
 

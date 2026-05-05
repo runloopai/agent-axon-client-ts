@@ -5,7 +5,7 @@
   "packages": {
     "sdk": {
       "release-type": "node",
-      "component": "agent-axon-client",
+      "component": "remote-agents-sdk",
       "changelog-path": "CHANGELOG.md"
     }
   }

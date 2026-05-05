@@ -1,6 +1,5 @@
-# Agent Axon Client — Compatibility Matrix
+# Remote Agents SDK — Compatibility Matrix
 
-Generated: {{timestamp}}
 SDK Version: {{sdkVersion}}
 
 ## Protocol × Feature

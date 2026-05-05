@@ -1,15 +1,19 @@
-import { isAgentTextChunk } from "@runloop/agent-axon-client/acp";
-import { isClaudeAssistantTextEvent, isClaudeResultEvent } from "@runloop/agent-axon-client/claude";
+import { isAgentTextChunk } from "@runloop/remote-agents-sdk/acp";
+import { isClaudeAssistantTextEvent, isClaudeResultEvent } from "@runloop/remote-agents-sdk/claude";
 import type { UseCase } from "../types.js";
+import { waitFor } from "../validator.js";
 
 const PROMPT = "Say hello world";
+// prompt() can resolve *before* the broker flushes session/update
+// notifications for this turn, so give chunks a grace window to arrive.
+const ACP_CHUNK_WAIT_MS = 5_000;
 
 /** Single-prompt: send one prompt, receive a text response. */
 export default {
   name: "single-prompt",
   description: "Send one prompt, receive text response",
   protocols: ["acp", "claude"],
-  timeoutMs: 10_000,
+  timeoutMs: 30_000,
 
   async run(ctx) {
     if (ctx.acp) {
@@ -28,10 +32,12 @@ export default {
         prompt: [{ type: "text", text: PROMPT }],
       });
 
+      const hasText = () => chunks.some((c) => c.trim().length > 0);
+      await waitFor(hasText, ACP_CHUNK_WAIT_MS);
       unsub();
 
       ctx.log(`Received ${chunks.length} text chunks`);
-      if (chunks.filter((c) => c.trim().length > 0).length === 0) {
+      if (!hasText()) {
         throw new Error("Agent did not respond with any text");
       }
 

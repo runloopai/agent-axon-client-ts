@@ -62,11 +62,18 @@ export {
   ClientSideConnection,
   PROTOCOL_VERSION,
 } from "@agentclientprotocol/sdk";
+export {
+  type AgentOriginEvent,
+  isFromAgent,
+  isFromUser,
+  type UserOriginEvent,
+} from "../shared/origin-guards.js";
 export { tryParseSystemEvent, tryParseTimelinePayload } from "../shared/timeline.js";
 export type {
   AxonEventListener,
   AxonEventView,
   BaseConnectionOptions,
+  CustomTimelineEvent,
   SystemEvent,
   SystemTimelineEvent,
   TimelineEventListener,
@@ -117,15 +124,22 @@ export {
   isUserMessageChunk,
 } from "./session-update-guards.js";
 export type {
+  AgentErrorTimelineEvent,
+  AgentLogTimelineEvent,
   BrokerErrorTimelineEvent,
+  DevboxLifecycleTimelineEvent,
   ElicitationCompleteTimelineEvent,
   ElicitationTimelineEvent,
   TurnCompletedTimelineEvent,
   TurnStartedTimelineEvent,
 } from "./timeline-event-guards.js";
 export {
+  createCustomEventGuard,
   isACPProtocolEvent,
+  isAgentErrorEvent,
+  isAgentLogEvent,
   isBrokerErrorEvent,
+  isDevboxLifecycleEvent,
   isElicitationCompleteEvent,
   isElicitationRequestEvent,
   isElicitationResponseEvent,

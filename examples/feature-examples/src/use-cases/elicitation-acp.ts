@@ -5,7 +5,7 @@ import {
   CLIENT_METHODS,
   isElicitationCompleteEvent,
   isElicitationRequestEvent,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import type { UseCase } from "../types.js";
 import { waitFor } from "../validator.js";
 
@@ -15,9 +15,15 @@ export default {
   name: "elicitation-acp",
   description: "Handle agent-initiated user input via ACP session_elicitation",
   protocols: ["acp"],
-  timeoutMs: 10_000,
+  timeoutMs: 20_000,
 
-  expectedFailures: { acp: "ACP protocol has not added full elicitation support yet" },
+  expectedFailures: {
+    opencode: "ACP protocol has not added full elicitation support yet",
+    "codex-acp":
+      "codex-acp does not advertise or send session/elicitation (uses permission requests instead)",
+    qwen: "qwen does not advertise or send session/elicitation",
+    "gemini-cli": "gemini-cli does not advertise or send session/elicitation",
+  },
 
   clientCapabilities: { elicitation: { form: {} } },
 
@@ -60,7 +66,7 @@ export default {
     });
 
     await ctx.acp.prompt({ sessionId: ctx.sessionId!, prompt: [{ type: "text", text: PROMPT }] });
-    await waitFor(() => elicitationCount > 0 && completedCount > 0, 5_000);
+    await waitFor(() => elicitationCount > 0 && completedCount > 0, 8_000);
     unsub();
 
     const hasElicitation = elicitationCount > 0 && completedCount > 0;

@@ -1375,7 +1375,7 @@ describe("ClaudeAxonConnection", () => {
 
       expect(events).toHaveLength(1);
       expect(events[0].kind).toBe("unknown");
-      expect(events[0].data).toBeNull();
+      expect(events[0].data).toEqual({ foo: "bar" });
     });
 
     it("returns an unsubscribe function", async () => {
@@ -1647,7 +1647,7 @@ describe("classifyClaudeAxonEvent", () => {
     });
     const result = classifyClaudeAxonEvent(ev as never);
     expect(result.kind).toBe("unknown");
-    expect(result.data).toBeNull();
+    expect(result.data).toEqual({ foo: "bar" });
   });
 
   it("classifies AGENT_EVENT with non-protocol event_type as unknown", () => {

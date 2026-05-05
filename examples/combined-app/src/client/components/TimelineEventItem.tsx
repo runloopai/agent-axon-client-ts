@@ -1,6 +1,13 @@
 import { useState } from "react";
-import { SYSTEM_EVENT_TYPES } from "@runloop/agent-axon-client/shared";
-import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
+import {
+  createCustomEventGuard,
+  isTurnStartedEvent,
+  isTurnCompletedEvent,
+  isDevboxLifecycleEvent,
+  isAgentErrorEvent,
+  isBrokerErrorEvent,
+  isFromUser,
+} from "@runloop/remote-agents-sdk/acp";
 import type {
   ACPProtocolTimelineEvent,
   InitializeRequest,
@@ -12,16 +19,18 @@ import type {
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 import type {
   ClaudeProtocolTimelineEvent,
   SDKControlRequest,
   SDKPartialAssistantMessage,
   SDKResultMessage,
   SDKSystemMessage,
-} from "@runloop/agent-axon-client/claude";
+} from "@runloop/remote-agents-sdk/claude";
 import type { AgentStartedPayload, TimelineEvent } from "../types.js";
 import { PayloadTree, formatTime, originLabel, originBadgeClass } from "./shared.js";
+
+const isAgentStartedEvent = createCustomEventGuard<AgentStartedPayload>("agent_started");
 
 type TimelineKind = "system" | "acp_protocol" | "claude_protocol" | "unknown";
 
@@ -33,7 +42,7 @@ interface TimelineSummary {
 }
 
 function summarizeACPProtocol(event: ACPProtocolTimelineEvent): TimelineSummary {
-  const isUser = event.axonEvent.origin === "USER_EVENT";
+  const isUser = isFromUser(event);
 
   switch (event.eventType) {
     case "session/update": {
@@ -112,44 +121,54 @@ function summarizeClaudeProtocol(event: ClaudeProtocolTimelineEvent): TimelineSu
     }
     case "control_response":
       return { icon: "\u2705", label: "control_response", summary: "", kindClass: "kind-permission" };
+    case "stream_event":
+      const streamData = data as SDKPartialAssistantMessage;
+      return { icon: "\u{1F4E1}", label: "stream_event", summary: streamData.event?.type ?? "", kindClass: "kind-protocol" };
+    case "tool_progress":
+      return { icon: "\u{1F527}", label: "tool_progress", summary: "", kindClass: "kind-protocol" };
     default: {
       const d = data as { type?: string };
       const msgType = d.type ?? "";
-      if (msgType === "stream_event") {
-        const streamData = data as SDKPartialAssistantMessage;
-        return { icon: "\u{1F4E1}", label: "stream_event", summary: streamData.event?.type ?? "", kindClass: "kind-protocol" };
-      }
-      if (msgType === "tool_progress") {
-        return { icon: "\u{1F527}", label: "tool_progress", summary: "", kindClass: "kind-protocol" };
-      }
       return { icon: "\u{1F4E6}", label: msgType || "claude", summary: "", kindClass: "kind-protocol" };
     }
   }
 }
 
 function summarizeTimelineEvent(event: TimelineEvent): TimelineSummary {
+  if (isTurnStartedEvent(event)) {
+    return { icon: "\u25B6\uFE0F", label: "turn.started", summary: "", kindClass: "kind-system" };
+  }
+  if (isTurnCompletedEvent(event)) {
+    const suffix = event.data.stopReason ? ` (${event.data.stopReason})` : "";
+    return { icon: "\u23F9\uFE0F", label: "turn.completed", summary: suffix, kindClass: "kind-system" };
+  }
+  if (isDevboxLifecycleEvent(event)) {
+    const { kind, devboxId } = event.data;
+    const reason = "reason" in event.data ? (event.data as { reason?: string }).reason : undefined;
+    const suffix = reason ? ` (${reason})` : "";
+    return { icon: "\u{1F4E6}", label: `devbox.${kind}`, summary: devboxId + suffix, kindClass: "kind-system" };
+  }
+  if (isAgentErrorEvent(event)) {
+    const { devboxId, errorType, message } = event.data;
+    const parts = [errorType, message].filter(Boolean).join(": ");
+    return { icon: "\u26A0\uFE0F", label: "agent.error", summary: parts || devboxId, kindClass: "kind-system" };
+  }
+  if (isBrokerErrorEvent(event)) {
+    return { icon: "\u26A0\uFE0F", label: "broker.error", summary: event.data.message, kindClass: "kind-system" };
+  }
+
   switch (event.kind) {
-    case "system": {
-      const d = event.data;
-      const reason = ("stopReason" in d ? d.stopReason : undefined) ?? "";
-      const suffix = reason ? ` (${reason})` : "";
-      const icon = d.type === SYSTEM_EVENT_TYPES.TURN_STARTED ? "\u25B6\uFE0F"
-        : d.type === SYSTEM_EVENT_TYPES.TURN_COMPLETED ? "\u23F9\uFE0F"
-        : "\u26A0\uFE0F";
-      return { icon, label: d.type, summary: suffix, kindClass: "kind-system" };
-    }
+    case "system":
+      return { icon: "\u2139\uFE0F", label: (event.data as { type: string }).type, summary: "", kindClass: "kind-system" };
     case "acp_protocol":
       return summarizeACPProtocol(event);
     case "claude_protocol":
       return summarizeClaudeProtocol(event);
     case "unknown": {
-      const eventType = event.axonEvent.event_type;
-      if (eventType === "agent_started") {
-        const cfg = tryParseTimelinePayload<AgentStartedPayload>({ axonEvent: event.axonEvent });
-        const agentType = cfg?.agentType ?? "";
-        return { icon: "\u2699\uFE0F", label: "Agent Started", summary: agentType, kindClass: "kind-custom" };
+      if (isAgentStartedEvent(event)) {
+        return { icon: "\u2699\uFE0F", label: "Agent Started", summary: event.data.agentType ?? "", kindClass: "kind-custom" };
       }
-      return { icon: "\u2753", label: eventType, summary: "unclassified", kindClass: "kind-unknown" };
+      return { icon: "\u2753", label: event.axonEvent.event_type, summary: "unclassified", kindClass: "kind-unknown" };
     }
     default:
       return { icon: "\u{1F4E6}", label: "event", summary: "", kindClass: "kind-unknown" };
@@ -157,7 +176,7 @@ function summarizeTimelineEvent(event: TimelineEvent): TimelineSummary {
 }
 
 function isCustomEvent(event: TimelineEvent): boolean {
-  return event.kind === "unknown" && event.axonEvent.event_type === "agent_started";
+  return isAgentStartedEvent(event);
 }
 
 function kindBadgeLabel(kind: TimelineKind, custom: boolean): string {
@@ -181,8 +200,8 @@ function kindBadgeClass(kind: TimelineKind, custom: boolean): string {
 }
 
 function AgentConfigDetail({ event }: { event: TimelineEvent }) {
-  const cfg = tryParseTimelinePayload<AgentStartedPayload>({ axonEvent: event.axonEvent });
-  if (!cfg) return <PayloadTree data={null} />;
+  if (!isAgentStartedEvent(event)) return <PayloadTree data={null} />;
+  const cfg = event.data;
 
   const entries: Array<[string, string]> = [];
   if (cfg.agentType) entries.push(["Agent Type", cfg.agentType]);

@@ -19,14 +19,16 @@ import {
   isTurnCompletedEvent,
   isSessionUpdateEvent,
   isInitializeEvent,
+  isFromAgent,
   extractACPUserMessage,
-} from "@runloop/agent-axon-client/acp";
-import type { AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, InitializeResponse } from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
+import type { AuthMethod, ElicitationAction, SessionUpdate, ACPTimelineEvent, InitializeResponse } from "@runloop/remote-agents-sdk/acp";
 import type { WsEvent } from "../../shared/ws-events.js";
 import type {
   TurnBlock,
   ChatMessage,
   ChatItem,
+  SystemEventItem,
   PlanEntry,
   UsageState,
   PendingPermission,
@@ -47,7 +49,7 @@ import type {
 } from "../types.js";
 import { parseToolCallContent, extractOutputText, nextBlockId } from "./parsers.js";
 import { useBlockManager } from "./useBlockManager.js";
-import { buildAgentConfigItem } from "./timeline-helpers.js";
+import { buildAgentConfigItem, buildSystemEventItem } from "./timeline-helpers.js";
 import { api } from "./api.js";
 
 const NORMAL_END_REASONS = new Set(["end_turn", "endturn", "end turn"]);
@@ -478,7 +480,7 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
       }
       return;
     }
-    if (isInitializeEvent(tlEvent) && tlEvent.axonEvent.origin === "AGENT_EVENT") {
+    if (isInitializeEvent(tlEvent) && isFromAgent(tlEvent)) {
       const payload = tlEvent.data as InitializeResponse;
       const info = payload.agentInfo ?? null;
       const caps = payload.agentCapabilities ?? null;
@@ -510,6 +512,14 @@ export function useACPAgent(agentId: string | null): UseACPAgentReturn {
         } satisfies ACPInitExtensions,
         extra: payload as Record<string, unknown>,
       });
+      return;
+    }
+
+    const sysItem = buildSystemEventItem(tlEvent);
+    if (sysItem) {
+      flushBlocksToMessages(lastStopReasonRef.current);
+      lastStopReasonRef.current = undefined;
+      dispatch({ type: "APPEND_MESSAGE", message: sysItem });
       return;
     }
 

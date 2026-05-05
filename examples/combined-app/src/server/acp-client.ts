@@ -5,8 +5,8 @@ import type {
   SessionNotification,
   ElicitationRequest,
   ElicitationResponse,
-} from "@runloop/agent-axon-client/acp";
-import { CLIENT_METHODS } from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
+import { CLIENT_METHODS } from "@runloop/remote-agents-sdk/acp";
 import type { BaseWsEvent } from "../shared/ws-events.ts";
 
 export type ClientEventListener = (event: BaseWsEvent) => void;

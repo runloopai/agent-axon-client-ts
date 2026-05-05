@@ -23,6 +23,7 @@
  * @module
  */
 
+import { isTextContentBlock } from "../shared/structural-guards.js";
 import type {
   ClaudeAssistantTimelineEvent,
   ClaudeControlRequestTimelineEvent,
@@ -35,14 +36,21 @@ import type {
 } from "./types.js";
 
 // Re-export shared system/unknown guards and types for convenience.
-// Consumers can import from either `@runloop/agent-axon-client/claude` or `/shared`.
+// Consumers can import from either `@runloop/remote-agents-sdk/claude` or `/shared`.
 export type {
+  AgentErrorTimelineEvent,
+  AgentLogTimelineEvent,
   BrokerErrorTimelineEvent,
+  DevboxLifecycleTimelineEvent,
   TurnCompletedTimelineEvent,
   TurnStartedTimelineEvent,
 } from "../shared/timeline-event-guards.js";
 export {
+  createCustomEventGuard,
+  isAgentErrorEvent,
+  isAgentLogEvent,
   isBrokerErrorEvent,
+  isDevboxLifecycleEvent,
   isSystemTimelineEvent,
   isTurnCompletedEvent,
   isTurnStartedEvent,
@@ -109,16 +117,7 @@ export function isClaudeAssistantTextEvent(
   if (!Array.isArray(content)) {
     return false;
   }
-  return content.some(
-    (block) =>
-      block != null &&
-      typeof block === "object" &&
-      "type" in block &&
-      block.type === "text" &&
-      "text" in block &&
-      typeof block.text === "string" &&
-      block.text.trim().length > 0,
-  );
+  return content.some((block) => isTextContentBlock(block) && block.text.trim().length > 0);
 }
 
 /**

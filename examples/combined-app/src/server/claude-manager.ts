@@ -1,6 +1,6 @@
 import { RunloopSDK } from "@runloop/api-client";
 import type { Axon, Devbox } from "@runloop/api-client/sdk";
-import { ClaudeAxonConnection, type AxonEventView } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection, type AxonEventView } from "@runloop/remote-agents-sdk/claude";
 import type { SDKControlResponse } from "@anthropic-ai/claude-agent-sdk";
 import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster, WsEvent, BaseWsEvent } from "./ws.ts";
@@ -8,6 +8,7 @@ import type { WsBroadcaster, WsEvent, BaseWsEvent } from "./ws.ts";
 export interface ClaudeStartOptions {
   blueprintName?: string;
   launchCommands?: string[];
+  workingDir?: string;
   systemPrompt?: string;
   model?: string;
   dangerouslySkipPermissions?: boolean;
@@ -56,21 +57,31 @@ export class ClaudeConnectionManager {
     this.ws.broadcast(this.tag({ type: "connection_progress", step: "Provisioning sandbox..." }));
     const devbox = await sdk.devbox.create({
       name: "combined-app-claude",
-      blueprint_name: opts.blueprintName ?? "runloop/agents",
+      blueprint_name: opts.blueprintName ?? "axon-agents",
       mounts: [
         {
           type: "broker_mount" as const,
           axon_id: axon.id,
           protocol: "claude_json" as const,
           launch_args: opts.dangerouslySkipPermissions !== false ? ["--dangerously-skip-permissions"] : [],
+          ...(opts.workingDir ? { working_directory: opts.workingDir } : {}),
         },
       ],
       environment_variables: {
         ...(anthropicApiKey ? { ANTHROPIC_API_KEY: anthropicApiKey } : {}),
       },
-      launch_parameters: opts.launchCommands?.length
-        ? { launch_commands: opts.launchCommands }
-        : undefined,
+      launch_parameters: {
+        ...(opts.launchCommands?.length ? { launch_commands: opts.launchCommands } : {}),
+        lifecycle: {
+          after_idle: {
+            idle_time_seconds: 60,
+            on_idle: "suspend",
+          },
+          resume_triggers: {
+            axon_event: true,
+          },
+        },
+      },
     });
 
     this.devbox = devbox;

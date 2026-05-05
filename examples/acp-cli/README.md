@@ -17,7 +17,12 @@ bun install && bun run build
 
 # Set your API key
 export RUNLOOP_API_KEY=your_key
+
+# Build the shared `axon-agents` blueprint (one-time, required)
+bun run build-blueprint
 ```
+
+> This example creates a devbox with `blueprint_name: "axon-agents"`. The blueprint must be built once on your Runloop account before this example will work — otherwise `devbox.create()` will fail. See [`../blueprint`](../blueprint/) for details.
 
 ## Running
 

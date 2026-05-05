@@ -64,11 +64,18 @@ export type {
   SDKUserMessage,
   SDKUserMessageReplay,
 } from "@anthropic-ai/claude-agent-sdk";
+export {
+  type AgentOriginEvent,
+  isFromAgent,
+  isFromUser,
+  type UserOriginEvent,
+} from "../shared/origin-guards.js";
 export { tryParseSystemEvent, tryParseTimelinePayload } from "../shared/timeline.js";
 export type {
   AxonEventListener,
   AxonEventView,
   BaseConnectionOptions,
+  CustomTimelineEvent,
   SystemEvent,
   SystemTimelineEvent,
   TimelineEventListener,
@@ -91,11 +98,17 @@ export {
   type ControlRequestOfSubtype,
 } from "./connection.js";
 export type {
+  AgentErrorTimelineEvent,
+  AgentLogTimelineEvent,
   BrokerErrorTimelineEvent,
+  DevboxLifecycleTimelineEvent,
   TurnCompletedTimelineEvent,
   TurnStartedTimelineEvent,
 } from "./timeline-event-guards.js";
 export {
+  createCustomEventGuard,
+  isAgentErrorEvent,
+  isAgentLogEvent,
   isBrokerErrorEvent,
   isClaudeAssistantEvent,
   isClaudeAssistantTextEvent,
@@ -105,6 +118,7 @@ export {
   isClaudeQueryEvent,
   isClaudeResultEvent,
   isClaudeSystemInitEvent,
+  isDevboxLifecycleEvent,
   isSystemTimelineEvent,
   isTurnCompletedEvent,
   isTurnStartedEvent,
@@ -113,6 +127,10 @@ export {
 export {
   AxonTransport,
   type AxonTransportOptions,
+  type ControlRequestEvent,
+  type ControlResponseEvent,
+  isControlRequest,
+  isControlResponse,
   type Transport,
 } from "./transport.js";
 export type {

@@ -1,3 +1,4 @@
+import { hasStringType } from "../shared/structural-guards.js";
 import { createClassifier } from "../shared/timeline.js";
 import { MESSAGE_TYPE_TO_EVENT_TYPE } from "./transport.js";
 import type { ClaudeProtocolTimelineEvent } from "./types.js";
@@ -30,7 +31,7 @@ export const classifyClaudeAxonEvent = createClassifier<ClaudeProtocolTimelineEv
   label: "classifyClaudeAxonEvent",
   isProtocolEventType: isClaudeProtocolEventType,
   toProtocolEvent: (data, ev) => {
-    if (data && typeof data === "object" && "type" in data) {
+    if (hasStringType(data)) {
       return {
         kind: "claude_protocol",
         eventType: ev.event_type,

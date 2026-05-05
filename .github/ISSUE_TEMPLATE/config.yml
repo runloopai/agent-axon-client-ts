@@ -4,5 +4,5 @@ contact_links:
     url: https://runloop.ai/docs
     about: Check the docs for usage guides and API reference.
   - name: Discussions
-    url: https://github.com/runloopai/agent-axon-client-ts/discussions
+    url: https://github.com/runloopai/remote-agents-sdk/discussions
     about: Ask questions and share ideas in GitHub Discussions.

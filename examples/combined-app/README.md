@@ -9,7 +9,7 @@ A full-stack demo that supports both ACP and Claude Code agents running in Runlo
 - Node.js 22+
 - A [Runloop](https://runloop.ai) API key
 - An [Anthropic](https://anthropic.com) API key (required for Claude agents)
-- The `@runloop/agent-axon-client` SDK built locally (`cd ../../sdk && bun run build`)
+- The `@runloop/remote-agents-sdk` SDK built locally (`cd ../../sdk && bun run build`)
 
 ## Setup
 
@@ -28,6 +28,18 @@ Add your keys to `.env`:
 RUNLOOP_API_KEY=your_runloop_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
 ```
+
+### Build the shared blueprint (one-time, required)
+
+This example provisions devboxes with `blueprint_name: "axon-agents"` (see [`src/server/acp-manager.ts`](src/server/acp-manager.ts) and [`src/server/claude-manager.ts`](src/server/claude-manager.ts)). That blueprint must exist on your Runloop account before starting an agent from the UI — otherwise `POST /api/start` will fail when creating the devbox.
+
+From the monorepo root:
+
+```bash
+bun run build-blueprint
+```
+
+See [`../blueprint`](../blueprint/) for details. You only need to run it once per Runloop account.
 
 ## Running
 
@@ -87,4 +99,4 @@ src/
 
 ## License
 
-MIT — part of the [`agent-axon-client`](https://github.com/runloopai/agent-axon-client-ts) workspace.
+MIT — part of the [`remote-agents-sdk`](https://github.com/runloopai/remote-agents-sdk) workspace.

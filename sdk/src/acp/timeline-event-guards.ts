@@ -24,6 +24,7 @@
  */
 
 import { AGENT_METHODS, CLIENT_METHODS } from "@agentclientprotocol/sdk";
+import { isFromAgent, isFromUser } from "../shared/origin-guards.js";
 import type {
   ACPInitializeTimelineEvent,
   ACPNewSessionTimelineEvent,
@@ -35,14 +36,21 @@ import type {
 } from "./types.js";
 
 // Re-export shared system/unknown guards and types for convenience.
-// Consumers can import from either `@runloop/agent-axon-client/acp` or `/shared`.
+// Consumers can import from either `@runloop/remote-agents-sdk/acp` or `/shared`.
 export type {
+  AgentErrorTimelineEvent,
+  AgentLogTimelineEvent,
   BrokerErrorTimelineEvent,
+  DevboxLifecycleTimelineEvent,
   TurnCompletedTimelineEvent,
   TurnStartedTimelineEvent,
 } from "../shared/timeline-event-guards.js";
 export {
+  createCustomEventGuard,
+  isAgentErrorEvent,
+  isAgentLogEvent,
   isBrokerErrorEvent,
+  isDevboxLifecycleEvent,
   isSystemTimelineEvent,
   isTurnCompletedEvent,
   isTurnStartedEvent,
@@ -166,7 +174,7 @@ export function isElicitationRequestEvent(
   return (
     event.kind === "acp_protocol" &&
     event.eventType === CLIENT_METHODS.session_elicitation &&
-    event.axonEvent.origin === "AGENT_EVENT"
+    isFromAgent(event)
   );
 }
 
@@ -186,7 +194,7 @@ export function isElicitationResponseEvent(
   return (
     event.kind === "acp_protocol" &&
     event.eventType === CLIENT_METHODS.session_elicitation &&
-    event.axonEvent.origin === "USER_EVENT"
+    isFromUser(event)
   );
 }
 

@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set pending commit status
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             await github.rest.repos.createCommitStatus({
@@ -23,15 +23,15 @@ jobs:
               sha: context.payload.pull_request.head.sha,
               state: 'pending',
               context: 'smoke-tests',
-              description: 'Smoke tests running in agent-axon-client-smoke-tests…',
-              target_url: 'https://github.com/runloopai/agent-axon-client-smoke-tests/actions'
+              description: 'Smoke tests running in remote-agents-sdk-smoke-tests…',
+              target_url: 'https://github.com/runloopai/remote-agents-sdk-smoke-tests/actions'
             });
 
       - name: Trigger smoke tests
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.SMOKE_TEST_PAT }}
-          repository: runloopai/agent-axon-client-smoke-tests
+          repository: runloopai/remote-agents-sdk-smoke-tests
           event-type: smoke-test
           client-payload: >-
             {

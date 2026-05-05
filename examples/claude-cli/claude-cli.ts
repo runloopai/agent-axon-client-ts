@@ -1,8 +1,14 @@
 /**
- * Interactive CLI using ClaudeAxonConnection from @runloop/agent-axon-client/claude.
+ * Interactive CLI using ClaudeAxonConnection from @runloop/remote-agents-sdk/claude.
  *
  * Creates a Runloop Devbox + Axon session, connects the ClaudeAxonConnection,
  * and runs a REPL that streams assistant messages in real time.
+ *
+ * Prerequisites:
+ *   - RUNLOOP_API_KEY and ANTHROPIC_API_KEY must be set
+ *   - The shared `axon-agents` blueprint must exist on your Runloop account.
+ *     From the repo root, run `bun run build-blueprint` once before running
+ *     this example. See examples/blueprint/README.md for details.
  *
  * Usage:
  *   bun run claude-cli.ts
@@ -12,7 +18,7 @@
 
 import { RunloopSDK } from "@runloop/api-client";
 import { createInterface, type Interface } from "readline";
-import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection } from "@runloop/remote-agents-sdk/claude";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 // ---------------------------------------------------------------------------
@@ -33,7 +39,7 @@ const { values: args } = parseArgs({
 const VERBOSE = args.verbose || !!process.env.VERBOSE;
 const MODEL = args.model ?? null;
 const SYSTEM_PROMPT = args["system-prompt"] ?? null;
-const DEFAULT_BLUEPRINT_NAME = "runloop/agents";
+const DEFAULT_BLUEPRINT_NAME = "axon-agents";
 
 // ---------------------------------------------------------------------------
 // Resolve ANTHROPIC_API_KEY — prompt interactively if missing

@@ -13,8 +13,54 @@ import type { Axon } from "@runloop/api-client/sdk";
 import type { Stream } from "@runloop/api-client/streaming";
 import { isSystemError, SystemError } from "../shared/errors/system-error.js";
 import { makeLogger } from "../shared/logging.js";
+import { isFromAgent, isFromUser } from "../shared/origin-guards.js";
+import { getRequestId, isNonNullObject } from "../shared/structural-guards.js";
 import type { LogFn } from "../shared/types.js";
 import type { WireData } from "./types.js";
+
+// ---------------------------------------------------------------------------
+// Claude-specific event type guards
+// ---------------------------------------------------------------------------
+
+/**
+ * AxonEventView narrowed to `control_request` event type.
+ * @category Transport
+ */
+export type ControlRequestEvent = AxonEventView & { event_type: "control_request" };
+
+/**
+ * AxonEventView narrowed to `control_response` event type.
+ * @category Transport
+ */
+export type ControlResponseEvent = AxonEventView & { event_type: "control_response" };
+
+/**
+ * Type guard that narrows an event to `control_request`.
+ *
+ * This checks the event *type* only; pair with {@link isFromAgent} to confirm
+ * direction (control requests originate from the agent).
+ *
+ * @param event - An AxonEventView to check.
+ * @returns `true` if `event_type === "control_request"`.
+ * @category Transport
+ */
+export function isControlRequest(event: AxonEventView): event is ControlRequestEvent {
+  return event.event_type === "control_request";
+}
+
+/**
+ * Type guard that narrows an event to `control_response`.
+ *
+ * This checks the event *type* only; pair with {@link isFromUser} to confirm
+ * direction (control responses originate from the client).
+ *
+ * @param event - An AxonEventView to check.
+ * @returns `true` if `event_type === "control_response"`.
+ * @category Transport
+ */
+export function isControlResponse(event: AxonEventView): event is ControlResponseEvent {
+  return event.event_type === "control_response";
+}
 
 /**
  * Maps SDK message types to Axon event_type values for publishing.
@@ -243,15 +289,15 @@ export class AxonTransport implements Transport {
 
       // --- Replay mode: suppress handler dispatch ---
       if (replaying && replayTarget != null && event.sequence <= replayTarget) {
-        if (event.origin === "AGENT_EVENT" && event.event_type === "control_request") {
+        if (isFromAgent(event) && isControlRequest(event)) {
           // Buffer control requests; they may be resolved by a later control_response
           if (event.payload != null) {
             try {
               const parsed = JSON.parse(event.payload);
-              if (parsed != null && typeof parsed === "object") {
-                const requestId: string | undefined = parsed.request_id;
+              if (isNonNullObject(parsed)) {
+                const requestId = getRequestId(parsed);
                 if (requestId) {
-                  replayBuffer.set(requestId, parsed);
+                  replayBuffer.set(requestId, parsed as WireData);
                   this.log("read", `#${eventCount} REPLAY buffered control_request ${requestId}`);
                 }
               }
@@ -259,13 +305,13 @@ export class AxonTransport implements Transport {
               this.log("read", `#${eventCount} REPLAY failed to parse control_request`);
             }
           }
-        } else if (event.origin === "USER_EVENT" && event.event_type === "control_response") {
+        } else if (isFromUser(event) && isControlResponse(event)) {
           // Mark matching buffered request as resolved
           if (event.payload != null) {
             try {
               const parsed = JSON.parse(event.payload);
-              const response = parsed?.response;
-              const requestId: string | undefined = response?.request_id;
+              const response = isNonNullObject(parsed) ? parsed.response : undefined;
+              const requestId = getRequestId(response);
               if (requestId && replayBuffer.has(requestId)) {
                 replayBuffer.delete(requestId);
                 this.log("read", `#${eventCount} REPLAY resolved control_request ${requestId}`);
@@ -303,7 +349,7 @@ export class AxonTransport implements Transport {
         throw SystemError.fromEvent(event);
       }
 
-      if (event.origin === "AGENT_EVENT") {
+      if (isFromAgent(event)) {
         this.log("read", `#${eventCount} ${event.event_type}`);
         if (event.payload == null) {
           this.log("read", `#${eventCount} skipping null/undefined payload`);
@@ -311,11 +357,11 @@ export class AxonTransport implements Transport {
         }
         try {
           const parsed = JSON.parse(event.payload);
-          if (parsed == null || typeof parsed !== "object") {
+          if (!isNonNullObject(parsed)) {
             this.log("read", `#${eventCount} skipping non-object payload`);
             continue;
           }
-          yield parsed;
+          yield parsed as WireData;
         } catch (err) {
           this.log(
             "read",

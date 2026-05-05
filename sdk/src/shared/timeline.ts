@@ -29,6 +29,7 @@ export const SYSTEM_EVENT_TYPES = {
   DEVBOX_SHUTDOWN: "devbox.shutdown",
   DEVBOX_FAILED: "devbox.failed",
   AGENT_ERROR: "agent.error",
+  AGENT_LOG: "agent.log",
 } as const;
 
 /** Set of all recognized system event type strings for O(1) lookup. */
@@ -64,6 +65,11 @@ interface DevboxLifecyclePayload {
 interface AgentErrorPayload {
   devbox_id?: string;
   type?: string;
+  message?: string;
+}
+
+interface AgentLogPayload {
+  log_type?: string;
   message?: string;
 }
 
@@ -166,6 +172,16 @@ export function tryParseSystemEvent(ev: AxonEventView): SystemEvent | null {
     };
   }
 
+  if (ev.event_type === SYSTEM_EVENT_TYPES.AGENT_LOG) {
+    const parsed = tryParseTimelinePayload<AgentLogPayload>({ axonEvent: ev });
+    if (!parsed) return null;
+    return {
+      type: "agent.log",
+      logType: (parsed.log_type as "stderr") ?? "stderr",
+      message: parsed.message ?? "",
+    };
+  }
+
   return null;
 }
 
@@ -236,6 +252,7 @@ export function createClassifier<TProtocolEvent>(
       if (result) return result;
     }
 
-    return { kind: "unknown" as const, data: null, axonEvent: ev };
+    const unknownData = tryParseTimelinePayload({ axonEvent: ev });
+    return { kind: "unknown" as const, data: unknownData, axonEvent: ev };
   };
 }

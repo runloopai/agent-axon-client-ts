@@ -231,6 +231,40 @@ describe("tryParseSystemEvent", () => {
     });
     expect(tryParseSystemEvent(ev)).toBeNull();
   });
+
+  it("parses agent.log with log_type and message", () => {
+    const ev = makeAxonEvent({
+      event_type: "agent.log",
+      payload: JSON.stringify({ log_type: "stderr", message: "something happened" }),
+    });
+    expect(tryParseSystemEvent(ev)).toEqual({
+      type: "agent.log",
+      logType: "stderr",
+      message: "something happened",
+    });
+  });
+
+  it("parses agent.log with missing optional fields uses defaults", () => {
+    const ev = makeAxonEvent({
+      event_type: "agent.log",
+      payload: JSON.stringify({}),
+    });
+    expect(tryParseSystemEvent(ev)).toEqual({
+      type: "agent.log",
+      logType: "stderr",
+      message: "",
+    });
+  });
+
+  it("returns null for agent.log with unparseable payload", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ev = makeAxonEvent({
+      event_type: "agent.log",
+      payload: "not json",
+    });
+    expect(tryParseSystemEvent(ev)).toBeNull();
+    warnSpy.mockRestore();
+  });
 });
 
 describe("createClassifier", () => {

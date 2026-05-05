@@ -1,14 +1,12 @@
-# @runloop/agent-axon-client
+# @runloop/remote-agents-sdk
 
-[![CI](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/runloopai/agent-axon-client-ts/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@runloop/agent-axon-client)](https://www.npmjs.com/package/@runloop/agent-axon-client)
-[![Docs](https://img.shields.io/badge/docs-TypeDoc-blue)](https://runloopai.github.io/agent-axon-client-ts/)
-[![codecov](https://codecov.io/gh/runloopai/agent-axon-client-ts/branch/main/graph/badge.svg)](https://codecov.io/gh/runloopai/agent-axon-client-ts)
+[![CI](https://github.com/runloopai/remote-agents-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/runloopai/remote-agents-sdk/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@runloop/remote-agents-sdk)](https://www.npmjs.com/package/@runloop/remote-agents-sdk)
+[![Docs](https://img.shields.io/badge/docs-TypeDoc-blue)](https://runloopai.github.io/remote-agents-sdk/)
+[![codecov](https://codecov.io/gh/runloopai/remote-agents-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/runloopai/remote-agents-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **Alpha — subject to change.** This SDK is in early development. APIs, interfaces, and behavior may change without notice between versions.
-
-TypeScript SDK for connecting to coding agents (Claude Code, OpenCode, etc.) running inside [Runloop](https://runloop.ai) devboxes via the Axon event bus.
+TypeScript SDK for connecting applications to Runloop-hosted remote agents (Claude Code, OpenCode, etc.) via the Axon event bus.
 
 ## Key Concepts
 
@@ -27,7 +25,7 @@ In short: **Runloop** hosts **devboxes** where agents run; a **broker mount** co
 - A [Runloop](https://runloop.ai) API key
   - Sign up for free at [platform.runloop.ai](https://platform.runloop.ai) (includes $50 in credits)
   - Navigate to [Settings](https://platform.runloop.ai/settings) → API Keys
-  - Create an API key (starts with `ak`_)
+  - Create an API key (starts with `ak`\_)
   - Set environment variable: `export RUNLOOP_API_KEY=ak_your_key`
 - An [Anthropic](https://console.anthropic.com) API key (**only required for Claude module examples**)
   - Sign up at [console.anthropic.com](https://console.anthropic.com)
@@ -38,7 +36,7 @@ In short: **Runloop** hosts **devboxes** where agents run; a **broker mount** co
 ## Installation
 
 ```bash
-npm install @runloop/agent-axon-client @runloop/api-client
+npm install @runloop/remote-agents-sdk @runloop/api-client
 ```
 
 `@runloop/api-client` is a required peer dependency — it provides the `RunloopSDK` instance and Axon types used by both modules.
@@ -53,46 +51,31 @@ npm install @anthropic-ai/claude-agent-sdk
 
 ### Supported Features by Protocol
 
-
 | Capability                                   | Claude | ACP |
 | -------------------------------------------- | ------ | --- |
-| Send prompts / messages                      | ✅      | ✅   |
-| Streaming responses                          | ✅      | ✅   |
-| Tool use / tool results                      | ✅      | ✅   |
-| Cancel / interrupt turns                     | ✅      | ✅   |
-| Permission / control requests (auto-approve) | ✅      | ✅   |
+| Send prompts / messages                      | ✅     | ✅  |
+| Streaming responses                          | ✅     | ✅  |
+| Tool use / tool results                      | ✅     | ✅  |
+| Cancel / interrupt turns                     | ✅     | ✅  |
+| Permission / control requests (auto-approve) | ✅     | ✅  |
 
-
-*Auto-approve only for now, permission request flow pending
+\*Auto-approve only for now, permission request flow pending
 
 ### Coming Soon
 
-
-| Status     | Description                                                                                                                                |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 🚧 Planned | **Agent installation** — support for automatically getting agents installed on the devbox                                                  |
-| 🚧 Planned | **Devbox state-transition events** — expose devbox lifecycle state changes (creating → running → suspended → …) as first-class Axon events |
-| 🚧 Planned | **Axon subscribe over WebSockets** — WebSocket transport for Axon subscriptions, enabling browser clients without a backend proxy          |
-
-
-### Known Issues
-
-
-| Status | Description                                                                                                                          |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 🐛 Bug | Suspend and resume of a devbox will not work correctly at the moment, this will be fixed soon.                                       |
-
+| Status     | Description                                                                                                                                                     |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🚧 Planned | **Devbox state-transition events** — expose transitional lifecycle states (`suspending`, `resuming`, `creating`) as first-class Axon events (terminal states like `running`, `suspended`, `shutdown`, `failed` are already supported) |
+| 🚧 Planned | **Axon subscribe over WebSockets** — WebSocket transport for Axon subscriptions, enabling browser clients without a backend proxy                               |
 
 ## Modules
 
 The SDK has two independent modules — pick the one that matches your agent's protocol:
 
-
 | Module     | Import path                         | Protocol                                                                | Use when                                        |
 | ---------- | ----------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------- |
-| **ACP**    | `@runloop/agent-axon-client/acp`    | [Agent Client Protocol](https://agentclientprotocol.com) (JSON-RPC 2.0) | Using OpenCode, or Claude via ACP               |
-| **Claude** | `@runloop/agent-axon-client/claude` | Claude Code SDK wire format                                             | Using Claude Code with native SDK message types |
-
+| **ACP**    | `@runloop/remote-agents-sdk/acp`    | [Agent Client Protocol](https://agentclientprotocol.com) (JSON-RPC 2.0) | Using OpenCode, or Claude via ACP               |
+| **Claude** | `@runloop/remote-agents-sdk/claude` | Claude Code SDK wire format                                             | Using Claude Code with native SDK message types |
 
 ### Which module should I use?
 
@@ -115,7 +98,11 @@ The SDK has two independent modules — pick the one that matches your agent's p
 ### ACP module
 
 ```typescript
-import { ACPAxonConnection, PROTOCOL_VERSION, isAgentMessageChunk } from "@runloop/agent-axon-client/acp";
+import {
+  ACPAxonConnection,
+  PROTOCOL_VERSION,
+  isAgentMessageChunk,
+} from "@runloop/remote-agents-sdk/acp";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
@@ -160,28 +147,32 @@ await agent.disconnect();
 ### Claude module
 
 ```typescript
-import { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
+import { ClaudeAxonConnection } from "@runloop/remote-agents-sdk/claude";
 import { RunloopSDK } from "@runloop/api-client";
 
 const sdk = new RunloopSDK({ bearerToken: process.env.RUNLOOP_API_KEY });
 
 const axon = await sdk.axon.create({ name: "claude-transport" });
 const devbox = await sdk.devbox.create({
-  mounts: [{
-    type: "broker_mount",
-    axon_id: axon.id,
-    protocol: "claude_json",
-    agent_binary: "claude",
-  }],
+  mounts: [
+    {
+      type: "broker_mount",
+      axon_id: axon.id,
+      protocol: "claude_json",
+      agent_binary: "claude",
+    },
+  ],
 });
 
-const conn = new ClaudeAxonConnection(axon, devbox, { model: "claude-sonnet-4-5" });
+const conn = new ClaudeAxonConnection(axon, devbox, {
+  model: "claude-sonnet-4-5",
+});
 await conn.connect();
 await conn.initialize();
 
 await conn.send("What files are in this directory?");
 
-for await (const msg of conn.receiveResponse()) {
+for await (const msg of conn.receiveAgentResponse()) {
   console.log(msg.type, msg);
 }
 
@@ -197,12 +188,12 @@ Every timeline event has `{ kind, data, axonEvent }` where `kind` is a discrimin
 **ACP — handling protocol events:**
 
 ```typescript
-import { SYSTEM_EVENT_TYPES } from "@runloop/agent-axon-client/shared";
+import { SYSTEM_EVENT_TYPES } from "@runloop/remote-agents-sdk/shared";
 import {
   isAgentMessageChunk,
   isToolCall,
   isToolCallProgress,
-} from "@runloop/agent-axon-client/acp";
+} from "@runloop/remote-agents-sdk/acp";
 
 agent.onTimelineEvent((event) => {
   switch (event.kind) {
@@ -249,7 +240,7 @@ conn.onTimelineEvent((event) => {
 **Custom events** — use `publish()` to push your own events to the channel. They arrive as `kind: "unknown"` timeline events:
 
 ```typescript
-import { tryParseTimelinePayload } from "@runloop/agent-axon-client/acp";
+import { tryParseTimelinePayload } from "@runloop/remote-agents-sdk/acp";
 
 // Publish a custom event
 await conn.publish({
@@ -261,8 +252,13 @@ await conn.publish({
 
 // Consume it on the other side
 conn.onTimelineEvent((event) => {
-  if (event.kind === "unknown" && event.axonEvent.event_type === "build_status") {
-    const status = tryParseTimelinePayload<{ step: string; progress: number }>(event);
+  if (
+    event.kind === "unknown" &&
+    event.axonEvent.event_type === "build_status"
+  ) {
+    const status = tryParseTimelinePayload<{ step: string; progress: number }>(
+      event,
+    );
     if (status) console.log(`${status.step}: ${status.progress}%`);
   }
 });
@@ -278,19 +274,42 @@ for await (const event of agent.receiveTimelineEvents()) {
 
 See the [SDK documentation](sdk/README.md#custom-events-via-publish-and-tryparsetimelinepayload) for more on custom events, and the [full timeline API reference](sdk/README.md#timeline-events) for replay behavior and `afterSequence`.
 
-See the [SDK documentation](sdk/README.md) for the full API reference, or browse the [hosted API docs](https://runloopai.github.io/agent-axon-client-ts/).
+See the [SDK documentation](sdk/README.md) for the full API reference, or browse the [hosted API docs](https://runloopai.github.io/remote-agents-sdk/).
+
+## Getting Agents onto the Devbox
+
+There are two ways to ensure your agent binary is available on the devbox before execution starts:
+
+- **Agent mounts (late-binding)** — Install the agent at devbox creation time via a mount. The agent lands on the box just before the broker mount connects it to Axon. This works with any standard Runloop image, so you can pick or customize the base environment independently from the agent.
+- **Blueprints (pre-baked)** — Bake the agent (and any other tooling) directly into a custom devbox image. Subsequent devbox creations skip the install step entirely, giving you the fastest cold-start and a reproducible, versioned environment.
+
+The standalone examples (hello-world, CLI, combined-app) use a pre-baked **blueprint** for the fastest cold-start; the [feature-examples](examples/feature-examples/) default to **agent mounts** so they work with any standard image. Pick whichever fits your workflow — for example, blueprints when you want reproducible images, or mounts when you need to swap agent versions frequently or avoid maintaining custom images.
 
 ## Repository Structure
 
 ```
-sdk/                      → @runloop/agent-axon-client (the published npm package)
+sdk/                      → @runloop/remote-agents-sdk (the published npm package)
 examples/
+  blueprint/              → Builds the shared `axon-agents` blueprint (run this first)
   acp-hello-world/        → Minimal ACP single-prompt script
   acp-cli/                → Interactive ACP REPL
   claude-hello-world/     → Minimal Claude single-prompt script
   claude-cli/             → Interactive Claude REPL
   combined-app/           → Full-stack combined demo (Claude + ACP, Express + React)
+  feature-examples/       → Runnable SDK recipes (single-prompt, elicitation, etc.)
 ```
+
+### Running the examples
+
+> **Run the blueprint example first.** Every other example creates a devbox with `blueprint_name: "axon-agents"`. That blueprint is built by [`examples/blueprint`](examples/blueprint/) and must exist on your Runloop account before any other example will succeed.
+>
+> ```bash
+> bun install
+> bun run build
+> bun run build-blueprint   # one-time — builds the axon-agents blueprint
+> ```
+>
+> After the blueprint reports `build_complete`, you can run any of the other examples. See [`examples/blueprint/README.md`](examples/blueprint/README.md) for details and [`examples/README.md`](examples/README.md) for the full example index.
 
 ## Development
 

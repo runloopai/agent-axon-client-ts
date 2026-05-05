@@ -6,6 +6,7 @@ export function SetupCard({
   agentBinary, setAgentBinary,
   launchArgs, setLaunchArgs,
   launchCommands, setLaunchCommands,
+  workingDir, setWorkingDir,
   systemPrompt, setSystemPrompt,
   blueprintName, setBlueprintName,
   model, setModel,
@@ -19,6 +20,7 @@ export function SetupCard({
   agentBinary: string; setAgentBinary: (v: string) => void;
   launchArgs: string; setLaunchArgs: (v: string) => void;
   launchCommands: string; setLaunchCommands: (v: string) => void;
+  workingDir: string; setWorkingDir: (v: string) => void;
   systemPrompt: string; setSystemPrompt: (v: string) => void;
   blueprintName: string; setBlueprintName: (v: string) => void;
   model: string; setModel: (v: string) => void;
@@ -106,8 +108,8 @@ export function SetupCard({
           <>
             <div className="form-group">
               <label>Blueprint Name</label>
-              <div className="form-hint">Runloop blueprint for the sandbox. Defaults to <code>runloop/agents</code>.</div>
-              <input value={blueprintName} onChange={(e) => setBlueprintName(e.target.value)} placeholder="runloop/agents" disabled={connecting} />
+              <div className="form-hint">Runloop blueprint for the sandbox. Defaults to <code>axon-agents</code>.</div>
+              <input value={blueprintName} onChange={(e) => setBlueprintName(e.target.value)} placeholder="axon-agents" disabled={connecting} />
             </div>
             <div className="form-group">
               <label>Model</label>
@@ -121,6 +123,11 @@ export function SetupCard({
           <label>Launch Commands</label>
           <div className="form-hint">Shell commands to run in the sandbox before starting the agent (one per line).</div>
           <textarea className="setup-textarea" value={launchCommands} onChange={(e) => setLaunchCommands(e.target.value)} placeholder="git clone https://..." disabled={connecting} rows={2} />
+        </div>
+        <div className="form-group">
+          <label>Working Directory</label>
+          <div className="form-hint">Set the working directory for the agent process. Leave blank to use the default.</div>
+          <input value={workingDir} onChange={(e) => setWorkingDir(e.target.value)} placeholder="/home/user/my-project" disabled={connecting} />
         </div>
         <div className="form-group">
           <label>System Prompt</label>

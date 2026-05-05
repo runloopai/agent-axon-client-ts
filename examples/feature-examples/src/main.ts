@@ -58,7 +58,7 @@ Options:
   --protocol <proto>   Run only for this protocol: acp, claude (default: all)
   --use-case <name>    Run only this use case (default: all)
   --parallel <n>       Max concurrent devboxes (default: 5)
-  --timeout <ms>       Default timeout per use case, capped at 10000 (default: 10000)
+  --timeout <ms>       Default timeout per use case, capped at 30000 (default: 10000)
   --validate           Validate generated output without running (checks compatibility.md and llms.txt)
   --help               Show help
 
@@ -72,21 +72,23 @@ Examples:
 
 const DISCONNECT_TIMEOUT_MS = 10_000;
 const CLEANUP_TIMEOUT_MS = 30_000;
-const MAX_USE_CASE_TIMEOUT_MS = 10_000;
+const MAX_USE_CASE_TIMEOUT_MS = 30_000;
 
 async function runOne(
   agent: AgentConfig,
   useCase: UseCase,
   defaultTimeout: number,
 ): Promise<RunResult> {
-  const start = Date.now();
   let ctx: RunContext | null = null;
-  const expectedFailReason = useCase.expectedFailures?.[agent.protocol];
+  let agentStartMs: number | null = null;
+  const expectedFailReason = useCase.expectedFailures?.[agent.name];
+  const getDurationMs = () => (agentStartMs === null ? 0 : Date.now() - agentStartMs);
 
   try {
     const { ctx: setupCtx } = await setup(agent, useCase);
     ctx = setupCtx;
 
+    agentStartMs = Date.now();
     const timeout = Math.min(
       useCase.timeoutMs ?? defaultTimeout,
       MAX_USE_CASE_TIMEOUT_MS,
@@ -100,7 +102,7 @@ async function runOne(
         protocol: agent.protocol,
         status: "xpass",
         reason: "Expected to fail but passed",
-        durationMs: Date.now() - start,
+        durationMs: getDurationMs(),
       };
     }
     return {
@@ -108,7 +110,7 @@ async function runOne(
       useCase: useCase.name,
       protocol: agent.protocol,
       status: "pass",
-      durationMs: Date.now() - start,
+      durationMs: getDurationMs(),
     };
   } catch (err) {
     if (err instanceof SkipError) {
@@ -118,7 +120,7 @@ async function runOne(
         protocol: agent.protocol,
         status: "skip",
         reason: err.reason,
-        durationMs: Date.now() - start,
+        durationMs: getDurationMs(),
       };
     }
     if (expectedFailReason) {
@@ -129,7 +131,7 @@ async function runOne(
         status: "xfail",
         error: err instanceof Error ? err.message : String(err),
         xfailReason: expectedFailReason,
-        durationMs: Date.now() - start,
+        durationMs: getDurationMs(),
       };
     }
     return {
@@ -138,7 +140,7 @@ async function runOne(
       protocol: agent.protocol,
       status: "fail",
       error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
+      durationMs: getDurationMs(),
     };
   } finally {
     if (ctx) {
@@ -309,7 +311,6 @@ async function generateCompatibilityMd(
   const sdkVersion = await getSdkVersion();
 
   const output = template
-    .replace("{{timestamp}}", new Date().toISOString())
     .replace("{{sdkVersion}}", sdkVersion)
     .replace("{{protocolFeatureRows}}", buildProtocolFeatureRows(results, useCases))
     .replace("{{acpAgentFeatureTable}}", buildAcpAgentFeatureTable(results, useCases, agents))
@@ -319,7 +320,7 @@ async function generateCompatibilityMd(
   return output;
 }
 
-const GITHUB_REPO_BASE = "https://github.com/runloopai/agent-axon-client-ts/blob/main";
+const GITHUB_REPO_BASE = "https://github.com/runloopai/remote-agents-sdk/blob/main";
 
 function buildUseCasesList(useCases: UseCase[]): string {
   let list = "";
@@ -526,8 +527,7 @@ async function main(): Promise<void> {
 
   printResults(results);
 
-  const isPartialRun =
-    filteredAgents.length !== AGENTS.length || filteredUseCases.length !== USE_CASES.length;
+  const isPartialRun = !!(args.agent || args.protocol || args["use-case"]);
 
   if (isPartialRun) {
     console.log("\nPartial run detected — skipping generation of canonical files.");

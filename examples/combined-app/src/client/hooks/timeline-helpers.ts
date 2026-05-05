@@ -1,5 +1,10 @@
-import { tryParseTimelinePayload, isUnknownTimelineEvent } from "@runloop/agent-axon-client/acp";
-import type { TimelineEvent, AgentConfigItem, AgentStartedPayload, UserAttachment } from "../types.js";
+import {
+  tryParseTimelinePayload,
+  isUnknownTimelineEvent,
+  isDevboxLifecycleEvent,
+  isAgentErrorEvent,
+} from "@runloop/remote-agents-sdk/acp";
+import type { TimelineEvent, AgentConfigItem, AgentStartedPayload, SystemEventItem, UserAttachment } from "../types.js";
 
 /**
  * Returns `true` when the timeline event is a custom `agent_started` event
@@ -28,6 +33,53 @@ export function buildAgentConfigItem(event: TimelineEvent): AgentConfigItem | nu
     itemType: "agent_started",
     config,
   };
+}
+
+const DEVBOX_LIFECYCLE_LABELS: Record<string, string> = {
+  running: "Devbox Running",
+  suspended: "Devbox Suspended",
+  shutdown: "Devbox Shutdown",
+  failed: "Devbox Failed",
+};
+
+/**
+ * Builds a {@link SystemEventItem} from a devbox lifecycle, agent error, or
+ * broker error timeline event. Returns `null` for other event types.
+ */
+export function buildSystemEventItem(event: TimelineEvent): SystemEventItem | null {
+  const ts = event.axonEvent.timestamp_ms ?? Date.now();
+
+  if (isDevboxLifecycleEvent(event)) {
+    const { kind, devboxId } = event.data;
+    const reason = "reason" in event.data ? (event.data as { reason?: string }).reason : undefined;
+    const label = DEVBOX_LIFECYCLE_LABELS[kind] ?? `Devbox ${kind}`;
+    const detail = reason ? `${devboxId} — ${reason}` : devboxId;
+    return {
+      id: `sys-${event.axonEvent.sequence}`,
+      role: "system",
+      itemType: "system_event",
+      eventKind: "devbox_lifecycle",
+      label,
+      detail,
+      timestamp: ts,
+    };
+  }
+
+  if (isAgentErrorEvent(event)) {
+    const { devboxId, errorType, message } = event.data;
+    const parts = [errorType, message].filter(Boolean);
+    return {
+      id: `sys-${event.axonEvent.sequence}`,
+      role: "system",
+      itemType: "system_event",
+      eventKind: "agent_error",
+      label: "Agent Error",
+      detail: parts.length > 0 ? `${devboxId} — ${parts.join(": ")}` : devboxId,
+      timestamp: ts,
+    };
+  }
+
+  return null;
 }
 
 /**

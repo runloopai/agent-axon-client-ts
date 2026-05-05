@@ -1,6 +1,33 @@
-import type { ACPAxonConnection } from "@runloop/agent-axon-client/acp";
-import type { ClaudeAxonConnection } from "@runloop/agent-axon-client/claude";
+import type { ACPAxonConnection } from "@runloop/remote-agents-sdk/acp";
+import type { ClaudeAxonConnection } from "@runloop/remote-agents-sdk/claude";
 import type { Client, Agent } from "@agentclientprotocol/sdk";
+
+/**
+ * How the agent gets installed on the devbox.
+ *
+ * - **agent-mount**: Use a starter blueprint + Runloop agent mount. Adds an `agent_mount`
+ *   entry to the devbox so the agent is installed at provision time.
+ * - **blueprint**: Agent is pre-baked into a custom blueprint. No `agent_mount` needed;
+ *   the broker mount points directly at the binary path.
+ */
+export type InstallStrategy =
+  | { kind: "agent-mount"; agentName: string; blueprint: string }
+  | { kind: "blueprint"; blueprint: string };
+
+/**
+ * Broker mount configuration — wires Axon to the agent process.
+ * Maps directly to the Runloop `broker_mount` API shape.
+ */
+export interface BrokerMount {
+  /** Broker protocol: "acp" for ACP agents, "claude_json" for Claude Code. */
+  protocol: "acp" | "claude_json";
+  /** Path or name of the agent binary. */
+  agentBinary?: string;
+  /** CLI args passed to the agent binary. */
+  launchArgs?: string[];
+  /** Working directory for the agent process (also used as ACP session cwd). */
+  workingDirectory?: string;
+}
 
 /**
  * Defines how to provision a specific agent.
@@ -9,18 +36,21 @@ export interface AgentConfig {
   /** Unique identifier (e.g., "opencode", "claude-code"). */
   name: string;
 
-  /** Which protocol this agent uses. */
+  /** Which protocol this agent uses (client-side). */
   protocol: "acp" | "claude";
 
-  /** Runloop blueprint name (e.g., "runloop/agents"). */
-  blueprint: string;
+  /** How to install the agent on the devbox. */
+  install: InstallStrategy;
 
-  /** Mount configuration for the broker. */
-  mount: {
-    protocol: "acp" | "claude_json";
-    agent_binary?: string;
-    launch_args?: string[];
-  };
+  /** Broker mount configuration — wires Axon to the agent process. */
+  brokerMount: BrokerMount;
+
+  /**
+   * ACP auth method ID to negotiate with `authenticate()` after `initialize()`.
+   * Required by agents that enforce auth before `newSession()` (e.g. codex-acp).
+   * Must match one of the `authMethods` advertised by the agent during initialize.
+   */
+  acpAuthMethodId?: string;
 
   /** Non-secret env vars only. Use sdk.secret for API keys (see scaffold.ts). */
   env?: Record<string, string>;
@@ -39,6 +69,22 @@ export interface AgentConfig {
 export type CreateClientFn = (agent: Agent) => Client;
 
 /**
+ * Overrides for agent provisioning. Use-cases can specify a different install
+ * strategy and/or broker mount settings per-agent.
+ *
+ * - `install` replaces the entire install strategy when provided.
+ * - `brokerMount` is shallow-merged with the base config.
+ * - Other fields (`secrets`, `env`, `acpAuthMethodId`) are shallow-merged or replaced.
+ */
+export interface AgentConfigOverride {
+  install?: InstallStrategy;
+  brokerMount?: Partial<BrokerMount>;
+  acpAuthMethodId?: string;
+  env?: Record<string, string>;
+  secrets?: Record<string, string>;
+}
+
+/**
  * Defines a single compatibility test / use case.
  */
 export interface UseCase {
@@ -54,8 +100,15 @@ export interface UseCase {
   /** Per-use-case timeout in ms. Overrides the default. */
   timeoutMs?: number;
 
-  /** Optional provisioning overrides for special cases. */
-  provisionOverrides?: Partial<AgentConfig>;
+  /** Optional provisioning overrides for special cases (applies to all agents). */
+  provisionOverrides?: AgentConfigOverride;
+
+  /**
+   * Per-agent provisioning overrides, keyed by agent name.
+   * Applied after provisionOverrides for agent-specific configuration.
+   * E.g., to use a different blueprint or binary path for specific agents.
+   */
+  provisionOverridesByAgent?: Record<string, AgentConfigOverride>;
 
   /**
    * For ACP use cases that need the full Client interface (e.g., elicitation),
@@ -70,11 +123,11 @@ export interface UseCase {
   clientCapabilities?: Record<string, unknown>;
 
   /**
-   * Protocols expected to fail (with reason).
-   * E.g., `{ acp: "Protocol has not added full support yet" }`.
+   * Per-agent expected failures (with reason), keyed by agent name.
    * Results will show as "xfail" instead of "fail" and won't cause exit code 1.
+   * E.g., `{ opencode: "Elicitation not yet supported" }`.
    */
-  expectedFailures?: Partial<Record<"acp" | "claude", string>>;
+  expectedFailures?: Record<string, string>;
 
   /**
    * The test body. Receives a fully initialized RunContext.

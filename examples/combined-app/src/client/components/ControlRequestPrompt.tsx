@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import type { ControlRequestInner, ControlRequestOfSubtype } from "@runloop/agent-axon-client/claude";
+import type { ControlRequestInner, ControlRequestOfSubtype } from "@runloop/remote-agents-sdk/claude";
 import type { PendingControlRequest, ControlRequestQuestion } from "../types.js";
 
 export type ControlResponseData =

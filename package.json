@@ -1,13 +1,13 @@
 {
-  "name": "agent-axon-client",
+  "name": "remote-agents-sdk",
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/runloopai/agent-axon-client-ts.git"
+    "url": "git+https://github.com/runloopai/remote-agents-sdk.git"
   },
-  "homepage": "https://github.com/runloopai/agent-axon-client-ts#readme",
+  "homepage": "https://github.com/runloopai/remote-agents-sdk#readme",
   "bugs": {
-    "url": "https://github.com/runloopai/agent-axon-client-ts/issues"
+    "url": "https://github.com/runloopai/remote-agents-sdk/issues"
   },
   "license": "MIT",
   "workspaces": [
@@ -15,15 +15,17 @@
     "examples/*"
   ],
   "scripts": {
-    "typecheck": "bun run --filter '@runloop/agent-axon-client' typecheck",
-    "build": "bun run --filter '@runloop/agent-axon-client' build",
-    "test": "bun run --filter '@runloop/agent-axon-client' test",
-    "lint": "bun run --filter '@runloop/agent-axon-client' lint",
-    "check": "bun run --filter '@runloop/agent-axon-client' check",
-    "check:fix": "bun run --filter '@runloop/agent-axon-client' check:fix",
+    "typecheck": "bun run --filter '@runloop/remote-agents-sdk' typecheck",
+    "build": "bun run --filter '@runloop/remote-agents-sdk' build",
+    "test": "bun run --filter '@runloop/remote-agents-sdk' test",
+    "lint": "bun run --filter '@runloop/remote-agents-sdk' lint",
+    "check": "bun run --filter '@runloop/remote-agents-sdk' check",
+    "check:fix": "bun run --filter '@runloop/remote-agents-sdk' check:fix",
     "clean": "rm -rf sdk/dist",
     "prepare": "husky",
-    "feature-compat": "bun run --filter 'feature-examples' feature-compat"
+    "feature-compat": "bun run --filter 'feature-examples' feature-compat",
+    "onboard": "bun run --filter 'tools' onboard",
+    "build-blueprint": "bun run --filter '@runloop/example-blueprint' build-blueprint"
   },
   "devDependencies": {
     "husky": "^9.1.7"

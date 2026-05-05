@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a bug in @runloop/agent-axon-client
+about: Report a bug in @runloop/remote-agents-sdk
 title: ''
 labels: bug
 assignees: ''
@@ -26,7 +26,7 @@ What actually happened. Include any error messages or stack traces.
 
 ## Environment
 
-- `@runloop/agent-axon-client` version:
+- `@runloop/remote-agents-sdk` version:
 - Node.js version:
 - OS:
 - Package manager and version:
