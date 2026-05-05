@@ -16,8 +16,7 @@
  */
 
 import { RunloopSDK } from "@runloop/api-client";
-import { ClaudeAxonConnection } from "@runloop/remote-agents-sdk/claude";
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { ClaudeAxonConnection, type SDKMessage } from "@runloop/remote-agents-sdk/claude";
 import { createInterface } from "readline";
 import { parseArgs } from "util";
 
