@@ -4,6 +4,7 @@ import {
   isClaudeResultEvent,
   isClaudeSystemInitEvent,
 } from "@runloop/remote-agents-sdk/claude";
+import { DEFAULT_USER_HOME } from "../scaffold.js";
 import type { UseCase } from "../types.js";
 import { waitFor } from "../validator.js";
 
@@ -40,9 +41,13 @@ import { waitFor } from "../validator.js";
 const MCP_NAME = "deepwiki";
 const MCP_URL = "https://mcp.deepwiki.com/mcp";
 
+// We point DeepWiki at our own repo so the test target can't disappear out
+// from under us — we own this repo so it's certain to exist.
+const DEEPWIKI_REPO = "runloopai/remote-agents-sdk";
+
 const PROMPT =
   `Use the ${MCP_NAME} MCP server to call its ask_question tool with ` +
-  `repo "runloopai/api-client-python" and question "What is this repo about?". ` +
+  `repo "${DEEPWIKI_REPO}" and question "What is this repo about?". ` +
   `Reply with one short sentence summarising the answer.`;
 
 const ACP_MCP_SERVERS: McpServer[] = [
@@ -57,7 +62,7 @@ const CLAUDE_MCP_LAUNCH_ARGS = [
   }),
 ];
 
-const GEMINI_SETTINGS_TARGET = "/home/user/.gemini/settings.json";
+const GEMINI_SETTINGS_TARGET = `${DEFAULT_USER_HOME}/.gemini/settings.json`;
 const GEMINI_SETTINGS_CONTENT = JSON.stringify(
   {
     mcpServers: {
@@ -135,10 +140,10 @@ export default {
         prompt: [{ type: "text", text: PROMPT }],
       });
 
-      await waitFor(() => sawMcpToolCall, ACP_TOOL_CALL_WAIT_MS);
+      const sawTool = await waitFor(() => sawMcpToolCall, ACP_TOOL_CALL_WAIT_MS);
       unsub();
 
-      if (!sawMcpToolCall) {
+      if (!sawTool) {
         throw new Error(
           `Agent did not invoke an MCP tool from "${MCP_NAME}" within ${ACP_TOOL_CALL_WAIT_MS}ms`,
         );
@@ -156,10 +161,7 @@ export default {
 
       const unsub = ctx.claude.onTimelineEvent((event) => {
         if (isClaudeSystemInitEvent(event)) {
-          const servers =
-            (event.data as { mcp_servers?: { name: string; status: string }[] })
-              .mcp_servers ?? [];
-          if (servers.some((s) => s.name === MCP_NAME)) {
+          if (event.data.mcp_servers.some((s) => s.name === MCP_NAME)) {
             mcpAttached = true;
           }
         }

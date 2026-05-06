@@ -17,7 +17,13 @@ interface SetupResult {
   sdk: RunloopSDK;
 }
 
-const DEFAULT_WORKING_DIRECTORY = "/home/user";
+/**
+ * Default home directory for the devbox user. Use cases that need to drop
+ * config under `~` (e.g. gemini-cli's `~/.gemini/settings.json`) should
+ * import this rather than hardcode the path.
+ */
+export const DEFAULT_USER_HOME = "/home/user";
+const DEFAULT_WORKING_DIRECTORY = DEFAULT_USER_HOME;
 const SETUP_STEP_TIMEOUT_MS = 30_000;
 const SETUP_ERROR_CLEANUP_TIMEOUT_MS = 10_000;
 const DEVBOX_PROVISION_TIMEOUT_MS = 180_000; // 3 minutes for cold start with agent mounts
@@ -250,7 +256,7 @@ function validateConfig(agent: AgentConfig): void {
  * Build the devbox mounts array from the agent config plus any use-case
  * supplied extra mounts.
  *
- * - **catalog** install: adds an `agent_mount` (to install from catalog) + `broker_mount`.
+ * - **agent-mount** install: adds an `agent_mount` (to install from catalog) + `broker_mount`.
  * - **blueprint** install: only a `broker_mount` (agent is pre-baked).
  *
  * Extra mounts (e.g. inline `file_mount` for agent config) are appended last

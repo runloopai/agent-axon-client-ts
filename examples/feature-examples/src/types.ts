@@ -1,31 +1,26 @@
+import type { Runloop } from "@runloop/api-client";
 import type { ACPAxonConnection } from "@runloop/remote-agents-sdk/acp";
 import type { ClaudeAxonConnection } from "@runloop/remote-agents-sdk/claude";
 import type { Client, Agent, McpServer } from "@agentclientprotocol/sdk";
 
 /**
- * Mount an inline file at devbox creation time. The file is in place when
- * the devbox boots, before the broker spawns the agent process. Use this
- * for agent config that must exist on startup (e.g. gemini-cli's
- * `~/.gemini/settings.json`). Matches the Runloop API `file_mount` shape.
+ * Inline `file_mount` shape from the Runloop API. The file is in place when
+ * the devbox boots, before the broker spawns the agent process — use it for
+ * agent config that must exist on startup (e.g. gemini-cli's
+ * `~/.gemini/settings.json`).
+ * Note: Use file_mounts ONLY for tiny configuration files, use object_mounts for larger files.
+ *
+ * Derived from `@runloop/api-client`'s `Mount` union so the shape can't drift
+ * from the upstream API.
  */
-export interface FileMount {
-  type: "file_mount";
-  /** Absolute path on the devbox where the file should be written. */
-  target: string;
-  /** UTF-8 file contents. */
-  content: string;
-}
+export type FileMount = Extract<Runloop.Mount, { type: "file_mount" }>;
 
 /**
- * Mount a pre-uploaded storage object. Matches the Runloop API
- * `object_mount` shape.
+ * `object_mount` shape from the Runloop API for pre-uploaded storage objects.
+ * Derived from `@runloop/api-client`'s `Mount` union so the shape can't drift
+ * from the upstream API.
  */
-export interface ObjectMount {
-  type: "object_mount";
-  object_id: string;
-  /** Absolute path on the devbox where the object should be written. */
-  object_path: string;
-}
+export type ObjectMount = Extract<Runloop.Mount, { type: "object_mount" }>;
 
 /**
  * Extra devbox mounts a use case can request per-agent. Restricted to
