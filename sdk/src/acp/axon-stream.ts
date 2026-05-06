@@ -6,6 +6,7 @@ import { isSystemError, SystemError } from "../shared/errors/system-error.js";
 import { makeDefaultOnError } from "../shared/logging.js";
 import { isFromAgent, isFromUser } from "../shared/origin-guards.js";
 import { getJsonRpcId, isNonNullObject } from "../shared/structural-guards.js";
+import { isTurnFailedAxonEvent, tryParseSystemEvent } from "../shared/timeline.js";
 import type { LogFn } from "../shared/types.js";
 import type { AxonStreamOptions } from "./types.js";
 
@@ -168,6 +169,33 @@ function createReadable(
             }
 
             // --- Normal (live) processing ---
+
+            // Reject in-flight requests on `turn.failed` SYSTEM_EVENTs but
+            // keep the SSE loop alive — the agent process is still healthy
+            // and can accept further sessions/prompts.
+            if (isTurnFailedAxonEvent(axonEvent)) {
+              const parsed = tryParseSystemEvent(axonEvent);
+              const message =
+                parsed?.type === "turn.failed"
+                  ? parsed.error || "turn failed"
+                  : String(axonEvent.payload ?? "turn failed");
+              log?.("read", `#${totalEvents} TURN_FAILED: ${message}`);
+              for (const [method, id] of pendingRequests) {
+                if (id !== undefined && id !== null) {
+                  controller.enqueue({
+                    jsonrpc: "2.0",
+                    id,
+                    error: {
+                      code: -32000,
+                      message,
+                      data: { event_type: axonEvent.event_type },
+                    },
+                  });
+                }
+                pendingRequests.delete(method);
+              }
+              continue;
+            }
 
             if (isSystemError(axonEvent)) {
               log?.("read", `#${totalEvents} SYSTEM_ERROR: ${axonEvent.payload}`);
