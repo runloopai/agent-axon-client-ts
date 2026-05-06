@@ -68,6 +68,7 @@ export interface AgentLogEvent {
 export type SystemEvent =
   | { type: "turn.started"; turnId: string }
   | { type: "turn.completed"; turnId: string; stopReason?: string }
+  | { type: "turn.failed"; turnId: string; error: string; stopReason?: string }
   | { type: "broker.error"; message: string }
   | DevboxLifecycleEvent
   | AgentErrorEvent
