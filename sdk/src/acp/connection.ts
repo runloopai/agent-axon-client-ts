@@ -395,7 +395,8 @@ export class ACPAxonConnection {
    *
    * Every Axon event on the channel is classified into one of:
    * - `acp_protocol` — a known ACP protocol event (agent or client method)
-   * - `system` — a broker system event (`turn.started`, `turn.completed`, `broker.error`)
+   * - `system` — a broker system event (`turn.started`, `turn.completed`,
+   *   `turn.failed`, `broker.error`)
    * - `unknown` — anything else
    *
    * For a pull-based alternative, see {@link receiveTimelineEvents}.
@@ -566,7 +567,8 @@ export class ACPAxonConnection {
  * Classifies a raw Axon event into an {@link ACPTimelineEvent}.
  *
  * Classification rules:
- * 1. `SYSTEM_EVENT` with `turn.started` / `turn.completed` / `broker.error` -> `system`
+ * 1. `SYSTEM_EVENT` with `turn.started` / `turn.completed` / `turn.failed` /
+ *    `broker.error` -> `system`
  * 2. Known ACP protocol `event_type` (agent or client method) -> `acp_protocol`
  * 3. Everything else -> `unknown`
  *
