@@ -116,18 +116,21 @@ describe("tryParseSystemEvent", () => {
 
   it("parses turn.failed with raw string payload", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const ev = makeAxonEvent({
-      event_type: "turn.failed",
-      payload: "raw failure string",
-    });
-    expect(tryParseSystemEvent(ev)).toEqual({
-      type: "turn.failed",
-      turnId: "",
-      error: "raw failure string",
-      stopReason: undefined,
-    });
-    expect(warnSpy).toHaveBeenCalledOnce();
-    warnSpy.mockRestore();
+    try {
+      const ev = makeAxonEvent({
+        event_type: "turn.failed",
+        payload: "raw failure string",
+      });
+      expect(tryParseSystemEvent(ev)).toEqual({
+        type: "turn.failed",
+        turnId: "",
+        error: "raw failure string",
+        stopReason: undefined,
+      });
+      expect(warnSpy).toHaveBeenCalledOnce();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it("parses broker.error with message field", () => {

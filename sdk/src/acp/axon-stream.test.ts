@@ -467,36 +467,39 @@ describe("axonStream", () => {
 
     it("falls back to raw payload string when turn.failed payload has no error field", async () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-      const ctrl = createControllableStream();
-      const { axon } = createMockAxon(ctrl.stream);
+      try {
+        const ctrl = createControllableStream();
+        const { axon } = createMockAxon(ctrl.stream);
 
-      const { readable, writable } = axonStream({ axon: axon as never });
+        const { readable, writable } = axonStream({ axon: axon as never });
 
-      const writer = writable.getWriter();
-      await writer.write({
-        jsonrpc: "2.0",
-        id: 9,
-        method: "session/prompt",
-        params: { sessionId: "s1", prompt: [{ type: "text", text: "hi" }] },
-      } as never);
-      writer.releaseLock();
+        const writer = writable.getWriter();
+        await writer.write({
+          jsonrpc: "2.0",
+          id: 9,
+          method: "session/prompt",
+          params: { sessionId: "s1", prompt: [{ type: "text", text: "hi" }] },
+        } as never);
+        writer.releaseLock();
 
-      ctrl.push(makeSystemEventWithRawPayload("turn.failed", "raw failure string"));
-      ctrl.end();
+        ctrl.push(makeSystemEventWithRawPayload("turn.failed", "raw failure string"));
+        ctrl.end();
 
-      const messages = await drain(readable);
+        const messages = await drain(readable);
 
-      expect(messages).toHaveLength(1);
-      expect(messages[0]).toMatchObject({
-        jsonrpc: "2.0",
-        id: 9,
-        error: {
-          code: -32000,
-          message: "raw failure string",
-          data: { event_type: "turn.failed" },
-        },
-      });
-      warnSpy.mockRestore();
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toMatchObject({
+          jsonrpc: "2.0",
+          id: 9,
+          error: {
+            code: -32000,
+            message: "raw failure string",
+            data: { event_type: "turn.failed" },
+          },
+        });
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it("keeps the SSE stream open after turn.failed so subsequent prompts can flow", async () => {
