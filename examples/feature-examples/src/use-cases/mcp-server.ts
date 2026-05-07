@@ -97,6 +97,9 @@ function toolCallReferencesMcp(update: unknown, name: string): boolean {
   );
 }
 
+const GEMINI_QUOTA_SKIP =
+  "Cannot verify on this account: Gemini API quota exhausted (verified working with sufficient quota)";
+
 export default {
   name: "mcp-server",
   description: "Attach an MCP server to a session and exercise an MCP tool",
@@ -104,6 +107,10 @@ export default {
   timeoutMs: 30_000,
 
   acpMcpServers: ACP_MCP_SERVERS,
+
+  skipForAgents: {
+    "gemini-cli": GEMINI_QUOTA_SKIP,
+  },
 
   provisionOverridesByAgent: {
     "claude-code": { brokerMount: { launchArgs: CLAUDE_MCP_LAUNCH_ARGS } },

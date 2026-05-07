@@ -171,9 +171,21 @@ export interface UseCase {
   /**
    * Per-agent expected failures (with reason), keyed by agent name.
    * Results will show as "xfail" instead of "fail" and won't cause exit code 1.
+   * Use this for protocol/feature-level limitations the agent genuinely
+   * doesn't implement (e.g. ACP elicitation not advertised).
    * E.g., `{ opencode: "Elicitation not yet supported" }`.
    */
   expectedFailures?: Record<string, string>;
+
+  /**
+   * Per-agent skip reasons, keyed by agent name. Skipped *before* setup so no
+   * devbox is provisioned. Use this for environmental limitations that prevent
+   * verifying the use case on the current machine/account (e.g. an exhausted
+   * API quota on a shared key) — distinct from `expectedFailures`, which
+   * documents a protocol/agent that genuinely lacks the feature.
+   * E.g., `{ "gemini-cli": "Cannot verify on this account: API quota exhausted" }`.
+   */
+  skipForAgents?: Record<string, string>;
 
   /**
    * The test body. Receives a fully initialized RunContext.
