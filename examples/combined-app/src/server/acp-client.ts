@@ -3,8 +3,8 @@ import type {
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
-  ElicitationRequest,
-  ElicitationResponse,
+  CreateElicitationRequest,
+  CreateElicitationResponse,
 } from "@runloop/remote-agents-sdk/acp";
 import { CLIENT_METHODS } from "@runloop/remote-agents-sdk/acp";
 import type { BaseWsEvent } from "../shared/ws-events.ts";
@@ -25,7 +25,7 @@ export class NodeACPClient implements Client {
   private pendingElicitations = new Map<
     string,
     {
-      resolve: (resp: ElicitationResponse) => void;
+      resolve: (resp: CreateElicitationResponse) => void;
       reject: (err: Error) => void;
     }
   >();
@@ -56,7 +56,7 @@ export class NodeACPClient implements Client {
     }
   }
 
-  resolveElicitation(requestId: string, response: ElicitationResponse): void {
+  resolveElicitation(requestId: string, response: CreateElicitationResponse): void {
     const pending = this.pendingElicitations.get(requestId);
     if (pending) {
       pending.resolve(response);
@@ -103,16 +103,34 @@ export class NodeACPClient implements Client {
     "session/prompt",
   ]);
 
+  async unstable_completeElicitation(): Promise<void> {
+    for (const [id, pending] of this.pendingElicitations) {
+      pending.reject(new Error("Elicitation completed by agent"));
+      this.pendingElicitations.delete(id);
+    }
+    this.emit({ type: "elicitation_dismissed" });
+  }
+
+  async unstable_createElicitation(
+    request: CreateElicitationRequest,
+  ): Promise<CreateElicitationResponse> {
+    const requestId = `elicit-${++this.elicitationCounter}`;
+
+    this.emit({ type: "elicitation_request", requestId, request });
+
+    return await new Promise<CreateElicitationResponse>(
+      (resolve, reject) => {
+        this.pendingElicitations.set(requestId, { resolve, reject });
+      },
+    );
+  }
+
   async extNotification(
     method: string,
     params: Record<string, unknown>,
   ): Promise<void> {
-    if (method === CLIENT_METHODS.session_elicitation_complete) {
-      for (const [id, pending] of this.pendingElicitations) {
-        pending.reject(new Error("Elicitation completed by agent"));
-        this.pendingElicitations.delete(id);
-      }
-      this.emit({ type: "elicitation_dismissed" });
+    if (method === CLIENT_METHODS.elicitation_complete) {
+      await this.unstable_completeElicitation();
       return;
     }
     if (NodeACPClient.IGNORED_NOTIFICATIONS.has(method)) return;
@@ -123,21 +141,12 @@ export class NodeACPClient implements Client {
     method: string,
     params: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    if (method === CLIENT_METHODS.session_elicitation) {
-      const request = params as unknown as ElicitationRequest;
-      const requestId = `elicit-${++this.elicitationCounter}`;
-
-      this.emit({ type: "elicitation_request", requestId, request });
-
-      const response = await new Promise<ElicitationResponse>(
-        (resolve, reject) => {
-          this.pendingElicitations.set(requestId, { resolve, reject });
-        },
+    if (method === CLIENT_METHODS.elicitation_create) {
+      const response = await this.unstable_createElicitation(
+        params as unknown as CreateElicitationRequest,
       );
-
       return response as unknown as Record<string, unknown>;
     }
-
     throw new Error(`Unknown ext method: ${method}`);
   }
 

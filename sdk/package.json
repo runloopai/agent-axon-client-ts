@@ -73,7 +73,7 @@
     "docs": "typedoc"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "0.18.0"
+    "@agentclientprotocol/sdk": "0.21.0"
   },
   "peerDependencies": {
     "@anthropic-ai/claude-agent-sdk": ">=0.2.90",

@@ -139,7 +139,7 @@ export function isNewSessionEvent(event: ACPTimelineEvent): event is ACPNewSessi
 // ---------------------------------------------------------------------------
 
 /**
- * A timeline event for `session/elicitation` (agent requesting user input).
+ * A timeline event for `elicitation/create` (agent requesting user input).
  *
  * Check `axonEvent.origin` to determine direction:
  * - `AGENT_EVENT` = agent sent the request
@@ -148,20 +148,20 @@ export function isNewSessionEvent(event: ACPTimelineEvent): event is ACPNewSessi
  * @category Timeline
  */
 export type ElicitationTimelineEvent = ACPOtherProtocolTimelineEvent & {
-  eventType: typeof CLIENT_METHODS.session_elicitation;
+  eventType: typeof CLIENT_METHODS.elicitation_create;
 };
 
 /**
- * A timeline event for `session/elicitation/complete` notification.
+ * A timeline event for `elicitation/complete` notification.
  *
  * @category Timeline
  */
 export type ElicitationCompleteTimelineEvent = ACPOtherProtocolTimelineEvent & {
-  eventType: typeof CLIENT_METHODS.session_elicitation_complete;
+  eventType: typeof CLIENT_METHODS.elicitation_complete;
 };
 
 /**
- * Type guard for `session/elicitation` timeline events (request from agent).
+ * Type guard for `elicitation/create` timeline events (request from agent).
  *
  * This matches when the agent asks the client for user input. The request
  * arrives as an `AGENT_EVENT`.
@@ -175,13 +175,13 @@ export function isElicitationRequestEvent(
 ): event is ElicitationTimelineEvent {
   return (
     event.kind === "acp_protocol" &&
-    event.eventType === CLIENT_METHODS.session_elicitation &&
+    event.eventType === CLIENT_METHODS.elicitation_create &&
     isFromAgent(event)
   );
 }
 
 /**
- * Type guard for `session/elicitation` timeline events (response from client).
+ * Type guard for `elicitation/create` timeline events (response from client).
  *
  * This matches when the client responds to an elicitation request. The response
  * arrives as a `USER_EVENT`.
@@ -195,13 +195,13 @@ export function isElicitationResponseEvent(
 ): event is ElicitationTimelineEvent {
   return (
     event.kind === "acp_protocol" &&
-    event.eventType === CLIENT_METHODS.session_elicitation &&
+    event.eventType === CLIENT_METHODS.elicitation_create &&
     isFromUser(event)
   );
 }
 
 /**
- * Type guard for `session/elicitation/complete` timeline events.
+ * Type guard for `elicitation/complete` timeline events.
  *
  * @param event - The timeline event to test.
  * @returns `true` if `event` is an elicitation complete notification.
@@ -210,7 +210,5 @@ export function isElicitationResponseEvent(
 export function isElicitationCompleteEvent(
   event: ACPTimelineEvent,
 ): event is ElicitationCompleteTimelineEvent {
-  return (
-    event.kind === "acp_protocol" && event.eventType === CLIENT_METHODS.session_elicitation_complete
-  );
+  return event.kind === "acp_protocol" && event.eventType === CLIENT_METHODS.elicitation_complete;
 }
